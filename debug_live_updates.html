@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Updates Debug Console</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0f1419;
+            color: #e5e7eb;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #d97706;
+            border-bottom: 2px solid #d97706;
+            padding-bottom: 10px;
+        }
+        .console {
+            background: #161b28;
+            border: 1px solid #30394d;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .console-line {
+            padding: 4px 0;
+            border-bottom: 1px solid #232938;
+        }
+        .console-line.success { color: #86efac; }
+        .console-line.error { color: #f87171; }
+        .console-line.info { color: #93c5fd; }
+        .console-line.warning { color: #fbbf24; }
+        
+        .test-section {
+            background: #161b28;
+            border: 1px solid #30394d;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        
+        button {
+            background: #d97706;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        button:hover {
+            background: #b45309;
+        }
+        
+        .response {
+            background: #0f1419;
+            border: 1px solid #30394d;
+            border-radius: 6px;
+            padding: 10px;
+            margin-top: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 12px;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-weight: 600;
+        }
+        
+        .status.success {
+            background: #064e3b;
+            color: #86efac;
+        }
+        
+        .status.error {
+            background: #7f1d1d;
+            color: #f87171;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐛 Live Updates Debug Console</h1>
+        
+        <div class="console" id="console"></div>
+        
+        <div class="test-section">
+            <h2>📝 Resident Messages API Test</h2>
+            <button onclick="testResidentMessagesAPI()">Test Resident Messages API</button>
+            <div id="residentResult"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>📝 Admin Messages API Test</h2>
+            <label for="adminUserId">Resident User ID:</label>
+            <input type="number" id="adminUserId" value="1" style="padding: 8px; border-radius: 4px; border: 1px solid #30394d; background: #0f1419; color: #e5e7eb;" min="1">
+            <button onclick="testAdminMessagesAPI()">Test Admin Messages API</button>
+            <div id="adminResult"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>📊 Dashboard API Test</h2>
+            <button onclick="testDashboardAPI()">Test Dashboard API</button>
+            <div id="dashboardResult"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>⚙️ Browser Console Status</h2>
+            <p>Open your browser's Developer Tools (F12) and check the Console tab. You should see:</p>
+            <ul>
+                <li>✓ 🔄 Message live updates enabled (polling every 2s)</li>
+                <li>✓ Timestamp of each poll (messages being fetched)</li>
+                <li>✓ ✓ New message count when messages arrive</li>
+            </ul>
+            <button onclick="checkBrowserConsole()">Open Browser DevTools (F12)</button>
+        </div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const console = document.getElementById('console');
+            const line = document.createElement('div');
+            line.className = 'console-line ' + type;
+            const timestamp = new Date().toLocaleTimeString();
+            line.textContent = `[${timestamp}] ${message}`;
+            console.appendChild(line);
+            console.scrollTop = console.scrollHeight;
+        }
+
+        function showResult(elementId, response, success) {
+            const resultDiv = document.getElementById(elementId);
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'status ' + (success ? 'success' : 'error');
+            statusDiv.textContent = success ? '✓ Success' : '✗ Error';
+            
+            const responseDiv = document.createElement('div');
+            responseDiv.className = 'response';
+            responseDiv.textContent = JSON.stringify(response, null, 2);
+            
+            resultDiv.innerHTML = '';
+            resultDiv.appendChild(statusDiv);
+            resultDiv.appendChild(responseDiv);
+        }
+
+        async function testResidentMessagesAPI() {
+            log('🔍 Testing Resident Messages API...', 'info');
+            try {
+                const response = await fetch('/api/messages.php?t=' + Date.now());
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const data = await response.json();
+                
+                log('✓ Resident API OK: ' + data.count + ' messages', 'success');
+                showResult('residentResult', data, data.success);
+            } catch (error) {
+                log('✗ Resident API failed: ' + error.message, 'error');
+                showResult('residentResult', { error: error.message }, false);
+            }
+        }
+
+        async function testAdminMessagesAPI() {
+            const userId = document.getElementById('adminUserId').value;
+            log('🔍 Testing Admin Messages API for user ' + userId + '...', 'info');
+            try {
+                const response = await fetch('/api/admin_messages.php?user_id=' + userId + '&t=' + Date.now());
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const data = await response.json();
+                
+                log('✓ Admin API OK: ' + data.count + ' messages', 'success');
+                showResult('adminResult', data, data.success);
+            } catch (error) {
+                log('✗ Admin API failed: ' + error.message, 'error');
+                showResult('adminResult', { error: error.message }, false);
+            }
+        }
+
+        async function testDashboardAPI() {
+            log('🔍 Testing Dashboard API...', 'info');
+            try {
+                const response = await fetch('/api/dashboard.php?t=' + Date.now());
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const data = await response.json();
+                
+                log('✓ Dashboard API OK', 'success');
+                showResult('dashboardResult', data, data.success);
+            } catch (error) {
+                log('✗ Dashboard API failed: ' + error.message, 'error');
+                showResult('dashboardResult', { error: error.message }, false);
+            }
+        }
+
+        function checkBrowserConsole() {
+            alert('Press F12 or Ctrl+Shift+I to open Developer Tools\nThen go to the Console tab to see live update logs');
+        }
+
+        // Initial checks
+        window.addEventListener('load', () => {
+            log('🌐 Debug console loaded', 'info');
+            log('💡 Tip: Use the buttons below to test each API', 'info');
+            log('💡 Check browser console (F12) for real-time polling logs', 'info');
+        });
+    </script>
+</body>
+</html>

@@ -19,23 +19,35 @@ $returnStatus = $_GET['status'] ?? '';
 $isStickerPayment = false;
 
 $connection = connectDb();
+$actorId=(int)$_SESSION['user_id'];
+$actorContext=residentContext($connection,$actorId);
+if (!$actorContext || !$actorContext['approved'] || $actorContext['account_kind']!=='owner') {
+    http_response_code(403); exit('Only the approved unit owner can access checkout status. View your statements in Billing.');
+}
 ensurePaymongoColumns($connection);
 $payment = null;
 if ($paymentId > 0) {
-    $stmt = $connection->prepare('SELECT id, amount, status, payment_method, paymongo_checkout_id, paymongo_payment_id, gateway_status, paid_at FROM payments WHERE id = ? AND user_id = ? LIMIT 1');
-    $stmt->bind_param('ii', $paymentId, $_SESSION['user_id']);
+    $stmt = $connection->prepare('SELECT id, user_id, amount, status, payment_method, paymongo_checkout_id, paymongo_payment_id, gateway_status, paid_at FROM payments WHERE id = ? LIMIT 1');
+    $stmt->bind_param('i', $paymentId);
     $stmt->execute();
     $payment = $stmt->get_result()->fetch_assoc();
+    if ($payment && !residentCanPayBill($connection,$actorId,(int)$payment['user_id'])) $payment=null;
     if ($payment && $payment['status'] !== 'paid' && $returnStatus === 'success') {
-        reconcilePaymongoCheckoutPayment($connection, $paymentId, (int)$_SESSION['user_id']);
-        $refreshStmt = $connection->prepare('SELECT id, amount, status, payment_method, paymongo_checkout_id, paymongo_payment_id, gateway_status, paid_at FROM payments WHERE id = ? AND user_id = ? LIMIT 1');
-        $refreshStmt->bind_param('ii', $paymentId, $_SESSION['user_id']);
+        $lastCheck = (int)($_SESSION['payment_reconcile_at'][$paymentId] ?? 0);
+        if (time() - $lastCheck >= 15) {
+            $_SESSION['payment_reconcile_at'][$paymentId] = time();
+            try { reconcilePaymongoCheckoutPayment($connection, $paymentId, (int)$_SESSION['user_id']); }
+            catch (Throwable $error) { error_log('Payment return reconciliation is temporarily unavailable.'); }
+        }
+        $refreshStmt = $connection->prepare('SELECT id, user_id, amount, status, payment_method, paymongo_checkout_id, paymongo_payment_id, gateway_status, paid_at FROM payments WHERE id = ? LIMIT 1');
+        $refreshStmt->bind_param('i', $paymentId);
         $refreshStmt->execute();
         $payment = $refreshStmt->get_result()->fetch_assoc();
+        if ($payment && !residentCanPayBill($connection,$actorId,(int)$payment['user_id'])) $payment=null;
     }
     if ($payment && ensureParkingStickerOrdersTable($connection)) {
         $stickerStmt = $connection->prepare('SELECT id FROM parking_sticker_orders WHERE bill_payment_id = ? AND user_id = ? LIMIT 1');
-        $stickerStmt->bind_param('ii', $paymentId, $_SESSION['user_id']);
+        $stickerStmt->bind_param('ii', $paymentId, $payment['user_id']);
         $stickerStmt->execute();
         $isStickerPayment = (bool)$stickerStmt->get_result()->fetch_assoc();
     }
@@ -44,7 +56,7 @@ if ($paymentId > 0) {
 // The redirect itself proves nothing. The payment is confirmed only by the
 // signed webhook or an authenticated PayMongo checkout-session lookup.
 $isPaid = $payment && $payment['status'] === 'paid';
-$isPending = $payment && $payment['status'] !== 'paid';
+$isPending = $payment && in_array($payment['status'], ['pending','overdue'], true);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -62,13 +74,7 @@ $isPending = $payment && $payment['status'] !== 'paid';
         <aside class="sidebar" id="sidebar">
             <a href="dashboard.php" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
             <nav class="sidebar-nav">
-                <a href="dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                <a href="payments.php" class="sidebar-link active"><?php echo systemSidebarIcon('billing'); ?> Billing &amp; Payments</a>
-                <a href="book_amenity.php" class="sidebar-link"><?php echo systemSidebarIcon('calendar'); ?> Book Amenity</a>
-                <a href="parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking</a>
-                <a href="maintenance.php" class="sidebar-link"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance</a>
-                <a href="messages.php" class="sidebar-link"><?php echo systemSidebarIcon('messages'); ?> Messages</a>
-                <a href="announcements.php" class="sidebar-link"><?php echo systemSidebarIcon('announcements'); ?> Announcements</a>
+                <?php renderResidentSidebarNavigation('payments.php'); ?>
             </nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -102,7 +108,7 @@ $isPending = $payment && $payment['status'] !== 'paid';
                 <?php elseif ($returnStatus === 'cancelled'): ?>
                     <?php echo systemIconFromGlyph('↩️', 'payment-return-icon'); ?>
                     <h3 class="section-title">Checkout Cancelled</h3>
-                    <p>No charge was made. You can try again anytime from the Billing &amp; Payments page.</p>
+                    <p>You returned from checkout. This does not cancel a payment already submitted. Check the recorded status before trying again from Billing &amp; Payments.</p>
                 <?php else: ?>
                     <?php echo systemIconFromGlyph('⏳', 'payment-return-icon'); ?>
                     <h3 class="section-title">Confirming Your Payment…</h3>

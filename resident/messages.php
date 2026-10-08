@@ -8,6 +8,7 @@ if (isAdmin()) {
     redirect(isSecurity() ? '../security/security_dashboard.php' : (isMaintenance() ? '../maintenance/maintenance_dashboard.php' : '../admin/admin_dashboard.php'));
 }
 requireApproval();
+requireResidentPermission('resident.messages.use');
 
 $username = $_SESSION['username'] ?? 'User';
 $unitNumber = isset($_SESSION['unit_number']) ? 'Unit ' . htmlspecialchars($_SESSION['unit_number']) : 'Unit Not Set';
@@ -25,6 +26,7 @@ $reply = trim($_POST['reply'] ?? '');
 $errors = [];
 $search = trim($_GET['search'] ?? '');
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireWorkflowCsrf();
     $attachment = storeMessageAttachment($_FILES['attachment'] ?? []);
     if ($attachment['error'] !== '') {
         $errors[] = $attachment['error'];
@@ -82,15 +84,7 @@ if (empty($selectedConversation['messages'])) {
                 <?php include '../buildingicon.php'; ?>
                 <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
-            <nav class="sidebar-nav">
-                <a href="dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                <a href="payments.php" class="sidebar-link"><?php echo systemSidebarIcon('billing'); ?> Billing &amp; Payments</a>
-                <a href="book_amenity.php" class="sidebar-link"><?php echo systemSidebarIcon('calendar'); ?> Book Amenity</a>
-                <a href="parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking</a>
-                <a href="maintenance.php" class="sidebar-link"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance</a>
-                <a href="messages.php" class="sidebar-link active"><?php echo systemSidebarIcon('messages'); ?> Messages</a>
-                <a href="announcements.php" class="sidebar-link"><?php echo systemSidebarIcon('announcements'); ?> Announcements</a>
-            </nav>
+            <nav class="sidebar-nav"><?php renderResidentSidebarNavigation(); ?></nav>
         </aside>
 
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -229,6 +223,7 @@ if (empty($selectedConversation['messages'])) {
                         <?php endforeach; ?>
                     </div>
                     <form class="reply-form" method="post" action="messages.php" enctype="multipart/form-data">
+                        <?php echo workflowCsrfField(); ?>
                         <label for="reply">Reply to <?php echo htmlspecialchars($selectedConversation['title']); ?></label>
                         <div class="reply-controls">
                             <textarea id="reply" name="reply" rows="1" maxlength="1000" placeholder="Type your reply..." aria-label="Type your reply"><?php echo htmlspecialchars($reply); ?></textarea>

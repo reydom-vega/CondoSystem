@@ -1,6 +1,8 @@
 <?php
 
-$csvPath = dirname(__DIR__) . '/parking-inventory.csv';
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+$csvPath = __DIR__ . '/parking-inventory.csv';
+if (!is_file($csvPath)) { fwrite(STDERR, "Parking inventory file is missing.\n"); exit(1); }
 $header = fgetcsv(fopen($csvPath, 'rb'));
 $normalizedHeader = [];
 foreach ($header as $index => $name) {
@@ -13,9 +15,9 @@ $handle = fopen($csvPath, 'rb');
 fgetcsv($handle);
 while (($row = fgetcsv($handle)) !== false) {
     $rows++;
-    $slotCode = strtoupper(trim((string) $row[$normalizedHeader['parkingslotcode']] ?? ''));
-    $level = trim((string) $row[$normalizedHeader['level']] ?? ''));
-    $slotType = strtolower(trim((string) $row[$normalizedHeader['type']] ?? 'resident'])));
+    $slotCode = strtoupper(trim((string) ($row[$normalizedHeader['parkingslotcode']] ?? '')));
+    $level = trim((string) ($row[$normalizedHeader['level']] ?? ''));
+    $slotType = strtolower(trim((string) ($row[$normalizedHeader['type']] ?? 'resident')));
     if ($slotCode === '' || $level === '' || !in_array($slotType, ['resident', 'visitor'], true)) {
         $invalidRows++;
     }

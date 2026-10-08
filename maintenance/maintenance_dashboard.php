@@ -55,14 +55,11 @@ $statusLabels = [
 <body class="dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="maintenance_dashboard.php" class="sidebar-brand">
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
                 <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
-            <nav class="sidebar-nav">
-                <a href="maintenance_dashboard.php" class="sidebar-link active"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                <a href="../superadmin/maintenancerequests.php" class="sidebar-link"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance Requests</a>
-            </nav>
+            <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
         <main class="dashboard-main">

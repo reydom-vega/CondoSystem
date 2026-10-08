@@ -8,6 +8,7 @@ if (isAdmin()) {
     redirect(isSecurity() ? '../security/security_dashboard.php' : (isMaintenance() ? '../maintenance/maintenance_dashboard.php' : '../admin/admin_dashboard.php'));
 }
 requireApproval(); // pending accounts get sent back to dashboard.php, which shows the pending-approval notice
+requireResidentPermission('resident.announcements.view');
 
 $username = $_SESSION['username'] ?? 'User';
 $unitNumber = isset($_SESSION['unit_number']) ? 'Unit ' . htmlspecialchars($_SESSION['unit_number']) : 'Unit Not Set';
@@ -35,29 +36,7 @@ $announcements = getAnnouncements(100, true);
                 <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
 
-            <nav class="sidebar-nav">
-                <a href="dashboard.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('dashboard'); ?> Dashboard
-                </a>
-                <a href="payments.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('billing'); ?> Billing &amp; Payments
-                </a>
-                <a href="book_amenity.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('calendar'); ?> Book Amenity
-                </a>
-                <a href="parking.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('parking'); ?> Parking
-                </a>
-                <a href="maintenance.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('maintenance'); ?> Maintenance
-                </a>
-                <a href="messages.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('messages'); ?> Messages
-                </a>
-                <a href="announcements.php" class="sidebar-link active">
-                    <?php echo systemSidebarIcon('announcements'); ?> Announcements
-                </a>
-            </nav>
+            <nav class="sidebar-nav"><?php renderResidentSidebarNavigation(); ?></nav>
         </aside>
 
         <div class="sidebar-overlay" id="sidebarOverlay"></div>

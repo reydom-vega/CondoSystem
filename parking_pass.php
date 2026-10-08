@@ -16,9 +16,11 @@ if (!$pass || (!$isSecurityViewer && !$isOwner)) {
     exit('Parking pass not found or access denied.');
 }
 
+if ($isOwner && !$isSecurityViewer) requireResidentPermission('resident.parking.request');
+
 $today = date('Y-m-d');
 $isValid = $today >= $pass['start_date'] && $today <= ($pass['end_date'] ?: $pass['start_date']);
-$statusLabel = $isValid ? 'VALID' : 'EXPIRED';
+$statusLabel = $isValid ? 'VALID' : ($today < $pass['start_date'] ? 'NOT YET VALID' : 'EXPIRED');
 $passUrl = parkingPassUrl($requestId);
 ?>
 <!DOCTYPE html>
@@ -54,6 +56,7 @@ $passUrl = parkingPassUrl($requestId);
             <div class="pass-grid">
                 <div class="pass-field"><small>Pass ID</small><strong>VP-<?php echo str_pad((string)$requestId, 6, '0', STR_PAD_LEFT); ?></strong></div>
                 <div class="pass-field"><small>Resident</small><strong><?php echo htmlspecialchars($pass['full_name']); ?></strong></div>
+                <?php if (!empty($pass['visitor_name'])): ?><div class="pass-field"><small>Registered visitor</small><strong><?php echo htmlspecialchars($pass['visitor_name']); ?></strong></div><?php endif; ?>
                 <div class="pass-field"><small>Unit</small><strong><?php echo htmlspecialchars($pass['unit_number']); ?></strong></div>
                 <div class="pass-field"><small>Vehicle Plate</small><strong><?php echo htmlspecialchars($pass['vehicle_plate']); ?></strong></div>
                 <div class="pass-field"><small>Vehicle</small><strong><?php echo htmlspecialchars($pass['vehicle_description'] ?: 'Not specified'); ?></strong></div>

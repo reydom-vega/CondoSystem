@@ -10,8 +10,8 @@
  *       php cron/send_due_reminders.php
  *
  *   - HTTP, pinged by a free external scheduler such as cron-job.org,
- *     pointed at (once a day is plenty):
- *       https://yourdomain.com/cron/send_due_reminders.php?secret=YOUR_CRON_SECRET
+ *     using HTTPS POST and Authorization: Bearer <CONDO_CRON_SECRET>.
+ *     This queues notices; the CLI worker performs delivery.
  *
  * Set CONDO_CRON_SECRET to a long random string before relying on the
  * HTTP path — anyone with the right secret can trigger this on demand,
@@ -28,29 +28,33 @@ $isCli = (php_sapi_name() === 'cli');
 
 if (!$isCli) {
     header('Content-Type: application/json');
-    $providedSecret = $_GET['secret'] ?? '';
-    $expectedSecret = appSetting('CONDO_CRON_SECRET', 'change-me-to-a-random-string');
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        header('Allow: POST'); http_response_code(405); echo json_encode(['error' => 'Method not allowed']); exit;
+    }
+    $authorization = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    $providedSecret = str_starts_with($authorization, 'Bearer ') ? substr($authorization, 7) : '';
+    $expectedSecret = appSetting('CONDO_CRON_SECRET');
 
-    if ($expectedSecret === 'change-me-to-a-random-string' || !hash_equals($expectedSecret, $providedSecret)) {
+    if (strlen($expectedSecret) < 32 || !hash_equals($expectedSecret, $providedSecret)) {
         http_response_code(403);
-        echo json_encode(['error' => 'Forbidden. Set CONDO_CRON_SECRET and pass it as ?secret=']);
+        echo json_encode(['error' => 'Forbidden']);
         exit;
     }
 }
 
-$daysAhead = isset($_GET['days_ahead']) ? max(0, (int)$_GET['days_ahead']) : 3;
+$daysAhead = isset($_POST['days_ahead']) ? min(30, max(0, (int)$_POST['days_ahead'])) : 3;
 $result = sendDueDateReminders($daysAhead);
 
 if ($isCli) {
     echo "Due reminders run at " . date('Y-m-d H:i:s') . PHP_EOL;
     echo "  Dues matched:  {$result['due_count']}" . PHP_EOL;
-    echo "  Emails sent:   {$result['emails_sent']}" . PHP_EOL;
-    echo "  SMS sent:      {$result['sms_sent']}" . PHP_EOL;
+    echo "  Emails queued: {$result['emails_queued']}" . PHP_EOL;
+    echo "  SMS queued:    {$result['sms_queued']}" . PHP_EOL;
 } else {
     echo json_encode([
         'ran_at'      => date('c'),
         'due_count'   => $result['due_count'],
-        'emails_sent' => $result['emails_sent'],
-        'sms_sent'    => $result['sms_sent'],
+        'emails_queued' => $result['emails_queued'],
+        'sms_queued'    => $result['sms_queued'],
     ]);
 }

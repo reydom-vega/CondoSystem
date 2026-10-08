@@ -6,11 +6,13 @@
 
 require_once '../config.php';
 
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: private, no-store');
 
-if (!isLoggedIn()) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
+requireCapability('resident.portal', true);
+if (!isApproved()) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Resident approval required']);
     exit;
 }
 
@@ -20,7 +22,7 @@ $userId = (int)$_SESSION['user_id'];
 try {
     // Get unread message count
     $messageCount = 0;
-    $result = $connection->query("SELECT COUNT(*) as count FROM messages WHERE user_id = $userId AND sender_role = 'admin' AND is_read = 0");
+    $result = residentHasPermission('resident.messages.use') ? $connection->query("SELECT COUNT(*) as count FROM messages WHERE user_id = $userId AND sender_role = 'admin' AND is_read = 0") : false;
     if ($result) {
         $row = $result->fetch_assoc();
         $messageCount = $row['count'] ?? 0;
@@ -29,24 +31,19 @@ try {
     // Get active maintenance requests
     ensureMaintenanceTable($connection);
     $maintenanceCount = 0;
-    $result = $connection->query("SELECT COUNT(*) as count FROM maintenance_requests WHERE user_id = $userId AND status IN ('pending', 'approved', 'in_progress', 'reopened')");
+    $result = residentHasPermission('resident.maintenance.request') ? $connection->query("SELECT COUNT(*) as count FROM maintenance_requests WHERE user_id = $userId AND status IN ('pending', 'approved', 'in_progress', 'reopened')") : false;
     if ($result) {
         $row = $result->fetch_assoc();
         $maintenanceCount = $row['count'] ?? 0;
     }
 
     // Get pending announcements
-    $announcements = getAnnouncements(5, true);
+    $announcements = residentHasPermission('resident.announcements.view') ? getAnnouncements(5, true) : [];
     $announcementCount = count($announcements);
 
     // Get due payments
     ensurePaymentsTable($connection);
-    $duePayments = 0;
-    $result = $connection->query("SELECT COUNT(*) as count FROM payments WHERE user_id = $userId AND status IN ('pending', 'overdue')");
-    if ($result) {
-        $row = $result->fetch_assoc();
-        $duePayments = $row['count'] ?? 0;
-    }
+    $duePayments = getResidentBillingSummary($connection,$userId)['count'];
 
     http_response_code(200);
     echo json_encode([

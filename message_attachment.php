@@ -6,6 +6,11 @@ if (!isLoggedIn()) {
     exit('Unauthorized');
 }
 
+if (!canAccess('messages.manage')) {
+    requireCapability('resident.messages.use');
+    requireApproval();
+}
+
 $messageId = (int)($_GET['id'] ?? 0);
 if ($messageId <= 0) {
     http_response_code(404);
@@ -18,7 +23,7 @@ if (!ensureMessagesTable($connection)) {
     exit('Attachment storage unavailable');
 }
 
-if (isAdmin()) {
+if (canAccess('messages.manage')) {
     $query = $connection->prepare('SELECT user_id, attachment_path, attachment_name, attachment_mime FROM messages WHERE id = ?');
     $query->bind_param('i', $messageId);
 } else {

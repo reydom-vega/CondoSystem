@@ -8,6 +8,7 @@
  */
 
 function ensureVisitorLogsTable(mysqli $connection): bool {
+    if (!schemaMutationAllowed()) return true;
     return $connection->query("CREATE TABLE IF NOT EXISTS visitor_logs (
         id INT AUTO_INCREMENT PRIMARY KEY,
         visitor_name VARCHAR(120) NOT NULL,
@@ -32,6 +33,7 @@ function ensureVisitorLogsTable(mysqli $connection): bool {
  * Call this right after ensureVisitorLogsTable().
  */
 function ensureVisitorLogColumns(mysqli $connection): bool {
+    if (!schemaMutationAllowed()) return true;
     $result = $connection->query("SHOW COLUMNS FROM visitor_logs LIKE 'checked_out_by'");
     if ($result && $result->num_rows === 0) {
         $connection->query("ALTER TABLE visitor_logs ADD COLUMN checked_out_by INT NULL AFTER logged_by, ADD INDEX (checked_out_by)");
@@ -55,10 +57,18 @@ function logVisitorIn(mysqli $connection, string $visitorName, string $visitorCo
  * staff account performed the checkout.
  */
 function logVisitorOut(mysqli $connection, int $visitorLogId, int $checkedOutBy): bool {
+    if (!ensureResidentServicesTables($connection)) return false;
+    $connection->begin_transaction();
+    try {
     $stmt = $connection->prepare("UPDATE visitor_logs SET status = 'checked_out', time_out = NOW(), checked_out_by = ? WHERE id = ? AND status = 'checked_in'");
-    if (!$stmt) return false;
+    if (!$stmt) throw new RuntimeException('Visitor checkout could not be prepared.');
     $stmt->bind_param('ii', $checkedOutBy, $visitorLogId);
-    return $stmt->execute() && $stmt->affected_rows > 0;
+    if (!$stmt->execute() || $stmt->affected_rows !== 1) { $connection->rollback(); return false; }
+    $update = $connection->prepare("UPDATE resident_service_requests SET status = 'checked_out' WHERE visitor_log_id = ? AND status = 'checked_in'");
+    $update->bind_param('i', $visitorLogId);
+    if (!$update->execute()) throw new RuntimeException('Registration checkout could not be saved.');
+    $connection->commit(); return true;
+    } catch (Throwable $error) { $connection->rollback(); error_log($error->getMessage()); return false; }
 }
 
 /**

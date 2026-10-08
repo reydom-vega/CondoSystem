@@ -1,0 +1,19 @@
+# Deployment secrets stay outside source control.
+.env
+.env.*
+!.env.example
+config.local.php
+*.log
+*.sql
+*.bak
+*.zip
+
+# Local tooling/dependencies can be installed from composer.lock.
+/.venv/
+/vendor/*
+!/vendor/.htaccess
+
+# Private resident/staff documents are data, not source artifacts.
+/private_uploads/**
+!/private_uploads/**/
+!/private_uploads/**/.htaccess

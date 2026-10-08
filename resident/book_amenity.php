@@ -8,6 +8,7 @@ if (isAdmin()) {
     redirect(isSecurity() ? '../security/security_dashboard.php' : (isMaintenance() ? '../maintenance/maintenance_dashboard.php' : '../admin/admin_dashboard.php'));
 }
 requireApproval();
+requireResidentPermission('resident.amenities.book');
 
 $username = $_SESSION['username'] ?? 'User';
 $unitNumber = isset($_SESSION['unit_number']) ? 'Unit ' . htmlspecialchars($_SESSION['unit_number']) : 'Unit Not Set';
@@ -17,30 +18,32 @@ $errors = [];
 $success = false;
 
 $connection = connectDb();
-$tableReady = ensureBookingsTable($connection);
+$tableReady = ensureAmenityBookingSchema($connection);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireWorkflowCsrf();
     $amenity = trim($_POST['amenity'] ?? '');
     $bookingDate = trim($_POST['booking_date'] ?? '');
     $bookingTime = trim($_POST['booking_time'] ?? '');
-    $validAmenities = ['Swimming Pool', 'Function Hall'];
-
-    if (!$tableReady) {
-        $errors[] = 'Booking storage is unavailable. Please try again later.';
-    } elseif (!in_array($amenity, $validAmenities, true) || $bookingDate === '' || $bookingTime === '') {
-        $errors[] = 'Please choose an amenity, date, and time.';
-    } elseif ($bookingDate < date('Y-m-d')) {
-        $errors[] = 'Please choose a future booking date.';
-    } else {
-        $insert = $connection->prepare('INSERT INTO bookings (user_id, amenity, booking_date, booking_time) VALUES (?, ?, ?, ?)');
-        $insert->bind_param('isss', $_SESSION['user_id'], $amenity, $bookingDate, $bookingTime);
-        if ($insert->execute()) {
-            $success = true;
-            trackEvent('booking_created', $amenity . ' on ' . $bookingDate, (int)$_SESSION['user_id']);
+    try {
+        if (!$tableReady) throw new RuntimeException('Booking storage is unavailable.');
+        if (($_POST['action'] ?? '') === 'cancel') {
+            $bookingId = (int)($_POST['booking_id'] ?? 0);
+            $cancel = $connection->prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ? AND user_id = ? AND status IN ('pending','confirmed') AND TIMESTAMP(booking_date,booking_time) > NOW()");
+            $cancel->bind_param('ii', $bookingId, $_SESSION['user_id']); $cancel->execute();
+            if ($cancel->affected_rows !== 1) throw new InvalidArgumentException('This booking can no longer be cancelled.');
+            logAudit('cancel','booking',$bookingId);
         } else {
-            $errors[] = 'Unable to save your booking. Please try again.';
+            $attendees = filter_var($_POST['attendees'] ?? null, FILTER_VALIDATE_INT);
+            if ($attendees === false || !createAmenityBooking($connection, (int)$_SESSION['user_id'], $amenity, $bookingDate, $bookingTime, $attendees)) throw new InvalidArgumentException('Unable to save booking. Enter a valid guest count.');
+            trackEvent('booking_created', $amenity . ' on ' . $bookingDate, (int)$_SESSION['user_id']);
         }
-    }
+        setFlash('success', 'Booking saved successfully.');
+        redirect('book_amenity.php');
+    } catch (InvalidArgumentException $e) { $errors[] = $e->getMessage(); }
+    catch (Throwable $e) { error_log($e->getMessage()); $errors[] = 'Unable to save your booking. Please try again.'; }
 }
+$bookingFlash = getFlash();
+$success = $bookingFlash !== null;
 
 $amenities = [
     [
@@ -69,7 +72,7 @@ $amenities = [
 
 $bookings = [];
 if ($tableReady) {
-    $bookingQuery = $connection->prepare('SELECT amenity, booking_date, booking_time, status FROM bookings WHERE user_id = ? ORDER BY booking_date ASC, booking_time ASC');
+    $bookingQuery = $connection->prepare('SELECT id, amenity, booking_date, booking_time, attendees, status FROM bookings WHERE user_id = ? ORDER BY booking_date ASC, booking_time ASC');
     $bookingQuery->bind_param('i', $_SESSION['user_id']);
     $bookingQuery->execute();
     $bookings = $bookingQuery->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -82,6 +85,7 @@ if ($tableReady) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celandine Residences - Book Amenities</title>
     <link rel="stylesheet" href="../resident.css">
+    <link rel="stylesheet" href="../services.css?v=<?php echo filemtime(__DIR__ . '/../services.css'); ?>">
 </head>
 <body class="dashboard-page">
 
@@ -93,29 +97,7 @@ if ($tableReady) {
                 <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
 
-            <nav class="sidebar-nav">
-                <a href="dashboard.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('dashboard'); ?> Dashboard
-                </a>
-                <a href="payments.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('billing'); ?> Billing &amp; Payments
-                </a>
-                <a href="book_amenity.php" class="sidebar-link active">
-                    <?php echo systemSidebarIcon('calendar'); ?> Book Amenity
-                </a>
-                <a href="parking.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('parking'); ?> Parking
-                </a>
-                <a href="maintenance.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('maintenance'); ?> Maintenance
-                </a>
-                <a href="messages.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('messages'); ?> Messages
-                </a>
-                    <a href="announcements.php" class="sidebar-link">
-                        <?php echo systemSidebarIcon('announcements'); ?> Announcements
-                    </a>
-            </nav>
+            <nav class="sidebar-nav"><?php renderResidentSidebarNavigation(); ?></nav>
         </aside>
 
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -158,10 +140,10 @@ if ($tableReady) {
                 </div>
             </header>
 
-            <?php if ($success): ?><div class="alert success"><strong>Booking submitted!</strong> Your reservation is pending confirmation.</div><?php endif; ?>
+            <?php if ($success): ?><div class="alert success" role="status"><?php echo htmlspecialchars($bookingFlash['message']); ?></div><?php endif; ?>
             <?php if (!empty($errors)): ?><div class="alert error"><ul><?php foreach ($errors as $error): ?><li><?php echo htmlspecialchars($error); ?></li><?php endforeach; ?></ul></div><?php endif; ?>
 
-            <p class="bookings-empty" class="bookings-empty">Looking for parking? Visit the <a href="parking.php">Parking</a> page to check your assigned slot or request visitor parking.</p>
+            <p class="bookings-empty">Looking for parking? Visit the <a href="parking.php">Parking</a> page to check your assigned slot or request visitor parking.</p>
 
             <section class="amenities-grid">
                 <?php foreach ($amenities as $amenity): ?>
@@ -177,12 +159,14 @@ if ($tableReady) {
                                     <li><?php echo systemIcon($meta['icon'], 'amenity-meta-icon'); ?> <?php echo htmlspecialchars($meta['label']); ?></li>
                                 <?php endforeach; ?>
                             </ul>
-                            <form method="POST" action="book_amenity.php">
+                            <form method="POST" action="book_amenity.php"><?php echo workflowCsrfField(); ?>
                                 <input type="hidden" name="amenity" value="<?php echo htmlspecialchars($amenity['name']); ?>">
                                 <label class="field-label" for="booking_date_<?php echo htmlspecialchars($amenity['name']); ?>">Date</label>
                                 <input class="form-date" type="date" id="booking_date_<?php echo htmlspecialchars($amenity['name']); ?>" name="booking_date" min="<?php echo date('Y-m-d'); ?>" required>
                                 <label class="field-label" for="booking_time_<?php echo htmlspecialchars($amenity['name']); ?>">Time</label>
-                                <input class="form-date" type="time" id="booking_time_<?php echo htmlspecialchars($amenity['name']); ?>" name="booking_time" required>
+                                <input class="form-date" type="time" id="booking_time_<?php echo htmlspecialchars($amenity['name']); ?>" name="booking_time" min="06:00" max="20:00" step="3600" required>
+                                <label class="field-label">Number of guests<input class="form-date" type="number" name="attendees" min="1" max="<?php echo $amenity['name'] === 'Swimming Pool' ? 20 : 100; ?>" value="1" required></label>
+                                <p class="amenity-desc"><?php echo $amenity['name'] === 'Swimming Pool' ? 'One-hour sessions, up to 20 guests across all bookings. Pending requests reserve capacity.' : 'Exclusive full-day reservation, up to 100 guests. Select your arrival time.'; ?></p>
                                 <button type="submit" class="amenity-book-btn <?php echo htmlspecialchars($amenity['button_class']); ?>">Book Now</button>
                             </form>
                         </div>
@@ -204,6 +188,9 @@ if ($tableReady) {
                                 <p><?php echo htmlspecialchars(date('M j, Y', strtotime($booking['booking_date'])) . ' - ' . date('g:i A', strtotime($booking['booking_time']))); ?></p>
                             </div>
                             <span class="badge badge-success"><?php echo htmlspecialchars($booking['status']); ?></span>
+                            <?php if (in_array($booking['status'], ['pending','confirmed'], true) && $booking['booking_date'] . ' ' . $booking['booking_time'] > date('Y-m-d H:i:s')): ?>
+                            <form method="post"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="cancel"><input type="hidden" name="booking_id" value="<?php echo (int)$booking['id']; ?>"><button type="submit" class="service-btn service-btn-danger">Cancel</button></form>
+                            <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
                 <?php endif; ?>

@@ -1,12 +1,11 @@
 <?php
 require_once '../config.php';
+require_once __DIR__ . '/../includes/resident_accounts.php';
 
 if (!isLoggedIn()) {
     redirect('../login.php');
 }
-if (!isAdmin()) {
-    redirect('../resident/dashboard.php');
-}
+requireCapability('accounts.review');
 
 $username = $_SESSION['username'] ?? 'Administrator';
 $nameParts = preg_split('/\s+/', trim($username));
@@ -14,6 +13,8 @@ $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? su
 $pendingApprovals = [];
 
 $connection = connectDb();
+ensureNotificationOutboxTable($connection);
+if ($_SERVER['REQUEST_METHOD'] === 'POST') requireWorkflowCsrf();
 
 // Handle approval or rejection action
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -32,46 +33,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $assignedUnit = trim((string)($existingUnitNumber ?? ''));
         }
 
-        $applicantStmt = $connection->prepare("SELECT full_name, email FROM users WHERE id = ? AND role = 'resident' AND status = 'pending'");
-        $applicantStmt->bind_param('i', $userIdToApprove);
-        $applicantStmt->execute();
-        $applicant = $applicantStmt->get_result()->fetch_assoc();
-        $applicantStmt->close();
-
-        if (!$applicant) {
-            setFlash('error', 'This registration is no longer pending approval.');
-        } elseif ($assignedUnit !== '') {
-            // I-check muna kung mayroon nang approved account ang unit na ito (Limit: 1 per unit)
-            $stmtCheck = $connection->prepare("SELECT COUNT(*) FROM users WHERE unit_number = ? AND role = 'resident' AND status = 'approved'");
-            $stmtCheck->bind_param('s', $assignedUnit);
-            $stmtCheck->execute();
-            $stmtCheck->bind_result($approvedCount);
-            $stmtCheck->fetch();
-            $stmtCheck->close();
-
-            if ($approvedCount >= 1) {
-                setFlash('error', 'Hindi ma-approve. Ang unit na ' . $assignedUnit . ' ay mayroon nang naka-assign na active o approved na resident account.');
-            } else {
-                $stmtApprove = $connection->prepare("UPDATE users SET unit_number = ?, status = 'approved', is_active = 1 WHERE id = ?");
-                $stmtApprove->bind_param('si', $assignedUnit, $userIdToApprove);
-                $approved = $stmtApprove->execute();
-                $stmtApprove->close();
-                if ($approved) {
-                    logAudit('approve', 'user', $userIdToApprove, 'Approved ' . $applicant['full_name'] . ' and assigned to unit ' . $assignedUnit);
-                    $safeName = htmlspecialchars($applicant['full_name'], ENT_QUOTES, 'UTF-8');
-                    $safeUnit = htmlspecialchars($assignedUnit, ENT_QUOTES, 'UTF-8');
-                    $emailBody = '<p style="color:#cbd5e1;line-height:1.6;">Hello ' . $safeName . ',</p>'
-                        . '<p style="color:#cbd5e1;line-height:1.6;">Your Celandine Residences account has been approved. You can now sign in to the resident portal.</p>'
-                        . '<p style="color:#f8fafc;font-weight:bold;">Unit: ' . $safeUnit . '</p>'
-                        . '<p style="color:#9ca3af;font-size:13px;">If you have questions, please contact the Admin or Property Manager.</p>';
-                    $emailSent = sendMail($applicant['email'], '[Celandine Residences] Account Approved', emailLayout('Account Approved', 'Your account is ready', $emailBody));
-                    setFlash('success', 'User successfully approved and assigned to unit ' . $assignedUnit . ($emailSent ? '. Approval email sent.' : '. Approval email could not be sent; check SMTP settings.'));
-                } else {
-                    setFlash('error', 'Unable to approve this account. Please try again.');
-                }
-            }
-        } else {
-            setFlash('error', 'Please provide a unit number for the user.');
+        try {
+            $applicant = approvePendingResident($connection, $userIdToApprove, $assignedUnit);
+            $assignedUnit = $applicant['unit_number'];
+            logAudit('approve', 'user', $userIdToApprove, 'Approved resident and assigned unit ' . $assignedUnit);
+            $safeName = htmlspecialchars($applicant['full_name'], ENT_QUOTES, 'UTF-8');
+            $safeUnit = htmlspecialchars($assignedUnit, ENT_QUOTES, 'UTF-8');
+            $emailBody = '<p>Hello ' . $safeName . ',</p><p>Your Celandine Residences account has been approved. Sign in to the resident portal.</p><p>Unit: ' . $safeUnit . '</p>';
+            $accountVersion = $applicant['session_version'];
+            $emailQueued = queueNotification($connection, 'account:' . $userIdToApprove . ':approved:' . $accountVersion, 'email', $applicant['email'], '[Celandine Residences] Account Approved', emailLayout('Account Approved', 'Your account is ready', $emailBody), $userIdToApprove, 'account_approved', $accountVersion);
+            setFlash('success', 'Resident approved and assigned to unit ' . $assignedUnit . ($emailQueued ? '. Approval email queued for delivery.' : '. Email could not be queued; check notification worker settings.'));
+        } catch (InvalidArgumentException $error) {
+            setFlash('error', $error->getMessage());
+        } catch (Throwable $error) {
+            error_log('Resident approval failed: ' . $error->getMessage());
+            setFlash('error', 'Unable to approve this account. Please try again.');
         }
         redirect('pending_accounts.php');
     }
@@ -98,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect('pending_accounts.php');
         }
 
-        $applicantStmt = $connection->prepare("SELECT full_name, email FROM users WHERE id = ? AND role = 'resident' AND status = 'pending'");
+        $applicantStmt = $connection->prepare("SELECT full_name, email, session_version FROM users WHERE id = ? AND role = 'resident' AND status = 'pending'");
         $applicantStmt->bind_param('i', $userIdToReject);
         $applicantStmt->execute();
         $applicant = $applicantStmt->get_result()->fetch_assoc();
@@ -109,8 +85,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect('pending_accounts.php');
         }
 
-        $stmtReject = $connection->prepare("UPDATE users SET status = 'rejected', rejection_reason = ? WHERE id = ? AND status = 'pending'");
-        $stmtReject->bind_param('si', $rejectionReason, $userIdToReject);
+        $previousVersion = (int)$applicant['session_version'];
+        $stmtReject = $connection->prepare("UPDATE users SET status = 'rejected', rejection_reason = ?, reset_token = NULL, reset_expires = NULL, session_version = session_version + 1 WHERE id = ? AND role = 'resident' AND status = 'pending' AND session_version = ?");
+        $stmtReject->bind_param('sii', $rejectionReason, $userIdToReject, $previousVersion);
         $rejected = $stmtReject->execute() && $stmtReject->affected_rows === 1;
         $stmtReject->close();
         if ($rejected) {
@@ -122,8 +99,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 . '<p style="color:#f8fafc;font-weight:bold;margin-bottom:6px;">Reason provided by Admin:</p>'
                 . '<p style="color:#cbd5e1;line-height:1.6;">' . $safeReason . '</p>'
                 . '<p style="color:#cbd5e1;line-height:1.6;">You may sign in to your account to review the reason, update your information, and resubmit your application for review.</p>';
-            $emailSent = sendMail($applicant['email'], '[Celandine Residences] Registration Update', emailLayout('Registration Update', 'Your application was not approved', $emailBody));
-            setFlash('success', 'User account has been rejected. Reason: ' . $rejectionReason . ($emailSent ? '. Notification email sent.' : '. Notification email could not be sent; check SMTP settings.'));
+            $accountVersion = $previousVersion + 1;
+            $emailQueued = queueNotification($connection, 'account:' . $userIdToReject . ':rejected:' . $accountVersion, 'email', $applicant['email'], '[Celandine Residences] Registration Update', emailLayout('Registration Update', 'Your application was not approved', $emailBody), $userIdToReject, 'account_rejected', $accountVersion);
+            setFlash('success', 'User account has been rejected. Reason: ' . $rejectionReason . ($emailQueued ? '. Registration update email queued for delivery.' : '. Email could not be queued; check notification worker settings.'));
         } else {
             setFlash('error', 'Unable to reject this account. Please try again.');
         }
@@ -242,30 +220,11 @@ if ($pendingResult) {
 <body class="dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="admin_dashboard.php" class="sidebar-brand">
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
                 <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
-            <nav class="sidebar-nav">
-                <a href="admin_dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                <a href="units.php" class="sidebar-link"><?php echo systemSidebarIcon('units'); ?> Units</a>
-                <a href="residents.php" class="sidebar-link"><?php echo systemSidebarIcon('residents'); ?> Residents</a>
-                <?php if (isSuperAdmin()): ?>
-                    <a href="pending_accounts.php" class="sidebar-link active"><?php echo systemSidebarIcon('pending'); ?> Pending Accounts</a>
-                    <a href="staff.php" class="sidebar-link"><?php echo systemSidebarIcon('staff'); ?> Staff Management</a>
-                    <a href="unitpayments.php" class="sidebar-link"><?php echo systemSidebarIcon('billing'); ?> Billing &amp; Payments</a>
-                    <a href="generate_bills.php" class="sidebar-link"><?php echo systemSidebarIcon('bills'); ?> Generate Bills</a>
-                    <a href="violations.php" class="sidebar-link"><?php echo systemSidebarIcon('violations'); ?> Violations</a>
-                <?php endif; ?>
-                <a href="bookingrequest.php" class="sidebar-link"><?php echo systemSidebarIcon('calendar'); ?> Booking Requests</a>
-                <a href="maintenancerequests.php" class="sidebar-link"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance Requests</a>
-                <a href="admin_messages.php" class="sidebar-link"><?php echo systemSidebarIcon('messages'); ?> Messages</a>
-                <a href="announcements.php" class="sidebar-link"><?php echo systemSidebarIcon('announcements'); ?> Announcements</a>
-                <?php if (isSuperAdmin()): ?><a href="analytics.php" class="sidebar-link"><?php echo systemSidebarIcon('analytics'); ?> Analytics</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="auditlog.php" class="sidebar-link"><?php echo systemSidebarIcon('audit'); ?> Audit Log</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="visitorlog.php" class="sidebar-link"><?php echo systemSidebarIcon('visitors'); ?> Visitor Log</a><?php endif; ?>
-            </nav>
+            <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -352,11 +311,12 @@ if ($pendingResult) {
         </main>
     </div>
     <dialog class="system-confirm-dialog pending-approve-dialog" id="approveDialog" aria-labelledby="approveDialogTitle">
-        <form method="POST" action="pending_accounts.php" id="approveForm">
+        <form method="POST" action="pending_accounts.php" id="approveForm"><?php echo workflowCsrfField(); ?>
             <input type="hidden" name="approve_user_id" id="approveUserId">
-            <input type="hidden" name="assigned_unit" id="approveAssignedUnit">
+            <label class="field-label" for="approveAssignedUnit">Verified unit</label>
+            <select name="assigned_unit" id="approveAssignedUnit" required><option value="">Choose a unit</option><?php foreach(loadUnitInventory() as $unit): ?><option value="<?php echo htmlspecialchars($unit['unit_number'],ENT_QUOTES,'UTF-8'); ?>"><?php echo htmlspecialchars($unit['unit_number']); ?></option><?php endforeach; ?></select>
             <h2 id="approveDialogTitle">Approve resident</h2>
-            <p id="approveDialogMessage">Are you sure you want to approve this resident account?</p>
+            <p id="approveDialogMessage">Verify ownership or authorized occupancy. Tenants and other occupants require an existing approved owner for the selected unit.</p>
             <div class="pending-dialog-actions system-confirm-actions">
                 <button type="button" class="dialog-cancel" id="cancelApprove">Cancel</button>
                 <button type="submit" class="dialog-confirm-approve">Confirm Approve</button>
@@ -365,7 +325,7 @@ if ($pendingResult) {
     </dialog>
 
     <dialog class="system-confirm-dialog pending-reject-dialog" id="rejectDialog" aria-labelledby="rejectDialogTitle">
-        <form method="POST" action="pending_accounts.php" id="rejectForm">
+        <form method="POST" action="pending_accounts.php" id="rejectForm"><?php echo workflowCsrfField(); ?>
             <input type="hidden" name="reject_user_id" id="rejectUserId">
             <h2 id="rejectDialogTitle">Confirm rejection</h2>
             <p id="rejectDialogMessage">Choose a reason before rejecting this account.</p>
@@ -406,7 +366,7 @@ if ($pendingResult) {
             button.addEventListener('click', () => {
                 approveUserId.value = button.dataset.approveUserId;
                 approveAssignedUnit.value = button.dataset.approveUnit || '';
-                approveDialogMessage.textContent = `Approve ${button.dataset.approveUserName} for unit ${approveAssignedUnit.value || 'not provided'}? This will activate the resident account.`;
+                approveDialogMessage.textContent = `Approve ${button.dataset.approveUserName}? Verify ownership or authorized occupancy. A tenant or occupant must link to the approved owner of the selected unit.`;
                 approveDialog.showModal();
             });
         });

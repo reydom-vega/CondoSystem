@@ -157,10 +157,13 @@ function sendSms(string $to, string $message): array {
  * ------------------------------------------------------------------- */
 
 function ensurePhoneVerificationColumns(mysqli $connection): void {
+    if (!schemaMutationAllowed()) return;
     $checks = [
         'phone_verified'    => "ALTER TABLE users ADD COLUMN phone_verified TINYINT(1) NOT NULL DEFAULT 0",
-        'phone_otp'         => "ALTER TABLE users ADD COLUMN phone_otp VARCHAR(10) DEFAULT NULL",
+        'phone_otp'         => "ALTER TABLE users ADD COLUMN phone_otp VARCHAR(80) DEFAULT NULL",
         'phone_otp_expires' => "ALTER TABLE users ADD COLUMN phone_otp_expires DATETIME DEFAULT NULL",
+        'phone_otp_attempts' => "ALTER TABLE users ADD COLUMN phone_otp_attempts INT NOT NULL DEFAULT 0",
+        'phone_otp_sent_at' => "ALTER TABLE users ADD COLUMN phone_otp_sent_at DATETIME DEFAULT NULL",
     ];
     foreach ($checks as $column => $alterSql) {
         $columnCheck = $connection->query("SHOW COLUMNS FROM users LIKE '{$column}'");
@@ -168,6 +171,8 @@ function ensurePhoneVerificationColumns(mysqli $connection): void {
             $connection->query($alterSql);
         }
     }
+    $column = $connection->query("SHOW COLUMNS FROM users LIKE 'phone_otp'")->fetch_assoc();
+    if (($column['Type'] ?? '') !== 'varchar(80)') $connection->query('ALTER TABLE users MODIFY phone_otp VARCHAR(80) DEFAULT NULL');
 }
 
 /**
@@ -178,6 +183,7 @@ function ensurePhoneVerificationColumns(mysqli $connection): void {
 function generateAndSendPhoneOtp(int $userId): array {
     $connection = connectDb();
     ensurePhoneVerificationColumns($connection);
+    if (!allowAuthenticationRequest($connection, 'phone_send:' . $userId, 5)) return ['success'=>false, 'error'=>'Too many code requests. Try again in 15 minutes.'];
 
     $stmt = $connection->prepare('SELECT contact_number FROM users WHERE id = ? LIMIT 1');
     $stmt->bind_param('i', $userId);
@@ -191,12 +197,19 @@ function generateAndSendPhoneOtp(int $userId): array {
     $code = generateVerificationCode();
     $expiresAt = (new DateTime())->modify('+10 minutes')->format('Y-m-d H:i:s');
 
-    $update = $connection->prepare('UPDATE users SET phone_otp = ?, phone_otp_expires = ? WHERE id = ?');
-    $update->bind_param('ssi', $code, $expiresAt, $userId);
+    $digest = hash('sha256', $code);
+    $update = $connection->prepare('UPDATE users SET phone_otp = ?, phone_otp_expires = ?, phone_otp_attempts = 0, phone_otp_sent_at = NOW() WHERE id = ? AND (phone_otp_sent_at IS NULL OR phone_otp_sent_at < DATE_SUB(NOW(), INTERVAL 1 MINUTE))');
+    $update->bind_param('ssi', $digest, $expiresAt, $userId);
     $update->execute();
+    if ($update->affected_rows !== 1) return ['success'=>false, 'error'=>'Please wait one minute before requesting another code.'];
 
     $message = "Celandine Residences: your phone verification code is {$code}. It expires in 10 minutes.";
-    return sendSms($user['contact_number'], $message);
+    $result = sendSms($user['contact_number'], $message);
+    if (!$result['success']) {
+        $clear = $connection->prepare('UPDATE users SET phone_otp = NULL, phone_otp_expires = NULL WHERE id = ? AND phone_otp = ?');
+        $clear->bind_param('is', $userId, $digest); $clear->execute();
+    }
+    return $result;
 }
 
 /**
@@ -207,24 +220,16 @@ function verifyPhoneOtp(int $userId, string $code): bool {
     $connection = connectDb();
     ensurePhoneVerificationColumns($connection);
 
-    $stmt = $connection->prepare('SELECT phone_otp, phone_otp_expires FROM users WHERE id = ? LIMIT 1');
-    $stmt->bind_param('i', $userId);
-    $stmt->execute();
-    $user = $stmt->get_result()->fetch_assoc();
-
-    if (!$user || $user['phone_otp'] === null || $code === '') {
-        return false;
-    }
-    if (!hash_equals((string)$user['phone_otp'], $code)) {
-        return false;
-    }
-    if ($user['phone_otp_expires'] === null || new DateTime($user['phone_otp_expires']) < new DateTime()) {
-        return false;
-    }
-
-    $update = $connection->prepare('UPDATE users SET phone_verified = 1, phone_otp = NULL, phone_otp_expires = NULL WHERE id = ?');
-    $update->bind_param('i', $userId);
+    if (!preg_match('/\A[0-9]{6}\z/', $code) || !allowAuthenticationRequest($connection, 'phone_verify:' . $userId, 10)) return false;
+    $digest = hash('sha256', $code);
+    $update = $connection->prepare('UPDATE users SET phone_verified = 1, phone_otp = NULL, phone_otp_expires = NULL, phone_otp_attempts = 0 WHERE id = ? AND phone_otp = ? AND phone_otp_expires > NOW() AND phone_otp_attempts < 5');
+    $update->bind_param('is', $userId, $digest);
     $update->execute();
+    if ($update->affected_rows !== 1) {
+        $failure = $connection->prepare('UPDATE users SET phone_otp_attempts = LEAST(phone_otp_attempts + 1, 5) WHERE id = ? AND phone_otp IS NOT NULL');
+        $failure->bind_param('i', $userId); $failure->execute();
+        return false;
+    }
     trackEvent('phone_verified', '', $userId);
 
     return true;

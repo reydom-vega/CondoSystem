@@ -1,5 +1,18 @@
 Options -Indexes
 
-<FilesMatch "^(database|config\.php)$">
+# Configuration, repository metadata, backups and operational tools are never
+# public resources. PHP includes continue to work because this is HTTP-only.
+<FilesMatch "(?i)^(?:\..*|config(?:\.local)?\.php|database|composer\.(?:json|lock)|condo_units\.csv|parking-inventory\.csv|AuthFunctionsTest\.php|create_admin\.php|debug_.*|diagnose_.*|parking_probe\.php|parking_import_diagnostic\.php|parking-inventory-import-test\.php|.*\.(?:md|sql|zip|bak|old|orig|log|ini|env))$">
     Require all denied
 </FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(?:\.git|\.github|\.svn|\.hg|\.venv|scripts|inventory|vendor|includes|private_uploads)(?:/|$) - [F,L,NC]
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>

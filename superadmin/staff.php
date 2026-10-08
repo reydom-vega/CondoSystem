@@ -18,6 +18,7 @@ $search = trim($_GET['search'] ?? '');
 $errors = [];
 $success = '';
 $connection = connectDb();
+if ($_SERVER['REQUEST_METHOD'] === 'POST') requireWorkflowCsrf();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -47,27 +48,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($check->get_result()->fetch_assoc()) {
                 $errors[] = 'That username or email is already in use.';
             } else {
-                $passwordHash = password_hash($password, PASSWORD_DEFAULT);
-                $unitNumber = 'ADMIN';
-                $isVerified = 1;
-                $insert = $connection->prepare('INSERT INTO users (full_name, username, email, contact_number, unit_number, password_hash, is_verified, is_active, role) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)');
-                $insert->bind_param('ssssssis', $fullName, $newUsername, $email, $contactNumber, $unitNumber, $passwordHash, $isVerified, $newRole);
-                if ($insert->execute()) {
+                ensureAuditLogTable($connection);
+                $connection->begin_transaction();
+                try {
+                    $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+                    $unitNumber = 'ADMIN'; $isVerified = 1;
+                    $insert = $connection->prepare('INSERT INTO users (full_name, username, email, contact_number, unit_number, password_hash, is_verified, is_active, role) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)');
+                    $insert->bind_param('ssssssis', $fullName, $newUsername, $email, $contactNumber, $unitNumber, $passwordHash, $isVerified, $newRole);
+                    if (!$insert->execute()) throw new RuntimeException('Staff account insert failed.');
                     $createdUserId = (int)$connection->insert_id;
                     $staffIdLabel = 'STAFF-' . str_pad((string)$createdUserId, 5, '0', STR_PAD_LEFT);
                     $staffUpdate = $connection->prepare('UPDATE users SET staff_id = ? WHERE id = ?');
                     $staffUpdate->bind_param('si', $staffIdLabel, $createdUserId);
-                    if ($staffUpdate->execute()) {
-                        logAudit('create', 'staff', $createdUserId, 'Created staff account with role ' . $roleLabels[$newRole]);
-                        $success = 'Staff account created successfully.';
-                    } else {
-                        error_log('Staff ID assignment failed for user ' . $createdUserId . ': ' . $staffUpdate->error);
-                        $errors[] = 'Staff account was created, but its staff ID could not be assigned. Please contact support.';
-                    }
-                } else {
-                    error_log('Staff account creation failed: ' . $insert->error);
-                    $errors[] = 'Unable to create that staff account. Please verify the details and try again.';
+                    if (!$staffUpdate->execute() || $staffUpdate->affected_rows !== 1) throw new RuntimeException('Staff ID assignment failed.');
+                    if (!logAudit('create', 'staff', $createdUserId, 'Created staff account with role ' . $roleLabels[$newRole], $connection)) throw new RuntimeException('Staff creation audit failed.');
+                    $connection->commit();
+                    $success = 'Staff account created successfully.';
+                } catch (Throwable $error) {
+                    $connection->rollback();
+                    error_log('Staff account creation failed: ' . $error->getMessage());
+                    $errors[] = 'Unable to create that staff account. Check the details and try again.';
                 }
+
             }
         }
     } elseif ($action === 'toggle_status') {
@@ -75,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($staffId <= 0 || $staffId === (int)($_SESSION['user_id'] ?? 0)) {
             $errors[] = 'You cannot deactivate or change your own account.';
         } else {
-            $update = $connection->prepare("UPDATE users SET is_active = ?, session_version = session_version + 1 WHERE id = ? AND role <> 'resident'");
+            $update = $connection->prepare("UPDATE users SET is_active = ?, reset_token = NULL, reset_expires = NULL, session_version = session_version + 1 WHERE id = ? AND role <> 'resident'");
             $update->bind_param('ii', $active, $staffId);
             if ($update->execute() && $update->affected_rows > 0) {
                 ensureRememberTokensTable($connection);
@@ -92,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($staffId <= 0 || $staffId === (int)($_SESSION['user_id'] ?? 0)) {
             $errors[] = 'You cannot force logout your own account.';
         } else {
-            $update = $connection->prepare("UPDATE users SET session_version = session_version + 1 WHERE id = ? AND role <> 'resident'");
+            $update = $connection->prepare("UPDATE users SET reset_token = NULL, reset_expires = NULL, session_version = session_version + 1 WHERE id = ? AND role <> 'resident'");
             $update->bind_param('i', $staffId);
             if ($update->execute() && $update->affected_rows > 0) {
                 ensureRememberTokensTable($connection);
@@ -113,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character.';
         } else {
             $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
-            $update = $connection->prepare("UPDATE users SET password_hash = ?, failed_login_attempts = 0, locked_until = NULL, session_version = session_version + 1 WHERE id = ? AND role <> 'resident'");
+            $update = $connection->prepare("UPDATE users SET password_hash = ?, failed_login_attempts = 0, locked_until = NULL, reset_token = NULL, reset_expires = NULL, session_version = session_version + 1 WHERE id = ? AND role <> 'resident'");
             $update->bind_param('si', $passwordHash, $staffId);
             if ($update->execute() && $update->affected_rows > 0) {
                 ensureRememberTokensTable($connection);
@@ -131,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'update_role' && $staffId === (int)($_SESSION['user_id'] ?? 0)) {
         $errors[] = 'You cannot change your own SuperAdmin role.';
     } elseif ($action === 'update_role') {
-        $update = $connection->prepare("UPDATE users SET role = ? WHERE id = ? AND role <> 'resident'");
+        $update = $connection->prepare("UPDATE users SET role = ?, reset_token = NULL, reset_expires = NULL, session_version = session_version + 1 WHERE id = ? AND role <> 'resident'");
         $update->bind_param('si', $newRole, $staffId);
         if ($update->execute() && $update->affected_rows > 0) {
             $connection->query('UPDATE users SET session_version = session_version + 1 WHERE id = ' . $staffId);
@@ -651,25 +653,8 @@ if ($result) {
 <body class="dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="admin_dashboard.php" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
-            <nav class="sidebar-nav">
-                <a href="admin_dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                <a href="units.php" class="sidebar-link"><?php echo systemSidebarIcon('units'); ?> Units</a>
-                <a href="residents.php" class="sidebar-link"><?php echo systemSidebarIcon('residents'); ?> Residents</a>
-                <a href="pending_accounts.php" class="sidebar-link"><?php echo systemSidebarIcon('pending'); ?> Pending Accounts</a>
-                <a href="staff.php" class="sidebar-link active"><?php echo systemSidebarIcon('staff'); ?> Staff Management</a>
-                <a href="unitpayments.php" class="sidebar-link"><?php echo systemSidebarIcon('billing'); ?> Billing &amp; Payments</a>
-                <a href="generate_bills.php" class="sidebar-link"><?php echo systemSidebarIcon('bills'); ?> Generate Bills</a>
-                <a href="violations.php" class="sidebar-link"><?php echo systemSidebarIcon('violations'); ?> Violations</a>
-                <a href="bookingrequest.php" class="sidebar-link"><?php echo systemSidebarIcon('calendar'); ?> Booking Requests</a>
-                <a href="maintenancerequests.php" class="sidebar-link"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance Requests</a>
-                <a href="admin_messages.php" class="sidebar-link"><?php echo systemSidebarIcon('messages'); ?> Messages</a>
-                <a href="announcements.php" class="sidebar-link"><?php echo systemSidebarIcon('announcements'); ?> Announcements</a>
-                <a href="analytics.php" class="sidebar-link"><?php echo systemSidebarIcon('analytics'); ?> Analytics</a>
-                <a href="parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking</a>
-                <a href="auditlog.php" class="sidebar-link"><?php echo systemSidebarIcon('audit'); ?> Audit Log</a>
-                <a href="visitorlog.php" class="sidebar-link"><?php echo systemSidebarIcon('visitors'); ?> Visitor Log</a>
-            </nav>
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
+            <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
         <main class="dashboard-main">
@@ -690,7 +675,7 @@ if ($result) {
             <section class="unit-page-head"><div><h2>Staff Management</h2><p>Review staff accounts and assign their system roles.</p></div><div class="unit-summary"><span><?php echo count($staff); ?> Staff Accounts</span></div></section>
             <section class="unit-management-panel">
                 <h3>Add Staff Account</h3>
-                <form method="post" class="staff-create-form" id="staffCreateForm">
+                <form method="post" class="staff-create-form" id="staffCreateForm"><?php echo workflowCsrfField(); ?>
                     <input type="hidden" name="action" value="add_staff">
                     <label>Full name<input type="text" name="full_name" required maxlength="100"></label>
                     <label>Username<input type="text" name="username" required maxlength="20"></label>
@@ -710,7 +695,7 @@ if ($result) {
                         <td><strong><?php echo htmlspecialchars($member['staff_id'] ?: 'Pending'); ?></strong></td>
                         <td><strong><?php echo htmlspecialchars($member['full_name']); ?></strong><small>@<?php echo htmlspecialchars($member['username']); ?></small></td>
                         <td><?php echo htmlspecialchars($member['email']); ?></td>
-                        <td><form method="post" class="staff-role-form"><input type="hidden" name="action" value="update_role"><input type="hidden" name="staff_id" value="<?php echo (int)$member['id']; ?>"><select name="role" aria-label="Role for <?php echo htmlspecialchars($member['username']); ?>" onchange="this.form.submit()"><?php foreach ($staffRoles as $role => $label): ?><option value="<?php echo htmlspecialchars($role); ?>" <?php echo $member['role'] === $role ? 'selected' : ''; ?>><?php echo htmlspecialchars($label); ?></option><?php endforeach; ?></select></form></td>
+                        <td><form method="post" class="staff-role-form"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="update_role"><input type="hidden" name="staff_id" value="<?php echo (int)$member['id']; ?>"><select name="role" aria-label="Role for <?php echo htmlspecialchars($member['username']); ?>" onchange="this.form.submit()"><?php foreach ($staffRoles as $role => $label): ?><option value="<?php echo htmlspecialchars($role); ?>" <?php echo $member['role'] === $role ? 'selected' : ''; ?>><?php echo htmlspecialchars($label); ?></option><?php endforeach; ?></select></form></td>
                         <td>
                             <?php $presence = userPresenceSummary($member['last_seen_at'] ?? null, $member['last_login_at'] ?? null); ?>
                             <span class="staff-status <?php echo $presence['online'] ? 'online' : 'offline'; ?>"><?php echo htmlspecialchars($presence['label']); ?></span>
@@ -719,9 +704,9 @@ if ($result) {
                         <td><?php echo $member['last_login_at'] ? htmlspecialchars(date('M j, Y g:i A', strtotime($member['last_login_at']))) : 'Never'; ?></td>
                         <td><?php echo htmlspecialchars(date('M j, Y', strtotime($member['created_at']))); ?></td>
                         <td><div class="staff-actions">
-                            <form method="post"><input type="hidden" name="action" value="toggle_status"><input type="hidden" name="staff_id" value="<?php echo (int)$member['id']; ?>"><input type="hidden" name="is_active" value="<?php echo (int)$member['is_active'] === 1 ? '0' : '1'; ?>"><button type="submit"><?php echo (int)$member['is_active'] === 1 ? 'Deactivate' : 'Reactivate'; ?></button></form>
-                            <form method="post"><input type="hidden" name="action" value="force_logout"><input type="hidden" name="staff_id" value="<?php echo (int)$member['id']; ?>"><button type="submit">Force Logout</button></form>
-                            <form method="post"><input type="hidden" name="action" value="reset_password"><input type="hidden" name="staff_id" value="<?php echo (int)$member['id']; ?>"><input type="password" name="new_password" placeholder="New password" minlength="8" required><button type="submit">Change Password</button></form>
+                            <form method="post"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="toggle_status"><input type="hidden" name="staff_id" value="<?php echo (int)$member['id']; ?>"><input type="hidden" name="is_active" value="<?php echo (int)$member['is_active'] === 1 ? '0' : '1'; ?>"><button type="submit"><?php echo (int)$member['is_active'] === 1 ? 'Deactivate' : 'Reactivate'; ?></button></form>
+                            <form method="post"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="force_logout"><input type="hidden" name="staff_id" value="<?php echo (int)$member['id']; ?>"><button type="submit">Force Logout</button></form>
+                            <form method="post"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="reset_password"><input type="hidden" name="staff_id" value="<?php echo (int)$member['id']; ?>"><input type="password" name="new_password" placeholder="New password" minlength="8" required><button type="submit">Change Password</button></form>
                         </div></td>
                     </tr><?php endforeach; endif; ?>
                 </tbody></table></div>

@@ -8,6 +8,7 @@ if (isAdmin()) {
     redirect(isSecurity() ? '../security/security_dashboard.php' : (isMaintenance() ? '../maintenance/maintenance_dashboard.php' : '../admin/admin_dashboard.php'));
 }
 requireApproval();
+requireResidentPermission('resident.maintenance.request');
 
 $username = $_SESSION['username'] ?? 'User';
 $unitNumber = isset($_SESSION['unit_number']) ? 'Unit ' . htmlspecialchars($_SESSION['unit_number']) : 'Unit Not Set';
@@ -25,6 +26,7 @@ $preferredDate = '';
 $urgency = 'normal';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireWorkflowCsrf();
     if (!$tableReady) {
         $errors[] = 'Maintenance request storage is unavailable.';
     } elseif (($_POST['action'] ?? '') === 'resident_update') {
@@ -57,9 +59,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!in_array($issueType, $issueTypes, true) || !in_array($location, $locations, true) || !in_array($urgency, ['low', 'normal', 'urgent'], true) || $description === '') {
             $errors[] = 'Choose a valid issue, location, and urgency, and describe the problem.';
         }
-        if ($preferredDate !== '' && (!preg_match('/\A\d{4}-\d{2}-\d{2}\z/', $preferredDate) || !strtotime($preferredDate))) {
-            $errors[] = 'Choose a valid preferred schedule date.';
+        if ($preferredDate !== '' && (!workflowDate($preferredDate) || $preferredDate < date('Y-m-d'))) {
+            $errors[] = 'Choose a valid preferred schedule date from today onward.';
         }
+        if (strlen($description) > 5000) $errors[] = 'Keep the description to 5,000 characters or fewer.';
         $image = storeMaintenanceImage($_FILES['evidence'] ?? []);
         if ($image['error'] !== '') {
             $errors[] = $image['error'];
@@ -122,29 +125,7 @@ if ($tableReady) {
                 <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
 
-            <nav class="sidebar-nav">
-                <a href="dashboard.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('dashboard'); ?> Dashboard
-                </a>
-                <a href="payments.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('billing'); ?> Billing &amp; Payments
-                </a>
-                <a href="book_amenity.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('calendar'); ?> Book Amenity
-                </a>
-                <a href="parking.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('parking'); ?> Parking
-                </a>
-                <a href="maintenance.php" class="sidebar-link active">
-                    <?php echo systemSidebarIcon('maintenance'); ?> Maintenance
-                </a>
-                <a href="messages.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('messages'); ?> Messages
-                </a>
-                <a href="announcements.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('announcements'); ?> Announcements
-                </a>
-            </nav>
+            <nav class="sidebar-nav"><?php renderResidentSidebarNavigation(); ?></nav>
         </aside>
 
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -192,7 +173,7 @@ if ($tableReady) {
 
             <section class="maintenance-form-card resident-maintenance-form">
                 <h2 class="section-title">Submit New Request</h2>
-                <form method="post" action="maintenance.php" enctype="multipart/form-data" class="maintenance-submit-form">
+                <form method="post" action="maintenance.php" enctype="multipart/form-data" class="maintenance-submit-form"><?php echo workflowCsrfField(); ?>
                     <input type="hidden" name="action" value="submit_request">
                     <div class="maintenance-form-grid">
                         <div class="form-group"><label class="field-label" for="issue_type">Issue / Category</label><select id="issue_type" name="issue_type" class="form-select" required><option value="">Select an issue</option><?php foreach (['Plumbing', 'Electrical', 'Air Conditioning', 'Water Leak', 'Door / Lock', 'Appliance', 'Other'] as $option): ?><option value="<?php echo htmlspecialchars($option); ?>" <?php echo $issueType === $option ? 'selected' : ''; ?>><?php echo htmlspecialchars($option); ?></option><?php endforeach; ?></select></div>
@@ -214,7 +195,7 @@ if ($tableReady) {
                         <?php if (!empty($selectedRequest['completion_note'])): ?><div class="maintenance-detail-wide"><dt>Completion Notes</dt><dd><?php echo nl2br(htmlspecialchars($selectedRequest['completion_note'])); ?></dd></div><?php endif; ?>
                     </dl>
                     <div class="maintenance-evidence-grid"><?php foreach (['evidence_path' => 'Submitted Photo', 'before_photo_path' => 'Before Photo', 'after_photo_path' => 'After Photo'] as $field => $label): ?><?php if (!empty($selectedRequest[$field])): ?><a href="../maintenance_evidence.php?id=<?php echo (int)$selectedRequest['id']; ?>&amp;field=<?php echo rawurlencode($field); ?>" target="_blank" rel="noopener"><img src="../maintenance_evidence.php?id=<?php echo (int)$selectedRequest['id']; ?>&amp;field=<?php echo rawurlencode($field); ?>" alt="<?php echo htmlspecialchars($label); ?>"><span><?php echo htmlspecialchars($label); ?></span></a><?php endif; ?><?php endforeach; ?></div>
-                    <div class="maintenance-detail-actions"><a class="maintenance-nav-button secondary" href="maintenance.php">Close Details</a><?php if ($selectedRequest['status'] === 'completed'): ?><form method="post"><input type="hidden" name="action" value="resident_update"><input type="hidden" name="request_id" value="<?php echo (int)$selectedRequest['id']; ?>"><button class="maintenance-action-btn confirm" name="decision" value="confirm">Confirm Completion</button><button class="maintenance-action-btn problem" name="decision" value="problem">Report Problem</button></form><?php elseif ($selectedRequest['status'] === 'pending'): ?><form method="post" data-confirm="Cancel this maintenance request?" data-confirm-title="Cancel request" data-confirm-action="Cancel"><input type="hidden" name="action" value="resident_update"><input type="hidden" name="request_id" value="<?php echo (int)$selectedRequest['id']; ?>"><button class="maintenance-action-btn problem" name="decision" value="cancel">Cancel Request</button></form><?php endif; ?></div>
+                    <div class="maintenance-detail-actions"><a class="maintenance-nav-button secondary" href="maintenance.php">Close Details</a><?php if ($selectedRequest['status'] === 'completed'): ?><form method="post"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="resident_update"><input type="hidden" name="request_id" value="<?php echo (int)$selectedRequest['id']; ?>"><button class="maintenance-action-btn confirm" name="decision" value="confirm">Confirm Completion</button><button class="maintenance-action-btn problem" name="decision" value="problem">Report Problem</button></form><?php elseif ($selectedRequest['status'] === 'pending'): ?><form method="post" data-confirm="Cancel this maintenance request?" data-confirm-title="Cancel request" data-confirm-action="Cancel"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="resident_update"><input type="hidden" name="request_id" value="<?php echo (int)$selectedRequest['id']; ?>"><button class="maintenance-action-btn problem" name="decision" value="cancel">Cancel Request</button></form><?php endif; ?></div>
                 </section>
             <?php endif; ?>
 

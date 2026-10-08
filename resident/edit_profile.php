@@ -8,6 +8,7 @@ if (isAdmin()) {
     redirect(isSecurity() ? '../security/security_dashboard.php' : (isMaintenance() ? '../maintenance/maintenance_dashboard.php' : '../admin/admin_dashboard.php'));
 }
 
+requireResidentPermission('resident.profile.edit');
 $userId = $_SESSION['user_id'];
 $db = connectDb();
 ensurePhoneVerificationColumns($db);
@@ -49,6 +50,7 @@ $otpError = '';
 $openPw = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireWorkflowCsrf();
     $formAction = $_POST['action'] ?? 'update_profile';
 
     if ($formAction === 'send_phone_otp') {
@@ -75,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newPassword      = $_POST['new_password'] ?? '';
         $confirmPassword  = $_POST['confirm_password'] ?? '';
         $wantsPasswordChange = $newPassword !== '' || $confirmPassword !== '';
+        $emailChanged = strcasecmp($email, (string)$user['email']) !== 0;
 
         if ($fullName === '') {
             $errors[] = 'Full name is required.';
@@ -84,6 +87,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($contactNumber === '') {
             $errors[] = 'Contact number is required.';
+        }
+        if (!preg_match('/\A09[0-9]{9}\z/', $contactNumber)) $errors[] = 'Enter an 11 digit Philippine mobile number starting with 09.';
+        if (strlen($fullName) > 100 || strlen($email) > 100) $errors[] = 'Name and email must be 100 characters or shorter.';
+        if ($emailChanged && !$wantsPasswordChange) {
+            $stmt = $db->prepare('SELECT password_hash FROM users WHERE id = ?');
+            $stmt->bind_param('i', $userId); $stmt->execute();
+            $credentials = $stmt->get_result()->fetch_assoc();
+            if (!$credentials || !password_verify($currentPassword, $credentials['password_hash'])) $errors[] = 'Enter your current password to change your email address.';
         }
 
         // Email must stay unique (excluding this user's own row)
@@ -121,12 +132,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        $openPw = !empty($errors) && ($wantsPasswordChange || $currentPassword !== '');
+        $openPw = !empty($errors) && ($wantsPasswordChange || $currentPassword !== '' || $emailChanged);
 
         if (empty($errors)) {
+            ensureRememberTokensTable($db);
+            $db->begin_transaction();
+            try {
             $contactNumberChanged = $contactNumber !== $originalContactNumber;
             if ($contactNumberChanged) {
-                $stmt = $db->prepare('UPDATE users SET full_name = ?, email = ?, contact_number = ?, phone_verified = 0 WHERE id = ?');
+                $stmt = $db->prepare('UPDATE users SET full_name = ?, email = ?, contact_number = ?, phone_verified = 0, phone_otp = NULL, phone_otp_expires = NULL WHERE id = ?');
                 $stmt->bind_param('sssi', $fullName, $email, $contactNumber, $userId);
             } else {
                 $stmt = $db->prepare('UPDATE users SET full_name = ?, email = ?, contact_number = ? WHERE id = ?');
@@ -146,6 +160,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute();
                 $stmt->close();
             }
+
+            $newSessionVersion = (int)$_SESSION['session_version'];
+            if ($wantsPasswordChange || $emailChanged) {
+                $stmt = $db->prepare('UPDATE users SET session_version = session_version + 1, reset_token = NULL, reset_expires = NULL WHERE id = ?');
+                $stmt->bind_param('i', $userId); $stmt->execute();
+                $stmt = $db->prepare('DELETE FROM remember_tokens WHERE user_id = ?');
+                $stmt->bind_param('i', $userId); $stmt->execute();
+                $stmt = $db->prepare('SELECT session_version FROM users WHERE id = ?');
+                $stmt->bind_param('i', $userId); $stmt->execute();
+                $newSessionVersion = (int)$stmt->get_result()->fetch_assoc()['session_version'];
+            }
+            $db->commit();
+            $_SESSION['session_version'] = $newSessionVersion;
+            if ($wantsPasswordChange || $emailChanged) { forgetRememberToken(); session_regenerate_id(true); }
+            } catch (Throwable $error) { $db->rollback(); throw $error; }
 
             $_SESSION['username'] = $fullName;
             $username = $fullName;
@@ -174,15 +203,7 @@ $db->close();
                 <?php include '../buildingicon.php'; ?>
                 <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
-            <nav class="sidebar-nav">
-                <a href="dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                <a href="payments.php" class="sidebar-link"><?php echo systemSidebarIcon('billing'); ?> Billing &amp; Payments</a>
-                <a href="book_amenity.php" class="sidebar-link"><?php echo systemSidebarIcon('calendar'); ?> Book Amenity</a>
-                <a href="parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking</a>
-                <a href="maintenance.php" class="sidebar-link"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance</a>
-                <a href="messages.php" class="sidebar-link"><?php echo systemSidebarIcon('messages'); ?> Messages</a>
-                <a href="announcements.php" class="sidebar-link"><?php echo systemSidebarIcon('announcements'); ?> Announcements</a>
-            </nav>
+            <nav class="sidebar-nav"><?php renderResidentSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -246,10 +267,12 @@ $db->close();
                             <p class="pv-note">Verify your number to get SMS reminders for dues and parking approvals.</p>
                             <div class="pv-row">
                                 <form method="POST" action="edit_profile.php">
+                                    <?php echo workflowCsrfField(); ?>
                                     <input type="hidden" name="action" value="send_phone_otp">
                                     <button type="submit">Send Code</button>
                                 </form>
                                 <form method="POST" action="edit_profile.php" class="pv-code-form">
+                                    <?php echo workflowCsrfField(); ?>
                                     <input type="hidden" name="action" value="verify_phone_otp">
                                     <input type="text" id="otp_code" name="otp_code" maxlength="6" placeholder="123456" inputmode="numeric" autocomplete="one-time-code" aria-label="Verification code">
                                     <button type="submit">Verify</button>
@@ -259,6 +282,7 @@ $db->close();
                     </div>
 
                     <form method="POST" action="edit_profile.php" class="profile-form">
+                        <?php echo workflowCsrfField(); ?>
                         <input type="hidden" name="action" value="update_profile">
                         <h3 class="section-title">Personal Information</h3>
 

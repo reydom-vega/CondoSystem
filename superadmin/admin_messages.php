@@ -4,14 +4,13 @@ require_once '../config.php';
 if (!isLoggedIn()) {
     redirect('../login.php');
 }
-if (!isAdmin()) {
-    redirect('../resident/dashboard.php');
-}
+requireCapability('messages.manage');
 
 $username = $_SESSION['username'] ?? 'Administrator';
 $nameParts = preg_split('/\s+/', trim($username));
 $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? substr(end($nameParts), 0, 1) : ''));
 $connection = connectDb();
+if ($_SERVER['REQUEST_METHOD'] === 'POST') requireWorkflowCsrf();
 $tableReady = ensureMessagesTable($connection);
 $residents = [];
 
@@ -98,30 +97,11 @@ if ($tableReady && $selectedUserId > 0) {
 <body class="dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="admin_dashboard.php" class="sidebar-brand">
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
                 <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
-            <nav class="sidebar-nav">
-                <a href="admin_dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                <a href="units.php" class="sidebar-link"><?php echo systemSidebarIcon('units'); ?> Units</a>
-                <a href="residents.php" class="sidebar-link"><?php echo systemSidebarIcon('residents'); ?> Residents</a>
-                <?php if (isSuperAdmin()): ?>
-                    <a href="pending_accounts.php" class="sidebar-link"><?php echo systemSidebarIcon('pending'); ?> Pending Accounts</a>
-                    <a href="staff.php" class="sidebar-link"><?php echo systemSidebarIcon('staff'); ?> Staff Management</a>
-                    <a href="unitpayments.php" class="sidebar-link"><?php echo systemSidebarIcon('billing'); ?> Billing & Payments</a>
-                    <a href="generate_bills.php" class="sidebar-link"><?php echo systemSidebarIcon('bills'); ?> Generate Bills</a>
-                    <a href="violations.php" class="sidebar-link"><?php echo systemSidebarIcon('violations'); ?> Violations</a>
-                <?php endif; ?> 
-                <a href="bookingrequest.php" class="sidebar-link"><?php echo systemSidebarIcon('calendar'); ?> Booking Requests</a>
-                <a href="maintenancerequests.php" class="sidebar-link"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance Requests</a>
-                <a href="admin_messages.php" class="sidebar-link active"><?php echo systemSidebarIcon('messages'); ?> Messages</a>
-                <a href="announcements.php" class="sidebar-link"><?php echo systemSidebarIcon('announcements'); ?> Announcements</a>
-                <?php if (isSuperAdmin()): ?><a href="analytics.php" class="sidebar-link"><?php echo systemSidebarIcon('analytics'); ?> Analytics</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="auditlog.php" class="sidebar-link"><?php echo systemSidebarIcon('audit'); ?> Audit Log</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="visitorlog.php" class="sidebar-link"><?php echo systemSidebarIcon('visitors'); ?> Visitor Log</a><?php endif; ?>
-            </nav>
+            <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -206,7 +186,7 @@ if ($tableReady && $selectedUserId > 0) {
                             <?php endforeach; ?>
                         <?php endif; ?>
                     </div>
-                    <form method="post" class="reply-form" action="admin_messages.php" enctype="multipart/form-data">
+                    <form method="post" class="reply-form" action="admin_messages.php" enctype="multipart/form-data"><?php echo workflowCsrfField(); ?>
                         <input type="hidden" name="user_id" value="<?php echo $selectedUserId; ?>">
                         <label for="reply">Message to resident</label>
                         <div class="reply-controls">

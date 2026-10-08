@@ -2,7 +2,7 @@
 require_once 'config.php';
 
 if (isLoggedIn()) {
-    redirect(isSecurity() ? 'security/security_dashboard.php' : (isMaintenance() ? 'maintenance/maintenance_dashboard.php' : (isTreasurer() ? 'treasurer/treasurer_dashboard.php' : (isAdmin() ? 'admin/admin_dashboard.php' : 'resident/dashboard.php'))));
+    redirect(dashboardPathForRole());
 }
 
 $errors = [];
@@ -15,12 +15,17 @@ $accountType = '';
 $allowedAccountTypes = ['Resident Owner', 'Family/Relative of the Owner', 'Friend of Owner', 'Tenant'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireWorkflowCsrf();
+    $connection = connectDb();
+    if (!allowAuthenticationRequest($connection, 'signup', 10)) {
+        $errors[] = 'Too many registration attempts. Please try again in 15 minutes.';
+    }
     $accountType = trim($_POST['account_type'] ?? '');
     $fullName = trim($_POST['full_name'] ?? '');
     $username = trim($_POST['username'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $contactNumber = trim($_POST['contact_number'] ?? '');
-    $unitNumber = trim($_POST['unit_number'] ?? '');
+    $unitNumber = normalizeUnitNumber($_POST['unit_number'] ?? '');
     $password = $_POST['password'] ?? '';
     $confirmPassword = $_POST['confirm_password'] ?? '';
 
@@ -43,6 +48,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Please enter a valid email address.';
     }
+    $inventoryUnits = array_column(loadUnitInventory(), 'unit_number');
+    if (!$inventoryUnits || !in_array($unitNumber, $inventoryUnits, true)) {
+        $errors[] = 'Please enter a unit number from the condominium inventory.';
+    }
+    if (strlen($fullName) > 100 || strlen($email) > 100) $errors[] = 'Name and email must be 100 characters or shorter.';
 
     if ($password !== $confirmPassword) {
         $errors[] = 'Passwords do not match.';
@@ -74,20 +84,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $insert = $connection->prepare('INSERT INTO users (full_name, username, email, contact_number, unit_number, account_type, password_hash, is_verified, status, verification_token) VALUES (?, ?, ?, ?, ?, ?, ?, 1, "pending", NULL)');
             $insert->bind_param('sssssss', $fullName, $username, $email, $contactNumber, $unitNumber, $accountType, $passwordHash);
 
-            if ($insert->execute()) {
+            try {
+                $inserted = $insert->execute();
+            } catch (mysqli_sql_exception $error) {
+                if ($error->getCode() !== 1062) throw $error;
+                $inserted = false;
+            }
+            if ($inserted) {
                 $userId = (int)$connection->insert_id;
                 session_regenerate_id(true);
+                $_SESSION = [];
                 $_SESSION['user_id'] = $userId;
                 $_SESSION['username'] = $username;
                 $_SESSION['unit_number'] = $unitNumber;
                 $_SESSION['role'] = 'resident';
+                $_SESSION['session_version'] = 0;
                 $_SESSION['last_activity'] = time();
                 refreshSession();
 
                 setFlash('success', 'Account created successfully. Your account is now pending admin approval.');
                 redirect('signuppending.php');
             } else {
-                $errors[] = 'Registration failed. Please try again.';
+                $errors[] = 'Registration could not be completed. Check whether your username or email is already registered.';
             }
         }
     }
@@ -259,7 +277,7 @@ $showStepTwo = $_SERVER['REQUEST_METHOD'] === 'POST' && in_array($accountType, $
                     <label class="relationship-option">
                         <input type="radio" name="account_type_step" value="Tenant" <?php echo $accountType === 'Tenant' ? 'checked' : ''; ?>>
                         <strong>Tenant</strong>
-                        <small>Someone who rents the property</small>
+                        <small>Rents the unit. Bills are visible; only the approved unit owner can pay.</small>
                     </label>
 
                 </div>
@@ -271,7 +289,7 @@ $showStepTwo = $_SERVER['REQUEST_METHOD'] === 'POST' && in_array($accountType, $
             <div id="step-2" class="signup-step<?php echo $showStepTwo ? ' active' : ''; ?>">
                 <a href="#" id="backToStep1" class="step-back">← Back</a>
                 <h1>Create an Account</h1>
-                <p class="subtitle">Fill in the details below to register. Please go to the admin after approval to assign your unit number and present a valid ID to confirm you are the unit owner.</p>
+                <p class="subtitle">Register your relationship to the unit. Management verifies ownership or authorized occupancy before approval. Tenants and other occupants must be linked to an approved unit owner; only that owner can pay unit bills.</p>
 
                 <?php $flash = getFlash(); if ($flash): ?>
                     <div class="alert <?php echo htmlspecialchars($flash['type'] === 'error' ? 'error' : 'success'); ?>">
@@ -290,6 +308,7 @@ $showStepTwo = $_SERVER['REQUEST_METHOD'] === 'POST' && in_array($accountType, $
                 <?php endif; ?>
 
                 <form method="post" action="">
+                    <?php echo workflowCsrfField(); ?>
                     <input type="hidden" name="account_type" id="selected_account_type" value="<?php echo htmlspecialchars($accountType); ?>">
                     <div class="form-grid">
                         <div class="input-wrap">

@@ -13,6 +13,7 @@ ensureVisitorLogsTable($connection);
 ensureVisitorLogColumns($connection);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireWorkflowCsrf();
     $action = $_POST['action'] ?? '';
 
     if ($action === 'checkin') {
@@ -66,17 +67,11 @@ $flash = getFlash();
 <body class="dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="security_dashboard.php" class="sidebar-brand">
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
                 <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
-            <nav class="sidebar-nav">
-                <a href="security_dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                <a href="scanner.php" class="sidebar-link"><?php echo systemSidebarIcon('scanner'); ?> QR Scanner</a>
-                <a href="visitor_log.php" class="sidebar-link active"><?php echo systemSidebarIcon('visitors'); ?> Visitor Log</a>
-                <a href="../superadmin/parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking Requests</a>
-                <a href="../superadmin/violations.php" class="sidebar-link"><?php echo systemSidebarIcon('violations'); ?> Violations</a>
-            </nav>
+            <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
         <main class="dashboard-main">
@@ -100,7 +95,7 @@ $flash = getFlash();
             <section class="visitor-layout">
                 <div class="admin-panel visitor-panel">
                     <h2>Log a Visitor In</h2>
-                    <form method="post" class="visitor-form">
+                    <form method="post" class="visitor-form"><?php echo workflowCsrfField(); ?>
                         <input type="hidden" name="action" value="checkin">
                         <label for="visitor_name">Visitor name</label>
                         <input type="text" id="visitor_name" name="visitor_name" placeholder="e.g. Juan Dela Cruz" required maxlength="120">
@@ -131,7 +126,7 @@ $flash = getFlash();
                                     <td><?php echo htmlspecialchars($visitor['unit_number']); ?></td>
                                     <td><?php echo htmlspecialchars(date('M j, g:i A', strtotime($visitor['time_in']))); ?></td>
                                     <td>
-                                        <form method="post" style="margin: 0;">
+                                        <form method="post" style="margin: 0;"><?php echo workflowCsrfField(); ?>
                                             <input type="hidden" name="action" value="checkout">
                                             <input type="hidden" name="visitor_log_id" value="<?php echo (int)$visitor['id']; ?>">
                                             <button type="submit" class="visitor-checkout-btn">Check Out</button>

@@ -19,6 +19,9 @@ $connection = connectDb();
 ensurePaymentsTable($connection);
 ensurePaymongoColumns($connection);
 ensureBillingTables($connection);
+$residentContext=residentContext($connection,$userId);
+$canPay=$residentContext && $residentContext['approved'] && $residentContext['account_kind']==='owner';
+$billingTitle=$canPay ? 'Billing & Payments' : 'Unit Bills';
 
 $profileStmt = $connection->prepare('SELECT full_name, email FROM users WHERE id = ? LIMIT 1');
 $profileStmt->bind_param('i', $userId);
@@ -53,72 +56,33 @@ $errors = [];
 $success = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $formAction = $_POST['form_action'] ?? 'pay_bill';
-
+    requireWorkflowCsrf();
+    if (!$canPay) { http_response_code(403); exit('Only the approved unit owner can pay bills. Tenant billing access is read-only.'); }
+    $formAction = $_POST['form_action'] ?? '';
     if ($formAction === 'pay_bill') {
-        $billId = (int)($_POST['bill_id'] ?? 0);
-        $selectedMethod = $_POST['payment_method'] ?? '';
-
-        $billCheck = $connection->prepare("SELECT * FROM payments WHERE id = ? AND user_id = ? AND status IN ('pending','overdue') LIMIT 1");
-        $billCheck->bind_param('ii', $billId, $userId);
-        $billCheck->execute();
-        $bill = $billCheck->get_result()->fetch_assoc();
-
-        if (!$bill) {
-            $errors[] = 'That bill could not be found or is no longer open.';
-        } elseif (!in_array($selectedMethod, ['online', 'bank', 'cash'], true)) {
-            $errors[] = 'Please select a payment method.';
-        } else {
-            $items = getBillItems($connection, $billId);
-            if (empty($items)) {
-                $items = [['category' => 'Payment', 'amount' => $bill['amount']]];
-            }
-
-            $updateMethod = $connection->prepare('UPDATE payments SET payment_method = ? WHERE id = ?');
-            $updateMethod->bind_param('si', $selectedMethod, $billId);
-            $updateMethod->execute();
-            trackEvent('payment_submitted', $bill['amount'] . ' via ' . $selectedMethod, $userId);
-
-            if ($selectedMethod === 'cash') {
-                $success = true;
-            } else {
-                $checkoutMethods = paymongoPaymentMethodsForSelection($selectedMethod);
-                if (empty($checkoutMethods)) {
-                    $errors[] = $selectedMethod === 'bank'
-                        ? 'Online banking is not enabled in your PayMongo payment methods. Add dob to CONDO_PAYMONGO_METHODS.'
-                        : 'No PayMongo methods are enabled for online payment.';
-                } else {
-                    // The resident is never marked paid here; PayMongo's signed webhook confirms completed checkouts.
-                    $successUrl = buildUrl('payment_return.php?payment_id=' . $billId . '&status=success');
-                    $cancelUrl = buildUrl('payment_return.php?payment_id=' . $billId . '&status=cancelled');
-                    $description = 'Statement of Account — ' . ($bill['billing_period_start'] ? date('F Y', strtotime($bill['billing_period_start'])) : date('F Y'));
-                    $residentName = $profile['full_name'] ?: $username;
-
-                    $checkout = createPaymongoCheckoutSession($billId, $items, $description, $residentName, $profile['email'] ?? '', $successUrl, $cancelUrl, [], $checkoutMethods);
-
-                    if ($checkout['success']) {
-                        $update = $connection->prepare('UPDATE payments SET paymongo_checkout_id = ?, checkout_url = ?, gateway_status = NULL WHERE id = ?');
-                        $update->bind_param('ssi', $checkout['checkout_id'], $checkout['checkout_url'], $billId);
-                        $update->execute();
-                        redirect($checkout['checkout_url']);
-                    } else {
-                        $errors[] = 'Could not start ' . ($selectedMethod === 'bank' ? 'bank transfer' : 'online') . ' payment: ' . $checkout['error'] . ' You can try again or choose another payment method.';
-                    }
-                }
-            }
+        $result = startResidentBillPayment($connection, (int)($_POST['bill_id'] ?? 0), $userId,
+            (string)($_POST['payment_method'] ?? ''), $profile);
+        if ($result['success']) {
+            if (!empty($result['checkout_url'])) redirect($result['checkout_url']);
+            $_SESSION['billing_cash_selected'] = true;
+            redirect('payments.php');
         }
+        $errors[] = $result['error'];
+    } else {
+        $errors[] = 'Unknown payment action.';
     }
 }
-
-$openBills = getOpenBillsForUser($userId);
-$billHistory = getBillHistoryForUser($userId);
+$success = $canPay && !empty($_SESSION['billing_cash_selected']);
+unset($_SESSION['billing_cash_selected']);
+$openBills = getResidentVisibleBills($connection,$userId);
+$billHistory = getResidentVisibleBills($connection,$userId,true);
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences - Billing &amp; Payments</title>
+    <title>Celandine Residences - <?php echo htmlspecialchars($billingTitle); ?></title>
     <link rel="stylesheet" href="../resident.css?v=<?php echo (int)filemtime(__DIR__ . '/../resident.css'); ?>">
 </head>
 <body class="dashboard-page">
@@ -132,30 +96,7 @@ $billHistory = getBillHistoryForUser($userId);
             </a>
 
             <nav class="sidebar-nav">
-                <a href="dashboard.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('dashboard'); ?> Dashboard
-                </a>
-                <a href="payments.php" class="sidebar-link active">
-                    <?php echo systemSidebarIcon('billing'); ?> Billing &amp; Payments
-                </a>
-                <a href="residentviolation.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('violations'); ?> Violations
-                </a>
-                <a href="book_amenity.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('calendar'); ?> Book Amenity
-                </a>
-                <a href="parking.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('parking'); ?> Parking
-                </a>
-                <a href="maintenance.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('maintenance'); ?> Maintenance
-                </a>
-                <a href="messages.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('messages'); ?> Messages
-                </a>
-                    <a href="announcements.php" class="sidebar-link">
-                        <?php echo systemSidebarIcon('announcements'); ?> Announcements
-                    </a>
+                <?php renderResidentSidebarNavigation('payments.php'); ?>
             </nav>
         </aside>
 
@@ -169,7 +110,7 @@ $billHistory = getBillHistoryForUser($userId);
                     </button>
                     <div>
                         <span class="dash-subtitle">CELANDINE RESIDENCES</span>
-                        <h1 class="dash-title">Billing &amp; Payments</h1>
+                        <h1 class="dash-title"><?php echo htmlspecialchars($billingTitle); ?></h1>
                     </div>
                 </div>
                 <div class="dash-header-right">
@@ -200,10 +141,13 @@ $billHistory = getBillHistoryForUser($userId);
             </header>
 
             <?php if ($success): ?>
-                <div class="alert success"><strong>Payment initiated!</strong> We'll confirm your payment shortly.</div>
+                <div class="alert success"><strong>Cash payment selected.</strong> Pay at the management office. Billing staff will confirm the payment after receiving cash.</div>
             <?php endif; ?>
             <?php if (!empty($errors)): ?>
                 <div class="alert error"><ul><?php foreach ($errors as $error): ?><li><?php echo htmlspecialchars($error); ?></li><?php endforeach; ?></ul></div>
+            <?php endif; ?>
+            <?php if (!$canPay): ?>
+                <div class="alert"><strong>Billing is read-only for tenants and occupants.</strong> You can review your unit's itemized statements and recorded payment status. Only the approved unit owner can select a payment method, pay bills, or download payment receipts.</div>
             <?php endif; ?>
 
             <div class="billing-overview-grid">
@@ -233,7 +177,9 @@ $billHistory = getBillHistoryForUser($userId);
                         <tr class="soa-total-row"><td>Total Due</td><td>₱<?php echo number_format((float)$bill['amount'], 2); ?></td></tr>
                     </table>
                     <p class="billing-due">Due Date: <strong class="billing-due-strong"><?php echo htmlspecialchars(date('F j, Y', strtotime($bill['due_date']))); ?></strong></p>
+                    <?php if ($canPay && residentCanPayBill($connection,$userId,(int)$bill['user_id'])): ?>
                     <form method="POST" action="payments.php">
+                        <?php echo workflowCsrfField(); ?>
                         <input type="hidden" name="form_action" value="pay_bill">
                         <input type="hidden" name="bill_id" value="<?php echo (int)$bill['id']; ?>">
                         <?php foreach ($paymentMethods as $index => $method): ?>
@@ -248,6 +194,7 @@ $billHistory = getBillHistoryForUser($userId);
                         <?php endforeach; ?>
                         <button type="submit" class="proceed-payment-btn">Pay ₱<?php echo number_format((float)$bill['amount'], 2); ?></button>
                     </form>
+                    <?php endif; ?>
                     </div>
                     <?php endforeach; endif; ?>
                 </section>
@@ -264,9 +211,11 @@ $billHistory = getBillHistoryForUser($userId);
                         </summary>
                         <div class="history-payment-meta">
                             <div><span>Payment date</span><strong><?php echo htmlspecialchars(date('M j, Y g:i A', strtotime($bill['paid_at'] ?: $bill['created_at']))); ?></strong></div>
+                            <?php if ($canPay): ?>
                             <div><span>Paid via</span><strong><?php echo htmlspecialchars(paymentChannelLabel($bill['payment_channel'] ?? null, $bill['payment_method'] ?? null)); ?></strong></div>
                             <div><span>Reference</span><strong>DUES-<?php echo (int)$bill['id']; ?></strong></div>
                             <?php if (!empty($bill['paymongo_payment_id'])): ?><div><span>Payment ID</span><strong><?php echo htmlspecialchars($bill['paymongo_payment_id']); ?></strong></div><?php endif; ?>
+                            <?php endif; ?>
                             <?php if (!empty($bill['due_date'])): ?><div><span>Due date</span><strong><?php echo htmlspecialchars(date('M j, Y', strtotime($bill['due_date']))); ?></strong></div><?php endif; ?>
                         </div>
                         <table class="history-items">
@@ -275,7 +224,7 @@ $billHistory = getBillHistoryForUser($userId);
                                 <tr><td><?php echo htmlspecialchars($item['category']); ?><?php if (!empty($item['description'])): ?> — <?php echo htmlspecialchars($item['description']); ?><?php endif; ?></td><td class="soa-amount">₱<?php echo number_format((float)$item['amount'], 2); ?></td></tr>
                             <?php endforeach; ?></tbody>
                         </table>
-                        <a class="history-receipt-link" href="payment_receipt.php?id=<?php echo (int)$bill['id']; ?>">Download Receipt (PDF)</a>
+                        <?php if ($canPay && residentCanPayBill($connection,$userId,(int)$bill['user_id'])): ?><a class="history-receipt-link" href="payment_receipt.php?id=<?php echo (int)$bill['id']; ?>">Download Receipt (PDF)</a><?php endif; ?>
                     </details>
                     <?php endforeach; endif; ?>
                 </section>

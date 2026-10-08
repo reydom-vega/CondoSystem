@@ -18,6 +18,7 @@ $errors = [];
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireWorkflowCsrf();
     $action = $_POST['action'] ?? '';
 
     if ($action === 'bulk_generate') {
@@ -40,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $periodStart = $dueDate !== '' ? date('Y-m-01', strtotime($dueDate)) : '';
         $periodEnd = $dueDate !== '' ? date('Y-m-t', strtotime($dueDate)) : '';
 
-        if ($dueDate === '') {
+        if (!workflowDate($dueDate)) {
             $errors[] = 'Due date is required.';
         } elseif (empty($template)) {
             $errors[] = 'Add at least one charge with an amount greater than or equal to zero.';
@@ -50,12 +51,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = $result['error'];
             } else {
                 logAudit('bulk_generate', 'payment', 0, "Generated {$result['created']} bill(s) for period {$periodStart} to {$periodEnd}, due {$dueDate}. Skipped {$result['skipped']} resident(s) with an open bill.");
-                $success = "Generated {$result['created']} bill(s), including overdue balances where applicable. Skipped {$result['skipped']} resident(s) because the period was already billed or an open bill could not be rolled forward.";
+                $success = "Generated {$result['created']} monthly bill(s). Skipped {$result['skipped']} resident(s) already billed for this period or unable to receive a bill. Earlier outstanding bills remain separately payable.";
                 if ($notify && !empty($result['bill_ids'])) {
+                    $queuedCount = 0;
                     foreach ($result['bill_ids'] as $billId) {
-                        notifyResidentOfNewBill($billId);
+                        $queuedCount += (int)notifyResidentOfNewBill($billId);
                     }
-                    $success .= ' Residents notified by email/SMS.';
+                    $success .= ' Email notices queued for ' . $queuedCount . ' bill(s).';
                 }
             }
         }
@@ -74,24 +76,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        $periodStart = $dueDate !== '' ? date('Y-m-01', strtotime($dueDate)) : null;
-        $periodEnd = $dueDate !== '' ? date('Y-m-t', strtotime($dueDate)) : null;
+        $periodStart = null;
+        $periodEnd = null;
 
-        if ($targetUserId <= 0 || $dueDate === '') {
+        if ($targetUserId <= 0 || !workflowDate($dueDate)) {
             $errors[] = 'Please choose a resident and a due date.';
         } elseif (empty($items)) {
             $errors[] = 'Add at least one charge with an amount greater than zero.';
         } else {
-            $billId = appendChargesToOpenFineBill($connection, $targetUserId, $items, $periodStart, $periodEnd, $dueDate);
-            if ($billId === null) {
-                $billId = createBill($targetUserId, $items, $periodStart, $periodEnd, $dueDate);
-            }
+            $billId = createBill($targetUserId, $items, $periodStart, $periodEnd, $dueDate);
             if ($billId) {
                 logAudit('create', 'payment', $billId, 'Custom bill created or updated for user #' . $targetUserId);
                 $success = 'Bill created.';
                 if ($notify) {
-                    notifyResidentOfNewBill($billId);
-                    $success .= ' Resident notified by email/SMS.';
+                    $success .= notifyResidentOfNewBill($billId) ? ' Email notice queued for delivery.' : ' Email notice could not be queued.';
                 }
             } else {
                 $errors[] = 'Could not create the bill.';
@@ -109,7 +107,7 @@ if ($success !== '') {
 $success = $_SESSION['billing_success'] ?? '';
 unset($_SESSION['billing_success']);
 
-$residentsResult = $connection->query("SELECT id, full_name, unit_number FROM users WHERE role = 'resident' AND is_verified = 1 ORDER BY unit_number ASC");
+$residentsResult = $connection->query("SELECT id, full_name, unit_number FROM users WHERE role = 'resident' AND is_verified = 1 AND is_active=1 AND status='approved' AND (account_type IS NULL OR TRIM(account_type)='' OR LOWER(TRIM(account_type))='resident owner') ORDER BY unit_number ASC");
 $residents = $residentsResult ? $residentsResult->fetch_all(MYSQLI_ASSOC) : [];
 
 $defaultDueDate = date('Y-m-d');
@@ -274,29 +272,8 @@ $billHistory = $historyStmt->get_result()->fetch_all(MYSQLI_ASSOC);
 <body class="dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="admin_dashboard.php" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
-            <nav class="sidebar-nav">
-                <a href="<?php echo isTreasurer() ? '../treasurer/treasurer_dashboard.php' : 'admin_dashboard.php'; ?>" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                <?php if (isSuperAdmin()): ?>
-                <a href="units.php" class="sidebar-link"><?php echo systemSidebarIcon('units'); ?> Units</a>
-                <a href="residents.php" class="sidebar-link"><?php echo systemSidebarIcon('residents'); ?> Residents</a>
-                <a href="pending_accounts.php" class="sidebar-link"><?php echo systemSidebarIcon('pending'); ?> Pending Accounts</a>
-                <a href="staff.php" class="sidebar-link"><?php echo systemSidebarIcon('staff'); ?> Staff Management</a>
-                <?php endif; ?>
-                <a href="unitpayments.php" class="sidebar-link"><?php echo systemSidebarIcon('billing'); ?> Billing & Payments</a>
-                <a href="generate_bills.php" class="sidebar-link active"><?php echo systemSidebarIcon('bills'); ?> Generate Bills</a>
-                <?php if (isSuperAdmin()): ?>
-                    <a href="violations.php" class="sidebar-link"><?php echo systemSidebarIcon('violations'); ?> Violations</a>
-                    <a href="bookingrequest.php" class="sidebar-link"><?php echo systemSidebarIcon('calendar'); ?> Booking Requests</a>
-                    <a href="maintenancerequests.php" class="sidebar-link"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance Requests</a>
-                    <a href="admin_messages.php" class="sidebar-link"><?php echo systemSidebarIcon('messages'); ?> Messages</a>
-                    <a href="announcements.php" class="sidebar-link"><?php echo systemSidebarIcon('announcements'); ?> Announcements</a>
-                    <a href="analytics.php" class="sidebar-link"><?php echo systemSidebarIcon('analytics'); ?> Analytics</a>
-                    <a href="parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking</a>
-                    <a href="auditlog.php" class="sidebar-link"><?php echo systemSidebarIcon('audit'); ?> Audit Log</a>
-                    <a href="visitorlog.php" class="sidebar-link"><?php echo systemSidebarIcon('visitors'); ?> Visitor Log</a>
-                <?php endif; ?>
-            </nav>
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
+            <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -329,6 +306,7 @@ $billHistory = $historyStmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 <h3 class="section-title">Create Custom Bill — Single Unit</h3>
                 <p class="panel-subtext">For one-off charges, a specific resident's rent, or anything that doesn't fit the standard monthly template.</p>
                 <form method="post" id="customBillForm">
+                    <?php echo workflowCsrfField(); ?>
                     <input type="hidden" name="action" value="custom_bill">
                     <div class="bill-form-grid">
                         <div class="field">
@@ -374,8 +352,9 @@ $billHistory = $historyStmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
             <section class="unit-management-panel">
                 <h3 class="section-title">Generate Monthly Bills — All Residents</h3>
-                <p class="panel-subtext">Set an amount for each charge that applies this cycle (leave a field at 0 to skip it). Residents who already have an open bill are skipped automatically, so this is safe to re-run.</p>
+                <p class="panel-subtext">Create one monthly statement per approved unit owner. Tenants view the owner's unit statement and cannot pay. The due date selects the billing month; repeating it skips existing statements, including paid ones. Earlier balances remain on their original bills.</p>
                 <form method="post" id="bulkGenerateForm">
+                    <?php echo workflowCsrfField(); ?>
                     <input type="hidden" name="action" value="bulk_generate">
                     <div class="bill-form-grid">
                         <div class="field"><label>Due Date</label><input type="date" name="due_date" value="<?php echo $defaultDueDate; ?>" required></div>
@@ -484,12 +463,10 @@ $billHistory = $historyStmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 return;
             }
 
-            const match = residentOptions.find(option => {
-                const searchable = [option.value, option.unit, option.name, option.unit.replace(/[^0-9]/g, ''), option.name.toLowerCase()]
-                    .join(' ')
-                    .toLowerCase();
-                return searchable.includes(query) || query.includes(searchable);
-            });
+            const exact = residentOptions.filter(option => option.value.toLowerCase() === query);
+            const candidates = exact.length ? exact : residentOptions.filter(option =>
+                option.unit.toLowerCase() === query || option.name.toLowerCase() === query);
+            const match = candidates.length === 1 ? candidates[0] : null;
 
             residentHiddenId.value = match ? match.id : '';
         }

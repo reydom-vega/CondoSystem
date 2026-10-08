@@ -1,12 +1,11 @@
 <?php
 require_once '../config.php';
+require_once __DIR__.'/../includes/resident_accounts.php';
 
 if (!isLoggedIn()) {
     redirect('../login.php');
 }
-if (!isAdmin()) {
-    redirect('../resident/dashboard.php');
-}
+requireCapability('residents.read');
 
 $username = $_SESSION['username'] ?? 'Administrator';
 $nameParts = preg_split('/\s+/', trim($username));
@@ -16,11 +15,22 @@ $statusFilter = $_GET['status'] ?? 'all';
 $residents = [];
 
 $connection = connectDb();
-$result = $connection->query("SELECT resident_id, full_name, username, email, contact_number, unit_number, is_verified, last_login_at, last_seen_at, created_at FROM users WHERE role = 'resident' ORDER BY full_name ASC");
+if ($_SERVER['REQUEST_METHOD']==='POST') {
+    requireWorkflowCsrf(); requireCapability('units.manage');
+    $targetId=(int)($_POST['resident_id'] ?? 0);
+    $target=residentContext($connection,$targetId);
+    $ended=($_POST['action'] ?? '')==='end_tenancy' && $target && in_array($target['account_kind'],['tenant','occupant'],true) && unassignResidentUnit($connection,$targetId,(string)($_POST['unit_number'] ?? ''));
+    setFlash($ended ? 'success' : 'error',$ended ? 'Occupant access ended. Their sessions and unopened requests were revoked; financial history was retained.' : 'Could not end that occupancy. Refresh the resident list and try again.');
+    redirect('residents.php');
+}
+$flash=getFlash();
+$result = $connection->query("SELECT id,resident_id, account_type, unit_owner_id, full_name, username, email, contact_number, unit_number, status, is_active, is_verified, last_login_at, last_seen_at, created_at FROM users WHERE role = 'resident' ORDER BY full_name ASC");
 if ($result) {
     while ($resident = $result->fetch_assoc()) {
-        $haystack = strtolower(implode(' ', [$resident['full_name'], $resident['username'], $resident['email'], $resident['unit_number'], $resident['contact_number']]));
-        $isActive = (int)$resident['is_verified'] === 1;
+        $haystack = strtolower(implode(' ', [$resident['full_name'], $resident['username'], $resident['email'], $resident['unit_number'] ?? '', $resident['contact_number']]));
+        $context=residentContext($connection,(int)$resident['id']);
+        $isActive = $context['approved'] ?? false;
+        $displayStatus = $isActive ? 'Active' : ((int)$resident['is_active'] !== 1 ? 'Inactive' : ($resident['status'] === 'rejected' ? 'Rejected' : ((int)$resident['is_verified'] !== 1 ? 'Unverified' : 'Pending')));
 
         if ($search !== '' && strpos($haystack, strtolower($search)) === false) {
             continue;
@@ -33,13 +43,17 @@ if ($result) {
         }
 
         $residents[] = [
-            'resident_id' => trim($resident['unit_number']) !== '' ? $resident['unit_number'] : 'Unassigned',
+            'id'=>(int)$resident['id'], 'account_kind'=>$context['account_kind'],
+            'relationship'=>$resident['account_type'] ?: 'Unit Owner (legacy)',
+            'owner_id'=>$context['account_kind']==='owner' ? null : $resident['unit_owner_id'],
+            'can_end'=>$resident['status']==='approved' && in_array($context['account_kind'],['tenant','occupant'],true) && trim((string)$resident['unit_number'])!=='',
+            'resident_id' => trim((string)($resident['unit_number'] ?? '')) !== '' ? $resident['unit_number'] : 'Unassigned',
             'name' => $resident['full_name'],
             'username' => $resident['username'],
-            'unit' => trim($resident['unit_number']) !== '' ? $resident['unit_number'] : 'Unassigned',
+            'unit' => trim((string)($resident['unit_number'] ?? '')) !== '' ? $resident['unit_number'] : 'Unassigned',
             'contact' => $resident['contact_number'],
             'email' => $resident['email'],
-            'status' => $isActive ? 'Active' : 'Pending',
+            'status' => $displayStatus,
             'last_seen_at' => $resident['last_seen_at'] ?? null,
             'last_login_at' => $resident['last_login_at'] ?? null,
             'created_at' => $resident['created_at'],
@@ -57,31 +71,13 @@ $pendingCount = count($residents) - $activeCount;
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celandine Residences</title>
     <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="../services.css">
 </head>
 <body class="dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="admin_dashboard.php" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
-            <nav class="sidebar-nav">
-                <a href="admin_dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                <a href="units.php" class="sidebar-link"><?php echo systemSidebarIcon('units'); ?> Units</a>
-                <a href="residents.php" class="sidebar-link active"><?php echo systemSidebarIcon('residents'); ?> Residents</a>
-                <?php if (isSuperAdmin()): ?>
-                    <a href="pending_accounts.php" class="sidebar-link"><?php echo systemSidebarIcon('pending'); ?> Pending Accounts</a>
-                    <a href="staff.php" class="sidebar-link"><?php echo systemSidebarIcon('staff'); ?> Staff Management</a>
-                    <a href="unitpayments.php" class="sidebar-link"><?php echo systemSidebarIcon('billing'); ?> Billing &amp; Payments</a>
-                    <a href="generate_bills.php" class="sidebar-link"><?php echo systemSidebarIcon('bills'); ?> Generate Bills</a>
-                    <a href="violations.php" class="sidebar-link"><?php echo systemSidebarIcon('violations'); ?> Violations</a>
-                <?php endif; ?>
-                <a href="bookingrequest.php" class="sidebar-link"><?php echo systemSidebarIcon('calendar'); ?> Booking Requests</a>
-                <a href="maintenancerequests.php" class="sidebar-link"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance Requests</a>
-                <a href="admin_messages.php" class="sidebar-link"><?php echo systemSidebarIcon('messages'); ?> Messages</a>
-                <a href="announcements.php" class="sidebar-link"><?php echo systemSidebarIcon('announcements'); ?> Announcements</a>
-                <?php if (isSuperAdmin()): ?><a href="analytics.php" class="sidebar-link"><?php echo systemSidebarIcon('analytics'); ?> Analytics</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="auditlog.php" class="sidebar-link"><?php echo systemSidebarIcon('audit'); ?> Audit Log</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="visitorlog.php" class="sidebar-link"><?php echo systemSidebarIcon('visitors'); ?> Visitor Log</a><?php endif; ?>
-            </nav>
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
+            <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -104,11 +100,12 @@ $pendingCount = count($residents) - $activeCount;
             </header>
 
             <section class="unit-page-head">
-                <div><h2>Residents</h2><p>View resident contact and account information.</p></div>
+                <div><h2>Residents</h2><p>Review unit owners and linked tenants or occupants. End an occupant's access here; use Units to remove an owner and all linked occupants.</p></div>
                 <div class="unit-summary"><span><?php echo $activeCount; ?> Active</span><span><?php echo $pendingCount; ?> Pending</span></div>
             </section>
 
             <section class="unit-management-panel">
+                <?php if($flash): ?><div class="alert <?php echo $flash['type']==='error'?'error':'success'; ?>"><?php echo htmlspecialchars($flash['message'],ENT_QUOTES,'UTF-8'); ?></div><?php endif; ?>
                 <form class="unit-filters" method="get" action="residents.php">
                     <label for="residentSearch">Search residents</label>
                     <input id="residentSearch" type="search" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Search resident or unit...">
@@ -122,23 +119,26 @@ $pendingCount = count($residents) - $activeCount;
                 </form>
                 <div class="unit-table-wrap">
                     <table class="unit-table resident-table">
-                        <thead><tr><th>Unit ID</th><th>Name</th><th>Unit Number</th><th>Contact</th><th>Email</th><th>Status</th></tr></thead>
+                        <thead><tr><th>Unit ID</th><th>Name</th><th>Relationship</th><th>Unit Number</th><th>Contact</th><th>Email</th><th>Status</th><th>Occupancy</th></tr></thead>
                         <tbody>
                             <?php if (empty($residents)): ?>
-                                <tr><td colspan="6" class="unit-empty">No resident information matches your search.</td></tr>
+                                <tr><td colspan="8" class="unit-empty">No resident information matches your search.</td></tr>
                             <?php else: ?>
                                 <?php foreach ($residents as $resident): ?>
                                     <tr>
                                         <td><strong><?php echo htmlspecialchars($resident['resident_id']); ?></strong></td>
                                         <td><strong><?php echo htmlspecialchars($resident['name']); ?></strong><small>@<?php echo htmlspecialchars($resident['username']); ?></small></td>
+                                        <td><?php echo htmlspecialchars($resident['relationship']); ?><?php if($resident['account_kind']!=='owner'): ?><small><?php echo $resident['owner_id'] ? 'Linked owner account #'.(int)$resident['owner_id'] : 'Owner review required'; ?></small><?php endif; ?></td>
                                         <td><?php echo htmlspecialchars($resident['unit']); ?></td>
                                         <td><?php echo htmlspecialchars($resident['contact']); ?></td>
                                         <td><?php echo htmlspecialchars($resident['email']); ?></td>
                                         <td>
+                                            <strong><?php echo htmlspecialchars($resident['status']); ?></strong>
                                             <?php $presence = userPresenceSummary($resident['last_seen_at'] ?? null, $resident['last_login_at'] ?? null); ?>
                                             <span class="unit-status <?php echo $presence['online'] ? 'online' : 'offline'; ?>"><?php echo htmlspecialchars($presence['label']); ?></span>
                                             <small class="staff-last-login"><?php echo htmlspecialchars($presence['detail']); ?></small>
                                         </td>
+                                        <td><?php if($resident['can_end'] && canAccess('units.manage')): ?><form method="post" onsubmit="return confirm('End this occupant access? Review any legacy bills first. Sessions and unopened requests will be revoked.');"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="end_tenancy"><input type="hidden" name="resident_id" value="<?php echo $resident['id']; ?>"><input type="hidden" name="unit_number" value="<?php echo htmlspecialchars($resident['unit'],ENT_QUOTES,'UTF-8'); ?>"><button class="service-btn service-btn-danger" type="submit">End occupancy</button></form><?php else: ?>—<?php endif; ?></td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php endif; ?>

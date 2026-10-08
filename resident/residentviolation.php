@@ -8,6 +8,7 @@ if (isAdmin()) {
 	redirect(isSecurity() ? '../security/security_dashboard.php' : (isMaintenance() ? '../maintenance/maintenance_dashboard.php' : '../admin/admin_dashboard.php'));
 }
 requireApproval();
+requireResidentPermission('resident.violations.view');
 
 $username = $_SESSION['username'] ?? 'User';
 $unitNumber = isset($_SESSION['unit_number']) ? 'Unit ' . htmlspecialchars($_SESSION['unit_number']) : 'Unit Not Set';
@@ -25,6 +26,7 @@ $successMessage = $_SESSION['resident_violation_success'] ?? '';
 unset($_SESSION['resident_violation_success']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_action'] ?? '') === 'dispute_violation') {
+    requireWorkflowCsrf();
 	$violationId = (int)($_POST['violation_id'] ?? 0);
 	$reason = trim($_POST['dispute_reason'] ?? '');
 	if ($reason === '') {
@@ -95,16 +97,7 @@ $violationIcons = [
 	<div class="dash-layout">
 		<aside class="sidebar" id="sidebar">
 			<a href="dashboard.php" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
-			<nav class="sidebar-nav">
-				<a href="dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-				<a href="payments.php" class="sidebar-link"><?php echo systemSidebarIcon('billing'); ?> Billing &amp; Payments</a>
-				<a href="residentviolation.php" class="sidebar-link active"><?php echo systemSidebarIcon('violations'); ?> Violations</a>
-				<a href="book_amenity.php" class="sidebar-link"><?php echo systemSidebarIcon('calendar'); ?> Book Amenity</a>
-				<a href="parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking</a>
-				<a href="maintenance.php" class="sidebar-link"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance</a>
-				<a href="messages.php" class="sidebar-link"><?php echo systemSidebarIcon('messages'); ?> Messages</a>
-				<a href="announcements.php" class="sidebar-link"><?php echo systemSidebarIcon('announcements'); ?> Announcements</a>
-			</nav>
+			<nav class="sidebar-nav"><?php renderResidentSidebarNavigation(); ?></nav>
 		</aside>
 		<div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -204,7 +197,7 @@ $violationIcons = [
 							<?php endif; ?>
 							<?php if ($selectedViolation['status'] === 'unpaid' && $selectedViolation['penalty_type'] === 'fine'): ?>
 								<a class="resident-violation-primary-action" href="payments.php">Pay Fine <span>→</span></a>
-								<form method="post" action="residentviolation.php" class="resident-violation-dispute-form"><input type="hidden" name="form_action" value="dispute_violation"><input type="hidden" name="violation_id" value="<?php echo (int)$selectedViolation['id']; ?>"><label for="dispute_reason_<?php echo (int)$selectedViolation['id']; ?>">Dispute this fine</label><input id="dispute_reason_<?php echo (int)$selectedViolation['id']; ?>" type="text" name="dispute_reason" maxlength="1000" placeholder="Explain your reason..." required><button type="submit">Submit Dispute</button></form>
+								<form method="post" action="residentviolation.php" class="resident-violation-dispute-form"><?php echo workflowCsrfField(); ?><input type="hidden" name="form_action" value="dispute_violation"><input type="hidden" name="violation_id" value="<?php echo (int)$selectedViolation['id']; ?>"><label class="field-label" for="dispute_reason_<?php echo (int)$selectedViolation['id']; ?>">Dispute this fine</label><input id="dispute_reason_<?php echo (int)$selectedViolation['id']; ?>" type="text" name="dispute_reason" maxlength="1000" placeholder="Explain your reason..." required><button type="submit">Submit Dispute</button></form>
 							<?php elseif ($selectedViolation['status'] === 'disputed' && !empty($selectedViolation['dispute_reason'])): ?>
 								<section class="resident-violation-dispute-note"><strong>Dispute submitted</strong><p><?php echo htmlspecialchars($selectedViolation['dispute_reason']); ?></p><small>Management is reviewing your dispute.</small></section>
 							<?php elseif ($selectedViolation['status'] === 'paid' && !empty($selectedViolation['payment_id'])): ?>

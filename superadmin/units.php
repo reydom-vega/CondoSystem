@@ -1,12 +1,11 @@
 <?php
 require_once '../config.php';
+require_once __DIR__ . '/../includes/resident_accounts.php';
 
 if (!isLoggedIn()) {
     redirect('../login.php');
 }
-if (!isAdmin()) {
-    redirect('../resident/dashboard.php');
-}
+requireCapability('units.manage');
 
 $username = $_SESSION['username'] ?? 'Administrator';
 $nameParts = preg_split('/\s+/', trim($username));
@@ -18,6 +17,7 @@ $successMessage = '';
 $errorMessage = '';
 
 $connection = connectDb();
+if ($_SERVER['REQUEST_METHOD'] === 'POST') requireWorkflowCsrf();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'mark_vacant') {
     $residentId = (int)($_POST['resident_id'] ?? 0);
@@ -26,10 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'mark_
     if ($residentId <= 0) {
         $errorMessage = 'Please choose a resident to mark vacant.';
     } else {
-        $stmt = $connection->prepare("UPDATE users SET unit_number = NULL, resident_id = NULL WHERE id = ? AND role = 'resident'");
-        $stmt->bind_param('i', $residentId);
-        if ($stmt->execute() && $stmt->affected_rows > 0) {
-            $successMessage = 'Unit ' . htmlspecialchars($unitNumber) . ' has been marked as vacant.';
+        if (unassignResidentUnit($connection, $residentId, $unitNumber)) {
+            $successMessage = 'Unit ' . htmlspecialchars($unitNumber) . ' has been marked as vacant. The resident must receive a new unit approval to regain portal access.';
         } else {
             $errorMessage = 'Could not mark that unit as vacant.';
         }
@@ -37,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'mark_
 }
 
 $residentMap = [];
-$result = $connection->query("SELECT id, full_name, username, email, contact_number, unit_number, is_verified, created_at FROM users WHERE role = 'resident' ORDER BY unit_number ASC, full_name ASC");
+$result = $connection->query("SELECT id, full_name, username, email, contact_number, unit_number, is_verified, created_at FROM users WHERE role = 'resident' AND status='approved' AND (account_type IS NULL OR TRIM(account_type)='' OR LOWER(TRIM(account_type))='resident owner') ORDER BY unit_number ASC, full_name ASC");
 if ($result) {
     while ($resident = $result->fetch_assoc()) {
         $unitNumber = normalizeUnitNumber((string) ($resident['unit_number'] ?? ''));
@@ -48,6 +46,11 @@ if ($result) {
 }
 
 $inventory = loadUnitInventory();
+$occupantCounts=[];
+foreach($connection->query("SELECT unit_owner_id,unit_number,COUNT(*) AS total FROM users WHERE role='resident' AND status='approved' AND unit_owner_id IS NOT NULL GROUP BY unit_owner_id,unit_number") as $row) {
+    $owner=$residentMap[normalizeUnitNumber($row['unit_number'])] ?? null;
+    if ($owner && (int)$owner['id']===(int)$row['unit_owner_id']) $occupantCounts[(int)$row['unit_owner_id']]=($occupantCounts[(int)$row['unit_owner_id']] ?? 0)+(int)$row['total'];
+}
 if (!empty($inventory)) {
     foreach ($inventory as $item) {
         $unitNumber = normalizeUnitNumber((string) ($item['unit_number'] ?? ''));
@@ -74,6 +77,7 @@ if (!empty($inventory)) {
             'type' => 'Residential',
             'floor' => 'Floor ' . (int)($item['floor'] ?? 0),
             'resident' => $residentName,
+            'occupant_count'=>$isOccupied ? ($occupantCounts[(int)$resident['id']] ?? 0) : 0,
             'contact' => $contact,
             'email' => $email,
             'status' => $isOccupied ? 'Occupied' : 'Vacant',
@@ -82,7 +86,7 @@ if (!empty($inventory)) {
         ];
     }
 } else {
-    $result = $connection->query("SELECT id, full_name, username, email, contact_number, unit_number, is_verified, created_at FROM users WHERE role = 'resident' ORDER BY unit_number ASC, full_name ASC");
+    $result = $connection->query("SELECT id, full_name, username, email, contact_number, unit_number, is_verified, created_at FROM users WHERE role = 'resident' AND status='approved' AND (account_type IS NULL OR TRIM(account_type)='' OR LOWER(TRIM(account_type))='resident owner') ORDER BY unit_number ASC, full_name ASC");
     if ($result) {
         while ($resident = $result->fetch_assoc()) {
             $unitNumber = trim($resident['unit_number']);
@@ -107,6 +111,7 @@ if (!empty($inventory)) {
                 'type' => $isOccupied ? 'Residential' : 'N/A',
                 'floor' => $floor,
                 'resident' => $isOccupied ? $resident['full_name'] : 'Vacant',
+                'occupant_count'=>$occupantCounts[(int)$resident['id']] ?? 0,
                 'contact' => $isOccupied ? $resident['contact_number'] : '-',
                 'email' => $isOccupied ? $resident['email'] : '-',
                 'status' => $isOccupied ? 'Occupied' : 'Vacant',
@@ -196,30 +201,11 @@ $vacantCount = count($units) - $occupiedCount;
 <body class="dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="admin_dashboard.php" class="sidebar-brand">
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
                 <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
-            <nav class="sidebar-nav">
-                <a href="admin_dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                <a href="units.php" class="sidebar-link active"><?php echo systemSidebarIcon('units'); ?> Units</a>
-                <a href="residents.php" class="sidebar-link"><?php echo systemSidebarIcon('residents'); ?> Residents</a>
-                <?php if (isSuperAdmin()): ?>
-                    <a href="pending_accounts.php" class="sidebar-link"><?php echo systemSidebarIcon('pending'); ?> Pending Accounts</a>
-                    <a href="staff.php" class="sidebar-link"><?php echo systemSidebarIcon('staff'); ?> Staff Management</a>
-                    <a href="unitpayments.php" class="sidebar-link"><?php echo systemSidebarIcon('billing'); ?> Billing &amp; Payments</a>
-                    <a href="generate_bills.php" class="sidebar-link"><?php echo systemSidebarIcon('bills'); ?> Generate Bills</a>
-                    <a href="violations.php" class="sidebar-link"><?php echo systemSidebarIcon('violations'); ?> Violations</a>
-                <?php endif; ?>
-                <a href="bookingrequest.php" class="sidebar-link"><?php echo systemSidebarIcon('calendar'); ?> Booking Requests</a>
-                <a href="maintenancerequests.php" class="sidebar-link"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance Requests</a>
-                <a href="admin_messages.php" class="sidebar-link"><?php echo systemSidebarIcon('messages'); ?> Messages</a>
-                <a href="announcements.php" class="sidebar-link"><?php echo systemSidebarIcon('announcements'); ?> Announcements</a>
-                <?php if (isSuperAdmin()): ?><a href="analytics.php" class="sidebar-link"><?php echo systemSidebarIcon('analytics'); ?> Analytics</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="auditlog.php" class="sidebar-link"><?php echo systemSidebarIcon('audit'); ?> Audit Log</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="visitorlog.php" class="sidebar-link"><?php echo systemSidebarIcon('visitors'); ?> Visitor Log</a><?php endif; ?>
-            </nav>
+            <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -293,12 +279,12 @@ $vacantCount = count($units) - $occupiedCount;
                                         <td><strong><?php echo htmlspecialchars($unit['unit']); ?></strong></td>
                                         <td><?php echo htmlspecialchars($unit['type']); ?></td>
                                         <td><?php echo htmlspecialchars($unit['floor']); ?></td>
-                                        <td><strong><?php echo htmlspecialchars($unit['resident']); ?></strong><?php if ($unit['email'] !== '-'): ?><small><?php echo htmlspecialchars($unit['email']); ?></small><?php endif; ?></td>
+                                        <td><strong><?php echo htmlspecialchars($unit['resident']); ?></strong><?php if ($unit['email'] !== '-'): ?><small>Unit owner · <?php echo htmlspecialchars($unit['email']); ?></small><small><?php echo (int)$unit['occupant_count']; ?> linked occupant(s) · <a href="residents.php?search=<?php echo rawurlencode($unit['unit']); ?>">View occupants</a></small><?php endif; ?></td>
                                         <td><?php echo htmlspecialchars($unit['contact']); ?></td>
                                         <td><span class="unit-status <?php echo strtolower($unit['status']); ?>"><?php echo htmlspecialchars($unit['status']); ?></span></td>
                                         <td>
                                             <?php if ($unit['status'] === 'Occupied' && (int)($unit['resident_id'] ?? 0) > 0): ?>
-                                                <form method="post" class="unit-vacancy-form" data-resident="<?php echo htmlspecialchars($unit['resident']); ?>" data-unit="<?php echo htmlspecialchars($unit['unit']); ?>">
+                                                <form method="post" class="unit-vacancy-form" data-resident="<?php echo htmlspecialchars($unit['resident']); ?>" data-unit="<?php echo htmlspecialchars($unit['unit']); ?>"><?php echo workflowCsrfField(); ?>
                                                     <input type="hidden" name="action" value="mark_vacant">
                                                     <input type="hidden" name="resident_id" value="<?php echo (int)($unit['resident_id'] ?? 0); ?>">
                                                     <input type="hidden" name="unit_number" value="<?php echo htmlspecialchars($unit['unit']); ?>">
@@ -321,7 +307,7 @@ $vacantCount = count($units) - $occupiedCount;
     <div class="confirm-modal system-confirm-overlay vacancy-confirm-overlay" id="vacancyConfirmOverlay" aria-hidden="true">
         <div class="confirm-dialog vacancy-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="vacancyConfirmTitle">
             <h3 id="vacancyConfirmTitle">Confirm unit vacancy</h3>
-            <p id="vacancyConfirmText">This will remove the resident assignment for this unit.</p>
+            <p id="vacancyConfirmText">This removes the owner and all linked occupants. Review outstanding legacy bills first.</p>
             <div class="confirm-actions vacancy-confirm-actions">
                 <button type="button" class="confirm-cancel vacancy-confirm-cancel" id="vacancyConfirmCancel">Cancel</button>
                 <button type="button" class="confirm-ok vacancy-confirm-submit" id="vacancyConfirmSubmit">Confirm</button>
@@ -353,7 +339,7 @@ $vacantCount = count($units) - $occupiedCount;
                 const unit = form.dataset.unit || 'this unit';
 
                 pendingVacancyForm = form;
-                vacancyText.textContent = 'Mark unit ' + unit + ' as vacant for ' + resident + '? This removes the resident assignment for this unit.';
+                vacancyText.textContent = 'Mark unit ' + unit + ' as vacant for ' + resident + '? This removes the owner and all linked occupants, including their sessions and unopened requests. Review outstanding legacy bills first.';
                 vacancyOverlay.classList.add('open');
                 vacancyOverlay.setAttribute('aria-hidden', 'false');
             });

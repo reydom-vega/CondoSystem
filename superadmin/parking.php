@@ -7,7 +7,7 @@ if (!isLoggedIn()) {
 if (!isAdmin()) {
     redirect('../resident/dashboard.php');
 }
-if (!isSecurity() && !isSuperAdmin()) {
+if (!isSecurity() && !canReviewPermits()) {
     redirect('../admin/admin_dashboard.php');
 }
 
@@ -21,6 +21,7 @@ $errors = [];
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireWorkflowCsrf();
     $action = $_POST['action'] ?? '';
 
     if ($action === 'decide_request') {
@@ -30,31 +31,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($requestId <= 0 || !in_array($decision, ['approved', 'rejected'], true)) {
             $errors[] = 'Invalid request decision.';
-        } elseif (decideParkingRequest($requestId, $decision, null, $adminNotes)) {
-            logAudit(
-                $decision === 'approved' ? 'assign' : 'reject',
-                'parking_request',
-                $requestId,
-                $decision === 'approved' ? 'Approved parking request without inventory assignment' : ('Rejected' . ($adminNotes !== '' ? ': ' . $adminNotes : ''))
-            );
+        } elseif (decideParkingRequest($requestId, $decision, (int)($_POST['slot_id'] ?? 0) ?: null, $adminNotes)) {
             $success = 'Request ' . $decision . '.';
         } else {
-            $errors[] = 'Could not update that request.';
+            $errors[] = 'Could not update that request. Approval requires an available slot of the correct type with no overlapping reservation.';
         }
     } elseif ($action === 'issue_sticker') {
         $stickerOrderId = (int)($_POST['sticker_order_id'] ?? 0);
-        if ($stickerOrderId > 0 && markParkingStickerIssued($stickerOrderId, (int)$_SESSION['user_id'])) {
+        $vehicleIds = is_array($_POST['vehicle_ids'] ?? null) ? $_POST['vehicle_ids'] : [];
+        if ($stickerOrderId > 0 && markParkingStickerIssued($stickerOrderId, (int)$_SESSION['user_id'], $vehicleIds)) {
             logAudit('issue', 'parking_sticker', $stickerOrderId, 'Physical parking sticker handed to resident after verified payment');
-            $success = 'Parking sticker marked as issued.';
+            $success = 'Sticker issuance and vehicle links saved.';
         } else {
-            $errors[] = 'Could not issue that sticker. Confirm that its payment is verified and it has not already been issued.';
+            $errors[] = 'Issuance failed. Management must verify payment and link exactly one approved resident vehicle per sticker. Each vehicle can have only one sticker order.';
         }
     }
 }
 
 $requests = getAllParkingRequests($connection);
 $pendingRequests = array_values(array_filter($requests, static fn (array $r): bool => $r['status'] === 'pending'));
-$stickerClaims = getParkingStickerClaims($connection);
+$canSeeStickerClaims = canAccess('stickers.issue') || canAccess('billing.manage');
+$stickerClaims = $canSeeStickerClaims ? getParkingStickerClaims($connection) : [];
 $parkingSlots = getParkingSlots($connection);
 $availableSlots = 0;
 $occupiedSlots = 0;
@@ -77,39 +74,12 @@ foreach ($parkingSlots as $slot) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celandine Residences</title>
     <link rel="stylesheet" href="../styles.css?v=<?php echo filemtime(__DIR__ . '/../styles.css'); ?>">
-</head>
+<link rel="stylesheet" href="../services.css?v=<?php echo filemtime(__DIR__ . '/../services.css'); ?>"></head>
 <body class="dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="<?php echo isSecurity() ? '../security/security_dashboard.php' : 'admin_dashboard.php'; ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
-            <nav class="sidebar-nav">
-                <?php if (isSecurity()): ?>
-                    <a href="../security/security_dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                    <a href="../security/scanner.php" class="sidebar-link"><?php echo systemSidebarIcon('scanner'); ?> QR Scanner</a>
-                    <a href="../security/visitor_log.php" class="sidebar-link"><?php echo systemSidebarIcon('visitors'); ?> Visitor Log</a>
-                    <a href="parking.php" class="sidebar-link active"><?php echo systemSidebarIcon('parking'); ?> Parking Requests</a>
-                    <a href="violations.php" class="sidebar-link"><?php echo systemSidebarIcon('violations'); ?> Violations</a>
-                <?php else: ?>
-                <a href="admin_dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                <a href="units.php" class="sidebar-link"><?php echo systemSidebarIcon('units'); ?> Units</a>
-                <a href="residents.php" class="sidebar-link"><?php echo systemSidebarIcon('residents'); ?> Residents</a>
-                <?php if (isSuperAdmin()): ?>
-                    <a href="pending_accounts.php" class="sidebar-link"><?php echo systemSidebarIcon('pending'); ?> Pending Accounts</a>
-                    <a href="staff.php" class="sidebar-link"><?php echo systemSidebarIcon('staff'); ?> Staff Management</a>
-                    <a href="unitpayments.php" class="sidebar-link"><?php echo systemSidebarIcon('billing'); ?> Billing & Payments</a>
-                    <a href="generate_bills.php" class="sidebar-link"><?php echo systemSidebarIcon('bills'); ?> Generate Bills</a>
-                <?php endif; ?>
-                <a href="violations.php" class="sidebar-link"><?php echo systemSidebarIcon('violations'); ?> Violations</a>
-                <a href="bookingrequest.php" class="sidebar-link"><?php echo systemSidebarIcon('calendar'); ?> Booking Requests</a>
-                <a href="maintenancerequests.php" class="sidebar-link"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance Requests</a>
-                <a href="admin_messages.php" class="sidebar-link"><?php echo systemSidebarIcon('messages'); ?> Messages</a>
-                <a href="announcements.php" class="sidebar-link"><?php echo systemSidebarIcon('announcements'); ?> Announcements</a>
-                <?php if (isSuperAdmin()): ?><a href="analytics.php" class="sidebar-link"><?php echo systemSidebarIcon('analytics'); ?> Analytics</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="parking.php" class="sidebar-link active"><?php echo systemSidebarIcon('parking'); ?> Parking</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="auditlog.php" class="sidebar-link"><?php echo systemSidebarIcon('audit'); ?> Audit Log</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="visitorlog.php" class="sidebar-link"><?php echo systemSidebarIcon('visitors'); ?> Visitor Log</a><?php endif; ?>
-                <?php endif; ?>
-            </nav>
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
+            <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -124,6 +94,7 @@ foreach ($parkingSlots as $slot) {
                     </div>
                 </div>
             </header>
+            <?php if (isSuperAdmin()): ?><p><a class="service-btn service-btn-secondary" href="parking_configuration.php">Parking configuration</a> · <a class="service-btn service-btn-secondary" href="parkinginventory.php">Parking inventory</a></p><?php endif; ?>
 
             <?php if ($success): ?><div class="alert success"><?php echo htmlspecialchars($success); ?></div><?php endif; ?>
             <?php if (!empty($errors)): ?><div class="alert error"><ul><?php foreach ($errors as $error): ?><li><?php echo htmlspecialchars($error); ?></li><?php endforeach; ?></ul></div><?php endif; ?>
@@ -132,8 +103,8 @@ foreach ($parkingSlots as $slot) {
                 <div><h2>Parking Requests</h2><p>Review and respond to resident and visitor parking requests.</p></div>
                 <div class="unit-summary">
                     <span><?php echo count($pendingRequests); ?> Pending Requests</span>
-                    <a class="registered-vehicles-link" href="registeredvehicles.php">Registered Vehicles</a>
-                    <a class="registered-vehicles-link" href="parkinginventory.php">Parking Slot Inventory</a>
+                    <a class="service-btn service-btn-secondary" href="registeredvehicles.php">Registered Vehicles</a>
+                    <a class="service-btn service-btn-secondary" href="parkinginventory.php">Parking Slot Inventory</a>
                 </div>
             </section>
 
@@ -151,10 +122,11 @@ foreach ($parkingSlots as $slot) {
                     <p class="bookings-empty">No parking requests yet.</p>
                 <?php else: ?>
                     <?php foreach ($requests as $req): ?>
-                        <div class="parking-request-row">
+                        <div class="parking-request-row" id="parking-request-<?php echo (int)$req['id']; ?>">
                             <div class="parking-request-head">
                                 <div>
                                     <strong><?php echo htmlspecialchars($req['full_name']); ?></strong>
+                                    <?php if (!empty($req['visitor_registration_id'])): ?><p>Visitor: <?php echo htmlspecialchars($req['visitor_name'] ?? 'Registration unavailable'); ?> · <?php echo htmlspecialchars(str_replace('_', ' ', $req['visitor_status'] ?? 'unavailable')); ?> <a class="service-btn service-btn-secondary" href="service_requests.php?kind=visitor">Review visitor registration</a></p><?php endif; ?>
                                     <small> · Unit <?php echo htmlspecialchars($req['unit_number']); ?> · <?php echo $req['request_type'] === 'resident_assignment' ? 'Resident slot request' : 'Visitor parking'; ?></small><br>
                                     <span>Plate: <strong><?php echo htmlspecialchars($req['vehicle_plate']); ?></strong><?php if (!empty($req['vehicle_description'])): ?> — <?php echo htmlspecialchars($req['vehicle_description']); ?><?php endif; ?></span><br>
                                     <span><?php echo htmlspecialchars(date('M j, Y', strtotime($req['start_date']))); ?><?php if ($req['end_date']): ?> to <?php echo htmlspecialchars(date('M j, Y', strtotime($req['end_date']))); ?><?php endif; ?></span>
@@ -165,12 +137,20 @@ foreach ($parkingSlots as $slot) {
                                 <span class="unit-status <?php echo htmlspecialchars($req['status']); ?>"><?php echo htmlspecialchars(ucfirst($req['status'])); ?></span>
                             </div>
                             <?php if ($req['status'] === 'pending'): ?>
-                                <form method="post" class="parking-request-decide">
+                                <form method="post" class="parking-request-decide"><?php echo workflowCsrfField(); ?>
                                     <input type="hidden" name="action" value="decide_request">
                                     <input type="hidden" name="request_id" value="<?php echo (int)$req['id']; ?>">
+                                    <select name="slot_id" aria-label="Assign parking slot">
+                                        <option value="">Select slot for approval</option>
+                                        <?php foreach ($parkingSlots as $slot): ?>
+                                            <?php if ($slot['status'] === 'available' && $slot['slot_type'] === ($req['request_type'] === 'visitor' ? 'visitor' : 'resident')): ?>
+                                                <option value="<?php echo (int)$slot['id']; ?>"><?php echo htmlspecialchars($slot['slot_code'] . ' · ' . $slot['level']); ?></option>
+                                            <?php endif; ?>
+                                        <?php endforeach; ?>
+                                    </select>
                                     <input type="text" name="admin_notes" placeholder="Note (optional)">
-                                    <button type="submit" name="decision" value="approved" class="btn-small btn-approve">Approve</button>
-                                    <button type="submit" name="decision" value="rejected" class="btn-small btn-reject">Reject</button>
+                                    <button type="submit" name="decision" value="approved" class="service-btn service-btn-approve" <?php echo !empty($req['visitor_registration_id']) && !in_array($req['visitor_status'], ['approved','checked_in'], true) ? 'disabled title="Approve the visitor registration first"' : ''; ?>>Approve</button>
+                                    <button type="submit" name="decision" value="rejected" class="service-btn service-btn-danger">Reject</button>
                                 </form>
                             <?php endif; ?>
                         </div>
@@ -178,7 +158,7 @@ foreach ($parkingSlots as $slot) {
                 <?php endif; ?>
             </section>
 
-            <section class="unit-management-panel parking-panel sticker-requests-panel">
+            <?php if ($canSeeStickerClaims): ?><section class="unit-management-panel parking-panel sticker-requests-panel">
                 <h3 class="section-title">Resident Parking Sticker Requests</h3>
                 <?php if (empty($stickerClaims)): ?>
                     <p class="bookings-empty">No sticker requests yet.</p>
@@ -190,10 +170,12 @@ foreach ($parkingSlots as $slot) {
                                     <strong><?php echo htmlspecialchars($claim['full_name']); ?></strong>
                                     <small> · Unit <?php echo htmlspecialchars($claim['unit_number'] ?? '—'); ?> · @<?php echo htmlspecialchars($claim['username']); ?></small><br>
                                     <span><?php echo (int)$claim['quantity']; ?> sticker(s) · ₱<?php echo number_format((float)$claim['amount'], 2); ?></span><br>
+                                    <?php foreach ($claim['vehicles'] as $vehicle): ?><p>Vehicle: <a class="service-btn service-btn-secondary" href="registeredvehicles.php#vehicle-<?php echo (int)$vehicle['id']; ?>"><?php echo htmlspecialchars($vehicle['plate_number']); ?></a><?php if ($vehicle['sticker_number']): ?> · Sticker <strong><?php echo htmlspecialchars($vehicle['sticker_number']); ?></strong><?php endif; ?></p><?php endforeach; ?>
+                                    <?php if (!$claim['vehicles']): ?><p>Historical order: vehicle link required. <a class="service-btn service-btn-secondary" href="registeredvehicles.php">Review registered vehicles</a></p><?php endif; ?>
                                     <?php $paymentLabel = !empty($claim['paymongo_payment_id']) || strpos((string)$claim['gateway_status'], 'payment.paid') !== false ? 'Verified by PayMongo' : 'Confirmed'; ?>
                                     <small>Payment: <?php echo $claim['payment_status'] === 'paid' ? $paymentLabel : htmlspecialchars(ucfirst($claim['payment_status'])); ?><?php if ($claim['payment_status'] === 'paid' && $claim['paid_at']): ?> · <?php echo htmlspecialchars(date('M j, Y g:i A', strtotime($claim['paid_at']))); ?><?php endif; ?></small>
                                     <?php if ($claim['proof_file']): ?>
-                                        <br><a href="../parking_sticker_proof.php?order_id=<?php echo (int)$claim['id']; ?>" target="_blank" rel="noopener">View receipt / proof</a>
+                                        <br><a class="service-btn service-btn-secondary" href="../parking_sticker_proof.php?order_id=<?php echo (int)$claim['id']; ?>" target="_blank" rel="noopener">View receipt / proof</a>
                                         <small> · Submitted <?php echo htmlspecialchars(date('M j, Y g:i A', strtotime($claim['proof_submitted_at']))); ?></small>
                                     <?php endif; ?>
                                 </div>
@@ -207,17 +189,18 @@ foreach ($parkingSlots as $slot) {
                                 ?>
                                 <span class="unit-status <?php echo $stickerStatusClass; ?>"><?php echo htmlspecialchars($stickerStatus); ?></span>
                             </div>
-                            <?php if ($claim['claim_status'] !== 'issued' && $claim['payment_status'] === 'paid'): ?>
-                                <form method="post" class="parking-request-decide" data-confirm="Confirm that this parking sticker has been handed to the resident?" data-confirm-title="Issue parking sticker" data-confirm-action="Issue sticker">
+                            <?php if (canReviewPermits() && ($claim['claim_status'] !== 'issued' || !$claim['vehicles']) && $claim['payment_status'] === 'paid'): ?>
+                                <form method="post" class="parking-request-decide" data-confirm="Confirm that this parking sticker has been handed to the resident?" data-confirm-title="Issue parking sticker" data-confirm-action="Issue sticker"><?php echo workflowCsrfField(); ?>
                                     <input type="hidden" name="action" value="issue_sticker">
                                     <input type="hidden" name="sticker_order_id" value="<?php echo (int)$claim['id']; ?>">
-                                    <button type="submit" class="btn-small btn-approve">Issue Physical Sticker</button>
+                                    <?php if (!$claim['vehicles']): ?><label class="field-label">Select <?php echo (int)$claim['quantity']; ?> approved vehicle(s)<select name="vehicle_ids[]" multiple required aria-label="Vehicles for historical sticker order"><?php foreach ($claim['eligible_vehicles'] as $vehicle): ?><option value="<?php echo (int)$vehicle['id']; ?>"><?php echo htmlspecialchars($vehicle['plate_number'].' · '.$vehicle['make'].' '.$vehicle['model']); ?></option><?php endforeach; ?></select></label><?php endif; ?>
+                                    <button type="submit" class="service-btn service-btn-approve" <?php echo !$claim['vehicles'] && count($claim['eligible_vehicles']) < (int)$claim['quantity'] ? 'disabled' : ''; ?>><?php echo $claim['claim_status'] === 'issued' ? 'Link issued stickers to vehicles' : 'Issue physical stickers'; ?></button>
                                 </form>
                             <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
                 <?php endif; ?>
-            </section>
+            </section><?php endif; ?>
             </div>
 
         </main>

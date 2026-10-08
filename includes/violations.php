@@ -2,17 +2,17 @@
 /**
  * Violation management.
  *
- * A violation with a monetary fine automatically creates a line item on
- * the resident's current bill (creating one if they don't already have
- * an open bill) via includes/billing.php, so the resident pays it
- * together with whatever else they owe — exactly one PayMongo checkout,
- * one Statement of Account, no separate "fines" payment flow to build.
+ * Monetary citations are added to an unpaid fine-only bill, or a new
+ * fine bill. Monthly statements, sticker orders, and submitted checkout
+ * amounts retain their original breakdown. Every open bill is payable
+ * from the resident's Billing & Payments page.
  *
  * When that bill is later paid (webhook or manual mark-paid),
  * markViolationsPaidForBill() flips any violations tied to it to 'paid'.
  */
 
 function ensureViolationsTable(mysqli $connection): bool {
+    if (!schemaMutationAllowed()) return true;
     return $connection->query("CREATE TABLE IF NOT EXISTS violations (
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,
@@ -50,6 +50,7 @@ function getViolationFineRates(): array {
 }
 
 function ensureViolationColumns(mysqli $connection): bool {
+    if (!schemaMutationAllowed()) return true;
     $columns = [
         'location' => 'VARCHAR(255) DEFAULT NULL',
         'evidence_path' => 'VARCHAR(255) DEFAULT NULL',
@@ -78,28 +79,44 @@ function ensureViolationColumns(mysqli $connection): bool {
 
 /**
  * Issues a violation. A 'warning' just gets logged. A 'fine' also adds a
- * line item to the resident's open bill (creating one if needed) so it
+ * line item to an unsubmitted fine-only bill (creating one if needed) so it
  * shows up on their Statement of Account right away.
  */
 function issueViolation(int $userId, string $violationType, string $description, string $penaltyType, float $fineAmount, ?string $dueDate, int $issuedBy, ?string $location = null, ?string $evidencePath = null, ?string $adminRemarks = null): int|false {
+    if (!canAccess('violations.issue') || $issuedBy !== (int)$_SESSION['user_id'] || trim($violationType)===''
+        || strlen($violationType)>100 || !in_array($penaltyType,['warning','fine'],true)
+        || !is_finite($fineAmount) || $fineAmount<0 || $fineAmount>99999999.99
+        || ($dueDate!==null && !workflowDate($dueDate))) return false;
     $connection = connectDb();
     $fineRates = getViolationFineRates();
     if (isset($fineRates[$violationType])) {
         $fineAmount = (float)$fineRates[$violationType];
     }
-    $penaltyType = 'fine';
-    $isFine = $fineAmount > 0;
+    $isFine = $penaltyType==='fine';
+    if (!$isFine) $fineAmount=0;
     if (!ensureViolationsTable($connection)) {
         return false;
     }
-    if (!$isFine || !ensurePaymentsTable($connection) || !ensureBillingTables($connection)) {
+    if (($isFine && $fineAmount<=0) || !ensurePaymentsTable($connection) || !ensureBillingTables($connection)) {
         return false;
     }
+    ensurePaymongoColumns($connection);
+    ensureAuditLogTable($connection);
 
     $status = $isFine ? 'unpaid' : 'warning_issued';
 
     $connection->begin_transaction();
     try {
+        $owner=$connection->prepare("SELECT id FROM users WHERE id=? AND role='resident' AND is_active=1 AND status='approved' FOR UPDATE");
+        $owner->bind_param('i',$userId); $owner->execute();
+        if (!$owner->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
+        $resident=residentContext($connection,$userId);
+        if (!$resident || !$resident['approved']) { $connection->rollback(); return false; }
+        $billUserId=(int)$resident['billing_user_id'];
+        if ($billUserId!==$userId) {
+            $owner->bind_param('i',$billUserId); $owner->execute();
+            if (!$owner->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
+        }
         $insert = $connection->prepare('INSERT INTO violations (user_id, violation_type, description, location, evidence_path, admin_remarks, penalty_type, fine_amount, due_date, status, issued_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         $insert->bind_param('issssssdssi', $userId, $violationType, $description, $location, $evidencePath, $adminRemarks, $penaltyType, $fineAmount, $dueDate, $status, $issuedBy);
         if (!$insert->execute()) {
@@ -108,8 +125,11 @@ function issueViolation(int $userId, string $violationType, string $description,
         $violationId = (int)$connection->insert_id;
 
         if ($isFine) {
-            $findBill = $connection->prepare("SELECT id FROM payments WHERE user_id = ? AND status IN ('pending', 'overdue') ORDER BY due_date ASC, created_at ASC LIMIT 1 FOR UPDATE");
-            $findBill->bind_param('i', $userId);
+            $findBill = $connection->prepare("SELECT id FROM payments p WHERE user_id = ? AND status IN ('pending', 'overdue')
+                AND paymongo_checkout_id IS NULL AND billing_period_start IS NULL
+                AND NOT EXISTS (SELECT 1 FROM bill_items bi WHERE bi.payment_id=p.id AND bi.category<>'Violation Fine')
+                ORDER BY due_date ASC, created_at ASC LIMIT 1 FOR UPDATE");
+            $findBill->bind_param('i', $billUserId);
             if (!$findBill->execute()) {
                 throw new RuntimeException('Could not find an open bill for the resident.');
             }
@@ -119,7 +139,7 @@ function issueViolation(int $userId, string $violationType, string $description,
             } else {
                 $billDueDate = $dueDate ?: (new DateTime())->modify('+15 days')->format('Y-m-d');
                 $createBill = $connection->prepare("INSERT INTO payments (user_id, amount, payment_method, status, due_date, billing_period_start, billing_period_end) VALUES (?, 0, 'unbilled', 'pending', ?, NULL, NULL)");
-                $createBill->bind_param('is', $userId, $billDueDate);
+                $createBill->bind_param('is', $billUserId, $billDueDate);
                 if (!$createBill->execute()) {
                     throw new RuntimeException('Could not create the resident bill for this fine.');
                 }
@@ -141,14 +161,13 @@ function issueViolation(int $userId, string $violationType, string $description,
             }
         }
 
+        if (!logAudit('citation_issued','violation',$violationId,$violationType.' for resident #'.$userId,$connection)) throw new RuntimeException('Could not audit citation.');
         $connection->commit();
     } catch (Throwable $error) {
         $connection->rollback();
         error_log('Could not issue violation for user #' . $userId . ': ' . $error->getMessage());
         return false;
     }
-
-    logAudit('create', 'violation', $violationId, "{$violationType} — " . ($isFine ? '₱' . number_format($fineAmount, 2) . ' fine' : 'warning') . " for user #{$userId}");
 
     return $violationId;
 }
@@ -170,6 +189,9 @@ function getAllViolations(mysqli $connection): array {
 
 /** Resident-initiated: flags a fine for admin review instead of paying it outright. */
 function disputeViolation(int $violationId, int $userId, string $reason): bool {
+    $reason=trim($reason);
+    if (!isLoggedIn() || ($_SESSION['role'] ?? '')!=='resident' || $userId!==(int)$_SESSION['user_id']
+        || $reason==='' || strlen($reason)>5000) return false;
     $connection = connectDb();
     $stmt = $connection->prepare("UPDATE violations SET status = 'disputed', dispute_reason = ? WHERE id = ? AND user_id = ? AND status = 'unpaid'");
     $stmt->bind_param('sii', $reason, $violationId, $userId);
@@ -187,43 +209,50 @@ function disputeViolation(int $violationId, int $userId, string $reason): bool {
  * recalculates its total; rejecting a dispute leaves the charge in place.
  */
 function resolveViolation(int $violationId, string $decision): bool {
-    $connection = connectDb();
-    $stmt = $connection->prepare('SELECT * FROM violations WHERE id = ? LIMIT 1');
-    $stmt->bind_param('i', $violationId);
-    $stmt->execute();
-    $violation = $stmt->get_result()->fetch_assoc();
-    if (!$violation) {
-        return false;
-    }
-
-    if ($decision === 'waive') {
-        if ($violation['bill_item_id']) {
-            $connection->query('DELETE FROM bill_items WHERE id = ' . (int)$violation['bill_item_id']);
-            if ($violation['payment_id']) {
-                recalculateBillTotal($connection, (int)$violation['payment_id']);
-            }
+    if (!canAccess('violations.review') || !in_array($decision,['waive','reject_dispute'],true)) return false;
+    $db=connectDb(); ensureViolationsTable($db); ensureBillingTables($db); ensurePaymongoColumns($db); ensureAuditLogTable($db);
+    $find=$db->prepare('SELECT payment_id FROM violations WHERE id=?');
+    $find->bind_param('i',$violationId); $find->execute(); $reference=$find->get_result()->fetch_assoc();
+    if (!$reference) return false;
+    $db->begin_transaction();
+    try {
+        $bill=null;
+        if (!empty($reference['payment_id'])) {
+            // The bill is always locked before its linked violation, including payment confirmation.
+            $payment=$db->prepare('SELECT * FROM payments WHERE id=? FOR UPDATE');
+            $payment->bind_param('i',$reference['payment_id']); $payment->execute(); $bill=$payment->get_result()->fetch_assoc();
         }
-        $update = $connection->prepare("UPDATE violations SET status = 'waived' WHERE id = ?");
-        $update->bind_param('i', $violationId);
-        $update->execute();
-        logAudit('waive', 'violation', $violationId, 'Fine waived by admin');
+        $lock=$db->prepare('SELECT * FROM violations WHERE id=? FOR UPDATE');
+        $lock->bind_param('i',$violationId); $lock->execute(); $violation=$lock->get_result()->fetch_assoc();
+        if (!$violation || !in_array($violation['status'],['unpaid','disputed'],true)
+            || ($bill && !in_array($bill['status'],['pending','overdue'],true))) { $db->rollback(); return false; }
+        if ($decision==='reject_dispute') {
+            if ($violation['status']!=='disputed') { $db->rollback(); return false; }
+            $update=$db->prepare("UPDATE violations SET status='unpaid' WHERE id=? AND status='disputed'");
+            $update->bind_param('i',$violationId); $update->execute();
+        } else {
+            // A submitted checkout has an immutable amount. Expire/reconcile it before a waiver.
+            if (!$bill || !empty($bill['paymongo_checkout_id']) || empty($violation['bill_item_id'])
+                || (int)$violation['payment_id']!==(int)$bill['id']) { $db->rollback(); return false; }
+            $delete=$db->prepare('DELETE FROM bill_items WHERE id=? AND payment_id=?');
+            $delete->bind_param('ii',$violation['bill_item_id'],$bill['id']);
+            if (!$delete->execute() || $delete->affected_rows!==1) throw new RuntimeException('Fine item could not be removed.');
+            recalculateBillTotal($db,(int)$bill['id']);
+            $close=$db->prepare("UPDATE payments SET status='rejected',gateway_status='waived' WHERE id=? AND amount=0 AND status IN ('pending','overdue')");
+            $close->bind_param('i',$bill['id']); $close->execute();
+            $update=$db->prepare("UPDATE violations SET status='waived' WHERE id=?");
+            $update->bind_param('i',$violationId); $update->execute();
+        }
+        if (!logAudit($decision,'violation',$violationId,'Violation decision recorded by management.',$db)) throw new RuntimeException('Could not audit violation decision.');
+        $db->commit();
         return true;
-    }
-
-    if ($decision === 'reject_dispute') {
-        $update = $connection->prepare("UPDATE violations SET status = 'unpaid' WHERE id = ?");
-        $update->bind_param('i', $violationId);
-        $update->execute();
-        logAudit('reject_dispute', 'violation', $violationId, 'Dispute rejected — fine stands');
-        return true;
-    }
-
-    return false;
+    } catch (Throwable $error) { $db->rollback(); error_log('Violation resolution failed: '.$error->getMessage()); return false; }
 }
 
 /** Called whenever a bill is marked paid (webhook or manual) so its violations settle too. */
 function markViolationsPaidForBill(int $paymentId): void {
     $connection = connectDb();
     ensureViolationsTable($connection);
-    $connection->query("UPDATE violations SET status = 'paid' WHERE payment_id = " . (int)$paymentId . " AND status IN ('unpaid', 'disputed')");
+    $stmt=$connection->prepare("UPDATE violations v JOIN payments p ON p.id=v.payment_id SET v.status='paid' WHERE p.id=? AND p.status='paid' AND v.status IN ('unpaid','disputed')");
+    $stmt->bind_param('i',$paymentId); $stmt->execute();
 }

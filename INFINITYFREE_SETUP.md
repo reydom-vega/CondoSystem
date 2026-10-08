@@ -1,56 +1,18 @@
-# InfinityFree Deployment
+# InfinityFree hosting compatibility
 
-## 1. Create the database
+The full system needs inbound PayMongo webhooks, outbound provider access, private file protection, reliable reminders and a controlled database upgrade. **Do not describe an InfinityFree free-tier upload as a production-ready payments deployment.**
 
-In the InfinityFree control panel, create a MySQL database. Record these four values:
+InfinityFree's official documentation says its free-hosting browser security requires JavaScript and cookies and blocks programmatic inbound access, including webhooks and command-line HTTP tools. This affects `webhooks/paymongo_webhook.php`, external reminder schedulers and remote readiness checks. Outbound API requests can work, but they do not prove that payment callbacks will arrive. See [InfinityFree's API-access documentation](https://forum.infinityfree.com/t/why-isnt-api-access-working-on-my-website/115198/1).
 
-- MySQL hostname
-- Database name
-- Database username
-- Database password
+For operational use, select a PHP/MySQL host that permits payment-provider callbacks and offers a way to run the explicit migration CLI. Confirm SMTP delivery, task scheduling, upload protection and HTTPS on that host. Follow [DEPLOYMENT.md](DEPLOYMENT.md) for the deployment procedure.
 
-Import the contents of `database` in phpMyAdmin. The schema includes the `reset_token` and `reset_expires` columns required for password recovery.
+For a browser-only demonstration on InfinityFree:
 
-## 2. Configure the application
+1. Create the host database and record credentials in private server configuration. Do not put credentials into `config.php` or this guide. The application reads `CONDO_*` environment variables or a protected `.env` file; `.env.example` lists available settings.
+2. Prepare a clean demonstration database locally: import `database`, run `php scripts/migrate.php --apply`, and export the complete resulting schema. On a host without CLI, import that prepared schema with phpMyAdmin. Do not manually add the schema-version marker to an incomplete installation.
+3. Upload application code and Composer dependencies, including all `.htaccess` files. Exclude repository metadata, real resident documents, debug tools, setup archives, test scripts and database exports from the public upload.
+4. Use the exact hosting database hostname and prefixed account/database names. Set the canonical HTTPS `CONDO_APP_URL` to the hosted address. Use separate sandbox provider credentials and a new pass-signing key.
+5. Verify forbidden files in a real browser and inspect the actual responses; the host's security page can hide failed route access from automated HTTP clients. Check resident and staff journeys, login, document ownership and role denial.
+6. Keep live online payments disabled until the callback and provider-reconciliation path has been exercised successfully on a compatible host. A browser success redirect is not payment proof.
 
-Before uploading, edit `config.php` and replace these constants with the values shown by InfinityFree:
-
-```php
-const DB_HOST = 'sql313.infinityfree.com';
-const DB_USER = 'if0_42766988';
-const DB_PASS = 'sWPUeIHorqr5MU2';
-const DB_NAME = 'if0_42766988_Condo_System';
-```
-
-The application also accepts these server environment variables if your hosting configuration provides them:
-
-- `CONDO_DB_HOST`
-- `CONDO_DB_USER`
-- `CONDO_DB_PASS`
-- `CONDO_DB_NAME`
-- `CONDO_SMTP_HOST`
-- `CONDO_SMTP_USER`
-- `CONDO_SMTP_PASS`
-- `CONDO_MAIL_FROM`
-
-## 3. Upload the files
-
-Upload the project contents to the domain's `htdocs` directory. Keep the `vendor` directory and `vendor/autoload.php`; Composer is not required on the server when those files are uploaded.
-
-Do not upload local database credentials or real SMTP passwords. The `.htaccess` file disables directory listing and blocks direct access to `database` and `config.php`.
-
-## 4. Configure email
-
-Set `SMTP_USER`, `SMTP_PASS`, and `MAIL_FROM` in `config.php`, or use the SMTP environment variables above. Use a Gmail app password or another SMTP provider credential, never your normal mailbox password. The current code has SMTP debug output disabled for production.
-
-## 5. Verify the site
-
-Open the domain and test:
-
-1. Sign up and email verification.
-2. Login and logout.
-3. Password reset.
-4. Resident booking, maintenance, messages, and payments.
-5. Admin dashboard and status updates.
-
-If the site reports a database connection error, recheck the exact InfinityFree hostname and the database name prefix. Do not use `127.0.0.1` or `localhost` for the InfinityFree database.
+The prior version of this guide contained historical database credentials. Those credentials and any other secrets previously stored in source or archives must be revoked and replaced before deployment; deleting text does not remove repository history or copies.

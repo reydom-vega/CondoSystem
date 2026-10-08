@@ -20,19 +20,23 @@ ensureParkingTables($connection);
 
 $errors = [];
 $success = '';
-$parkingImport = importParkingInventoryCsv($connection);
-if (!$parkingImport['ok']) {
-    foreach ($parkingImport['errors'] as $error) {
-        $errors[] = $error;
-    }
-} elseif ($parkingImport['imported'] > 0) {
-    $success = "Imported {$parkingImport['imported']} parking slot(s) from the CSV.";
-}
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireWorkflowCsrf();
     $action = $_POST['action'] ?? '';
 
-    if ($action === 'update_status') {
+    if ($action === 'import_inventory') {
+        try {
+            $parkingImport = importParkingInventoryCsv($connection);
+            $errors = array_merge($errors, $parkingImport['errors']);
+            if ($parkingImport['ok']) {
+                $success = "Imported {$parkingImport['imported']} missing parking slots; existing slots were preserved.";
+                logAudit('import', 'parking_inventory', null, $success);
+            }
+        } catch (Throwable $error) {
+            error_log('Parking inventory import failed: ' . $error->getMessage());
+            $errors[] = 'The inventory could not be imported. Check the configured inventory file.';
+        }
+    } elseif ($action === 'update_status') {
         $slotId = (int)($_POST['slot_id'] ?? 0);
         $status = $_POST['status'] ?? 'available';
 
@@ -41,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (setParkingSlotStatus($slotId, $status)) {
             $success = 'Parking slot status updated.';
         } else {
-            $errors[] = 'Could not update the parking slot status.';
+            $errors[] = 'Slot status cannot change while its standing assignment or current reservations conflict with the selected status.';
         }
     }
 }
@@ -80,32 +84,16 @@ foreach ($allSlots as $slot) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celandine Residences - Parking Inventory</title>
     <link rel="stylesheet" href="../styles.css?v=<?php echo filemtime(__DIR__ . '/../styles.css'); ?>">
+    <link rel="stylesheet" href="../services.css">
 </head>
 <body class="dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="admin_dashboard.php" class="sidebar-brand">
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
                 <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
-            <nav class="sidebar-nav">
-                <a href="admin_dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                <a href="units.php" class="sidebar-link"><?php echo systemSidebarIcon('units'); ?> Units</a>
-                <a href="residents.php" class="sidebar-link"><?php echo systemSidebarIcon('residents'); ?> Residents</a>
-                <a href="pending_accounts.php" class="sidebar-link"><?php echo systemSidebarIcon('pending'); ?> Pending Accounts</a>
-                <a href="staff.php" class="sidebar-link"><?php echo systemSidebarIcon('staff'); ?> Staff Management</a>
-                <a href="unitpayments.php" class="sidebar-link"><?php echo systemSidebarIcon('billing'); ?> Billing &amp; Payments</a>
-                <a href="generate_bills.php" class="sidebar-link"><?php echo systemSidebarIcon('bills'); ?> Generate Bills</a>
-                <a href="violations.php" class="sidebar-link"><?php echo systemSidebarIcon('violations'); ?> Violations</a>
-                <a href="bookingrequest.php" class="sidebar-link"><?php echo systemSidebarIcon('calendar'); ?> Booking Requests</a>
-                <a href="maintenancerequests.php" class="sidebar-link"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance Requests</a>
-                <a href="admin_messages.php" class="sidebar-link"><?php echo systemSidebarIcon('messages'); ?> Messages</a>
-                <a href="announcements.php" class="sidebar-link"><?php echo systemSidebarIcon('announcements'); ?> Announcements</a>
-                <a href="analytics.php" class="sidebar-link"><?php echo systemSidebarIcon('analytics'); ?> Analytics</a>
-                <a href="parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking</a>
-                <a href="auditlog.php" class="sidebar-link"><?php echo systemSidebarIcon('audit'); ?> Audit Log</a>
-                <a href="visitorlog.php" class="sidebar-link"><?php echo systemSidebarIcon('visitors'); ?> Visitor Log</a>
-            </nav>
+            <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -139,6 +127,7 @@ foreach ($allSlots as $slot) {
                     </div>
                 </div>
             </header>
+            <div class="service-actions"><a class="service-btn service-btn-secondary" href="parking_configuration.php">Parking configuration</a><a class="service-btn service-btn-secondary" href="parking.php">Parking requests</a><form method="post"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="import_inventory"><button class="service-btn service-btn-secondary" type="submit">Import missing inventory slots</button></form></div>
 
             <?php if ($success !== ''): ?>
                 <div class="alert success"><?php echo htmlspecialchars($success); ?></div>
@@ -220,7 +209,7 @@ foreach ($allSlots as $slot) {
                                         <td><?php echo htmlspecialchars((string)($slot['vehicle_plate'] ?? '—')); ?></td>
                                         <td>
                                             <div class="parking-slot-actions">
-                                                <form method="post" class="parking-status-form" data-confirm="Update the status of parking slot <?php echo htmlspecialchars((string)($slot['slot_code'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>?" data-confirm-title="Update parking slot" data-confirm-action="Update">
+                                                <form method="post" class="parking-status-form" data-confirm="Update the status of parking slot <?php echo htmlspecialchars((string)($slot['slot_code'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>?" data-confirm-title="Update parking slot" data-confirm-action="Update"><?php echo workflowCsrfField(); ?>
                                                     <input type="hidden" name="action" value="update_status">
                                                     <input type="hidden" name="slot_id" value="<?php echo (int)($slot['id'] ?? 0); ?>">
                                                     <select name="status" aria-label="Update status for <?php echo htmlspecialchars((string)($slot['slot_code'] ?? 'slot')); ?>">

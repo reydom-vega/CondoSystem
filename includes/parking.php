@@ -18,6 +18,7 @@
  */
 
 function ensureParkingTables(mysqli $connection): bool {
+    if (!schemaMutationAllowed()) return true;
     $slotsOk = $connection->query("CREATE TABLE IF NOT EXISTS parking_slots (
         id INT AUTO_INCREMENT PRIMARY KEY,
         slot_code VARCHAR(20) NOT NULL UNIQUE,
@@ -68,6 +69,7 @@ function ensureParkingTables(mysqli $connection): bool {
         start_date DATE NOT NULL,
         end_date DATE DEFAULT NULL,
         slot_id INT DEFAULT NULL,
+        visitor_registration_id INT DEFAULT NULL,
         status ENUM('pending', 'approved', 'rejected', 'cancelled') NOT NULL DEFAULT 'pending',
         admin_notes VARCHAR(255) DEFAULT NULL,
         decided_by INT DEFAULT NULL,
@@ -91,6 +93,7 @@ function ensureParkingTables(mysqli $connection): bool {
         'start_date' => "start_date DATE NOT NULL",
         'end_date' => "end_date DATE DEFAULT NULL",
         'slot_id' => "slot_id INT DEFAULT NULL",
+        'visitor_registration_id' => "visitor_registration_id INT DEFAULT NULL",
         'status' => "status ENUM('pending', 'approved', 'rejected', 'cancelled') NOT NULL DEFAULT 'pending'",
         'admin_notes' => "admin_notes VARCHAR(255) DEFAULT NULL",
         'decided_by' => "decided_by INT DEFAULT NULL",
@@ -104,6 +107,9 @@ function ensureParkingTables(mysqli $connection): bool {
             return false;
         }
     }
+
+    $visitorIndex = $connection->query("SHOW INDEX FROM parking_requests WHERE Key_name = 'idx_parking_visitor_registration'");
+    if (!$visitorIndex || ($visitorIndex->num_rows === 0 && !$connection->query('ALTER TABLE parking_requests ADD INDEX idx_parking_visitor_registration (visitor_registration_id)'))) return false;
 
     return true;
 }
@@ -253,6 +259,7 @@ function getAvailableParkingSlots(mysqli $connection, string $type): array {
 }
 
 function createParkingSlot(string $slotCode, string $level, string $slotType): bool {
+    if (!canAccess('parking.configure')) return false;
     $connection = connectDb();
     ensureParkingTables($connection);
     $stmt = $connection->prepare('INSERT INTO parking_slots (slot_code, level, slot_type) VALUES (?, ?, ?)');
@@ -266,52 +273,108 @@ function createParkingSlot(string $slotCode, string $level, string $slotType): b
 
 /** Directly assigns a resident to a slot (for standing resident assignments, outside the request flow). */
 function assignParkingSlot(int $slotId, int $userId, string $unitNumber, string $vehiclePlate): bool {
+    if (!canAccess('parking.configure') || $slotId < 1 || $userId < 1 || normalizePlateNumber($vehiclePlate) === '') return false;
     $connection = connectDb();
-    ensureParkingTables($connection);
-    $stmt = $connection->prepare("UPDATE parking_slots SET status = 'occupied', assigned_user_id = ?, assigned_unit = ?, vehicle_plate = ? WHERE id = ?");
-    $stmt->bind_param('issi', $userId, $unitNumber, $vehiclePlate, $slotId);
-    if ($stmt->execute()) {
-        logAudit('assign', 'parking_slot', $slotId, "Assigned to unit {$unitNumber}, plate {$vehiclePlate}");
-        return true;
-    }
-    return false;
+    ensureParkingTables($connection); ensureVehiclesTable($connection); ensureAuditLogTable($connection);
+    $connection->begin_transaction();
+    try {
+        $slot = $connection->prepare("SELECT id FROM parking_slots WHERE id = ? AND slot_type = 'resident' AND status = 'available' AND assigned_user_id IS NULL FOR UPDATE");
+        $slot->bind_param('i', $slotId); $slot->execute();
+        if (!$slot->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
+        $plate = normalizePlateNumber($vehiclePlate);
+        $vehicleQuery = $connection->prepare("SELECT v.id, v.plate_number, u.unit_number FROM vehicles v JOIN users u ON u.id = v.user_id WHERE v.user_id = ? AND v.normalized_plate = ? AND v.status = 'approved' AND v.parking_slot_id IS NULL AND u.role = 'resident' AND u.status = 'approved' AND u.is_verified = 1 AND u.is_active = 1 FOR UPDATE");
+        $vehicleQuery->bind_param('is', $userId, $plate); $vehicleQuery->execute();
+        $vehicle = $vehicleQuery->get_result()->fetch_assoc();
+        if (!$vehicle || normalizeUnitNumber((string)$vehicle['unit_number']) === '' || normalizeUnitNumber((string)$vehicle['unit_number']) !== normalizeUnitNumber($unitNumber)) { $connection->rollback(); return false; }
+        $reserved = $connection->prepare("SELECT id FROM parking_requests WHERE slot_id = ? AND status = 'approved' AND COALESCE(end_date,start_date) >= CURRENT_DATE() LIMIT 1 FOR UPDATE");
+        $reserved->bind_param('i', $slotId); $reserved->execute();
+        if ($reserved->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
+        $update = $connection->prepare("UPDATE parking_slots SET status = 'occupied', assigned_user_id = ?, assigned_unit = ?, vehicle_plate = ? WHERE id = ? AND status = 'available' AND assigned_user_id IS NULL");
+        $update->bind_param('issi', $userId, $vehicle['unit_number'], $vehicle['plate_number'], $slotId);
+        if (!$update->execute() || $update->affected_rows !== 1) throw new RuntimeException('Slot assignment changed.');
+        $vehicleUpdate = $connection->prepare('UPDATE vehicles SET parking_slot_id = ? WHERE id = ? AND parking_slot_id IS NULL');
+        $vehicleUpdate->bind_param('ii', $slotId, $vehicle['id']);
+        if (!$vehicleUpdate->execute() || $vehicleUpdate->affected_rows !== 1) throw new RuntimeException('Vehicle assignment changed.');
+        if (!logAudit('assign', 'parking_slot', $slotId, 'Assigned resident vehicle ' . $vehicle['plate_number'], $connection)) throw new RuntimeException('Assignment audit failed.');
+        $connection->commit(); return true;
+    } catch (Throwable $error) { $connection->rollback(); error_log('Standing parking assignment failed: ' . $error->getMessage()); return false; }
 }
 
 function releaseParkingSlot(int $slotId): bool {
+    if (!canAccess('parking.configure') || $slotId < 1) return false;
     $connection = connectDb();
-    ensureParkingTables($connection);
-    $stmt = $connection->prepare("UPDATE parking_slots SET status = 'available', assigned_user_id = NULL, assigned_unit = NULL, vehicle_plate = NULL WHERE id = ?");
-    $stmt->bind_param('i', $slotId);
-    if ($stmt->execute()) {
-        logAudit('release', 'parking_slot', $slotId, 'Slot freed up');
-        return true;
-    }
-    return false;
+    ensureParkingTables($connection); ensureVehiclesTable($connection); ensureAuditLogTable($connection);
+    $connection->begin_transaction();
+    try {
+        $slot = $connection->prepare("SELECT id FROM parking_slots WHERE id = ? AND slot_type = 'resident' AND assigned_user_id IS NOT NULL FOR UPDATE");
+        $slot->bind_param('i', $slotId); $slot->execute();
+        if (!$slot->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
+        $visitor = $connection->prepare("SELECT id FROM parking_requests WHERE slot_id = ? AND request_type = 'visitor' AND status = 'approved' AND COALESCE(end_date,start_date) >= CURRENT_DATE() LIMIT 1 FOR UPDATE");
+        $visitor->bind_param('i', $slotId); $visitor->execute();
+        if ($visitor->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
+        foreach ([
+            "UPDATE parking_slots SET status = IF(status='maintenance','maintenance','available'), assigned_user_id=NULL, assigned_unit=NULL, vehicle_plate=NULL WHERE id=?",
+            'UPDATE vehicles SET parking_slot_id=NULL WHERE parking_slot_id=?',
+            "UPDATE parking_requests SET status='cancelled' WHERE slot_id=? AND request_type='resident' AND status='approved'"
+        ] as $sql) {
+            $update = $connection->prepare($sql); $update->bind_param('i',$slotId);
+            if (!$update->execute()) throw new RuntimeException('Standing assignment could not be released.');
+        }
+        if (!logAudit('release','parking_slot',$slotId,'Released standing resident assignment',$connection)) throw new RuntimeException('Release audit failed.');
+        $connection->commit(); return true;
+    } catch (Throwable $error) { $connection->rollback(); error_log('Standing parking release failed: ' . $error->getMessage()); return false; }
 }
 
 function setParkingSlotStatus(int $slotId, string $status): bool {
+    if (!canAccess('parking.configure') || $slotId < 1 || !in_array($status, ['available','occupied','maintenance'], true)) return false;
     $connection = connectDb();
     ensureParkingTables($connection);
-    $stmt = $connection->prepare('UPDATE parking_slots SET status = ? WHERE id = ?');
-    $stmt->bind_param('si', $status, $slotId);
-    if ($stmt->execute()) {
+    $connection->begin_transaction();
+    try {
+        $slotQuery = $connection->prepare('SELECT status, assigned_user_id FROM parking_slots WHERE id = ? FOR UPDATE');
+        $slotQuery->bind_param('i', $slotId); $slotQuery->execute();
+        $slot = $slotQuery->get_result()->fetch_assoc();
+        if (!$slot || ($status === 'available' && !empty($slot['assigned_user_id']))) { $connection->rollback(); return false; }
+        if ($status !== 'available') {
+            $reservation = $connection->prepare("SELECT id FROM parking_requests WHERE slot_id = ? AND status = 'approved' AND COALESCE(end_date, start_date) >= CURRENT_DATE() LIMIT 1 FOR UPDATE");
+            $reservation->bind_param('i', $slotId); $reservation->execute();
+            if ($reservation->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
+        }
+        $update = $connection->prepare('UPDATE parking_slots SET status = ? WHERE id = ?');
+        $update->bind_param('si', $status, $slotId);
+        if (!$update->execute()) throw new RuntimeException('Slot status could not be saved.');
+        $connection->commit();
         logAudit('update_status', 'parking_slot', $slotId, "Status set to {$status}");
         return true;
-    }
-    return false;
+    } catch (Throwable $error) { $connection->rollback(); error_log($error->getMessage()); return false; }
 }
 
 function getParkingRequestsForUser(int $userId): array {
     $connection = connectDb();
     ensureParkingTables($connection);
-    $stmt = $connection->prepare('SELECT pr.*, ps.slot_code, ps.level, u.full_name, u.unit_number FROM parking_requests pr LEFT JOIN parking_slots ps ON ps.id = pr.slot_id INNER JOIN users u ON u.id = pr.user_id WHERE pr.user_id = ? ORDER BY pr.created_at DESC');
+    ensureResidentServicesTables($connection);
+    $stmt = $connection->prepare('SELECT pr.*, ps.slot_code, ps.level, u.full_name, u.unit_number, vr.visitor_name, vr.status AS visitor_status FROM parking_requests pr LEFT JOIN parking_slots ps ON ps.id = pr.slot_id INNER JOIN users u ON u.id = pr.user_id LEFT JOIN resident_service_requests vr ON vr.id = pr.visitor_registration_id AND vr.user_id = pr.user_id WHERE pr.user_id = ? ORDER BY pr.created_at DESC');
     $stmt->bind_param('i', $userId);
     $stmt->execute();
     return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 
 function parkingPassSignature(int $requestId): string {
-    return hash_hmac('sha256', 'parking-pass:' . $requestId, $GLOBALS['configuredDbPass'] . 'celadine-parking-pass');
+    $key = appSetting('CONDO_PASS_SIGNING_KEY');
+    if ($key === '') {
+        $db = connectDb();
+        if (schemaMutationAllowed()) {
+            $db->query("CREATE TABLE IF NOT EXISTS access_signing_keys (key_name VARCHAR(30) PRIMARY KEY, key_value CHAR(64) NOT NULL) ENGINE=InnoDB");
+            $generated = bin2hex(random_bytes(32));
+            $insert = $db->prepare("INSERT IGNORE INTO access_signing_keys (key_name,key_value) VALUES ('parking', ?)");
+            $insert->bind_param('s', $generated); $insert->execute();
+        }
+        $result = $db->query("SELECT key_value FROM access_signing_keys WHERE key_name = 'parking'");
+        $key = $result ? (string)($result->fetch_assoc()['key_value'] ?? '') : '';
+        $db->close();
+        if ($key === '') throw new RuntimeException('Parking signing key is missing. Run the database migrations.');
+    }
+    return hash_hmac('sha256', 'parking-pass:' . $requestId, $key);
 }
 
 function getParkingPass(int $requestId, string $signature): ?array {
@@ -321,10 +384,12 @@ function getParkingPass(int $requestId, string $signature): ?array {
 
     $connection = connectDb();
     ensureParkingTables($connection);
-    $stmt = $connection->prepare("SELECT pr.*, ps.slot_code, ps.level, u.full_name, u.unit_number, u.email FROM parking_requests pr INNER JOIN users u ON u.id = pr.user_id LEFT JOIN parking_slots ps ON ps.id = pr.slot_id WHERE pr.id = ? AND pr.request_type = 'visitor' AND pr.status = 'approved' LIMIT 1");
+    ensureResidentServicesTables($connection);
+    $stmt = $connection->prepare("SELECT pr.*, ps.slot_code, ps.level, u.full_name, u.unit_number, u.email, vr.visitor_name, vr.status AS visitor_status FROM parking_requests pr INNER JOIN users u ON u.id = pr.user_id LEFT JOIN parking_slots ps ON ps.id = pr.slot_id LEFT JOIN resident_service_requests vr ON vr.id = pr.visitor_registration_id AND vr.user_id = pr.user_id WHERE pr.id = ? AND pr.request_type = 'visitor' AND pr.status = 'approved' AND u.status = 'approved' AND u.is_active = 1 AND u.is_verified = 1 AND u.role = 'resident' AND TRIM(COALESCE(u.unit_number,'')) <> '' AND (pr.slot_id IS NULL OR ps.status <> 'maintenance') AND (pr.visitor_registration_id IS NULL OR (vr.request_kind = 'visitor' AND vr.status IN ('approved','checked_in'))) LIMIT 1");
     $stmt->bind_param('i', $requestId);
     $stmt->execute();
-    return $stmt->get_result()->fetch_assoc() ?: null;
+    $pass=$stmt->get_result()->fetch_assoc();
+    return $pass && (residentContext($connection,(int)$pass['user_id'])['approved'] ?? false) ? $pass : null;
 }
 
 function parkingPassUrl(int $requestId): string {
@@ -333,13 +398,18 @@ function parkingPassUrl(int $requestId): string {
 
 function getAllParkingRequests(mysqli $connection): array {
     ensureParkingTables($connection);
-    $result = $connection->query('SELECT pr.*, ps.slot_code, u.full_name, u.username, u.unit_number, u.email, u.contact_number FROM parking_requests pr INNER JOIN users u ON u.id = pr.user_id LEFT JOIN parking_slots ps ON ps.id = pr.slot_id ORDER BY FIELD(pr.status, "pending", "approved", "rejected", "cancelled"), pr.created_at DESC');
+    ensureResidentServicesTables($connection);
+    $result = $connection->query('SELECT pr.*, ps.slot_code, u.full_name, u.username, u.unit_number, u.email, u.contact_number, vr.visitor_name, vr.status AS visitor_status FROM parking_requests pr INNER JOIN users u ON u.id = pr.user_id LEFT JOIN parking_slots ps ON ps.id = pr.slot_id LEFT JOIN resident_service_requests vr ON vr.id = pr.visitor_registration_id AND vr.user_id = pr.user_id ORDER BY FIELD(pr.status, "pending", "approved", "rejected", "cancelled"), pr.created_at DESC');
     return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
 }
 
 function createParkingRequest(int $userId, string $requestType, string $vehiclePlate, string $vehicleDescription, string $startDate, ?string $endDate): bool {
     $connection = connectDb();
+    if (!residentUserHasPermission($connection,$userId,'resident.parking.request')) return false;
     ensureParkingTables($connection);
+    $policy = getParkingPolicy($connection);
+    $endDate = $endDate ?: $startDate;
+    if ($requestType !== 'visitor' || $vehiclePlate === '' || strlen($vehiclePlate) > 20 || strlen($vehicleDescription) > 100 || !workflowDate($startDate) || !workflowDate($endDate) || $startDate < date('Y-m-d') || $endDate < $startDate || (strtotime($endDate) - strtotime($startDate)) >= ((int)$policy['visitor_max_days'] * 86400)) return false;
     $stmt = $connection->prepare('INSERT INTO parking_requests (user_id, request_type, vehicle_plate, vehicle_description, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)');
     $stmt->bind_param('isssss', $userId, $requestType, $vehiclePlate, $vehicleDescription, $startDate, $endDate);
     if ($stmt->execute()) {
@@ -350,39 +420,53 @@ function createParkingRequest(int $userId, string $requestType, string $vehicleP
 }
 
 /**
- * Approves or rejects a parking request. On approval with a slot chosen,
- * the slot is marked occupied and tied to the requester. Every decision
- * is written to the audit log with the acting admin's identity.
+ * Approves a pending request only with a compatible slot and no overlap.
+ * Visitor reservations are dated; standing resident assignments occupy
+ * the inventory row. Decisions are audited after the transaction commits.
  */
 function decideParkingRequest(int $requestId, string $decision, ?int $slotId, string $adminNotes): bool {
+    if (!canAccess('parking.review') || !in_array($decision, ['approved', 'rejected'], true) || strlen($adminNotes) > 255) return false;
+    if ($decision === 'approved' && (!$slotId || $slotId < 1)) return false;
     $connection = connectDb();
     ensureParkingTables($connection);
-
-    $requestStmt = $connection->prepare('SELECT * FROM parking_requests WHERE id = ? LIMIT 1');
-    $requestStmt->bind_param('i', $requestId);
-    $requestStmt->execute();
-    $request = $requestStmt->get_result()->fetch_assoc();
-    if (!$request) {
-        return false;
-    }
-
-    $adminId = $_SESSION['user_id'] ?? null;
-    $status = $decision === 'approved' ? 'approved' : 'rejected';
-
-    if ($status === 'approved' && $slotId) {
-        $userStmt = $connection->prepare('SELECT unit_number FROM users WHERE id = ? LIMIT 1');
-        $userStmt->bind_param('i', $request['user_id']);
-        $userStmt->execute();
-        $unit = $userStmt->get_result()->fetch_assoc()['unit_number'] ?? '';
-        assignParkingSlot($slotId, (int)$request['user_id'], $unit, $request['vehicle_plate']);
-    }
-
-    $update = $connection->prepare('UPDATE parking_requests SET status = ?, slot_id = ?, admin_notes = ?, decided_by = ?, decided_at = NOW() WHERE id = ?');
-    $update->bind_param('sisii', $status, $slotId, $adminNotes, $adminId, $requestId);
-
-    if ($update->execute()) {
-        logAudit($decision === 'approved' ? 'approve' : 'reject', 'parking_request', $requestId, "Request from user #{$request['user_id']} ({$request['vehicle_plate']})" . ($adminNotes !== '' ? " — {$adminNotes}" : ''));
+    ensureResidentServicesTables($connection);
+    $connection->begin_transaction();
+    try {
+        $requestStmt = $connection->prepare("SELECT pr.*, u.unit_number, u.status AS owner_status, u.is_active AS owner_active, u.is_verified AS owner_verified, u.role AS owner_role FROM parking_requests pr JOIN users u ON u.id = pr.user_id WHERE pr.id = ? AND pr.status = 'pending' FOR UPDATE");
+        $requestStmt->bind_param('i', $requestId);
+        $requestStmt->execute();
+        $request = $requestStmt->get_result()->fetch_assoc();
+        if (!$request) { $connection->rollback(); return false; }
+        if ($decision==='approved' && !(residentContext($connection,(int)$request['user_id'])['approved'] ?? false)) { $connection->rollback(); return false; }
+        if ($decision === 'approved' && ($request['owner_status'] !== 'approved' || (int)$request['owner_active'] !== 1 || (int)$request['owner_verified'] !== 1 || $request['owner_role'] !== 'resident' || trim((string)$request['unit_number']) === '' || ($request['request_type'] === 'visitor' && ($request['end_date'] ?: $request['start_date']) < date('Y-m-d')))) { $connection->rollback(); return false; }
+        if ($decision === 'approved' && !empty($request['visitor_registration_id'])) {
+            $visitorStmt = $connection->prepare("SELECT id FROM resident_service_requests WHERE id = ? AND user_id = ? AND request_kind = 'visitor' AND status IN ('approved','checked_in') FOR UPDATE");
+            $visitorStmt->bind_param('ii', $request['visitor_registration_id'], $request['user_id']); $visitorStmt->execute();
+            if (!$visitorStmt->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
+        }
+        if ($decision === 'approved') {
+            // Lock the inventory row to serialize approvals for this slot.
+            $slotStmt = $connection->prepare("SELECT * FROM parking_slots WHERE id = ? AND status = 'available' FOR UPDATE");
+            $slotStmt->bind_param('i', $slotId); $slotStmt->execute();
+            $slot = $slotStmt->get_result()->fetch_assoc();
+            $type = $request['request_type'] === 'visitor' ? 'visitor' : 'resident';
+            if (!$slot || $slot['slot_type'] !== $type) { $connection->rollback(); return false; }
+            $overlap = $connection->prepare("SELECT id FROM parking_requests WHERE slot_id = ? AND status = 'approved' AND start_date <= ? AND COALESCE(end_date, start_date) >= ? LIMIT 1 FOR UPDATE");
+            $endDate = $request['end_date'] ?: $request['start_date'];
+            $overlap->bind_param('iss', $slotId, $endDate, $request['start_date']); $overlap->execute();
+            if ($overlap->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
+            if ($type === 'resident') {
+                $assign = $connection->prepare("UPDATE parking_slots SET status = 'occupied', assigned_user_id = ?, assigned_unit = ?, vehicle_plate = ? WHERE id = ?");
+                $assign->bind_param('issi', $request['user_id'], $request['unit_number'], $request['vehicle_plate'], $slotId);
+                if (!$assign->execute()) throw new RuntimeException('Slot assignment failed.');
+            }
+        } else { $slotId = null; }
+        $adminId = (int)$_SESSION['user_id'];
+        $update = $connection->prepare("UPDATE parking_requests SET status = ?, slot_id = ?, admin_notes = ?, decided_by = ?, decided_at = NOW() WHERE id = ? AND status = 'pending'");
+        $update->bind_param('sisii', $decision, $slotId, $adminNotes, $adminId, $requestId);
+        if (!$update->execute() || $update->affected_rows !== 1) throw new RuntimeException('Request changed before approval.');
+        $connection->commit();
+        logAudit($decision === 'approved' ? 'approve' : 'reject', 'parking_request', $requestId, 'Slot #' . ($slotId ?? 0) . ' ' . $adminNotes);
         return true;
-    }
-    return false;
+    } catch (Throwable $error) { $connection->rollback(); error_log($error->getMessage()); return false; }
 }

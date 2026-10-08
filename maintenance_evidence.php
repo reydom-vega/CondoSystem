@@ -6,8 +6,8 @@ if (!isLoggedIn()) {
     exit('Forbidden');
 }
 
-$management = isAdmin() && !isTreasurer() && !isSecurity();
-$resident = !isAdmin() && (($_SESSION['role'] ?? '') === 'resident');
+$management = canAccess('maintenance.work');
+$resident = canAccess('resident.maintenance.request');
 if (!$management && !$resident) {
     http_response_code(403);
     exit('Forbidden');

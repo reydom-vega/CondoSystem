@@ -8,6 +8,9 @@ if (isAdmin()) {
     redirect(isSecurity() ? '../security/security_dashboard.php' : (isMaintenance() ? '../maintenance/maintenance_dashboard.php' : '../admin/admin_dashboard.php'));
 }
 requireApproval();
+if (!residentHasPermission('resident.parking.request') && !residentHasPermission('resident.stickers.order')) {
+    requireResidentPermission('resident.parking.request');
+}
 
 $userId = (int)$_SESSION['user_id'];
 $username = $_SESSION['username'] ?? 'User';
@@ -17,77 +20,74 @@ $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? su
 
 $connection = connectDb();
 ensureParkingTables($connection);
+$parkingPolicy = getParkingPolicy($connection);
 
 $errors = [];
 $success = '';
 $stickerError = '';
 $stickerSuccess = '';
+$parkingFlash = getFlash();
+if ($parkingFlash) $success = (string)$parkingFlash['message'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireWorkflowCsrf();
     $formAction = $_POST['form_action'] ?? 'parking_request';
 
     if ($formAction === 'buy_sticker') {
-        $stickerQuantity = filter_var($_POST['sticker_quantity'] ?? null, FILTER_VALIDATE_INT);
-        if ($stickerQuantity === false || $stickerQuantity < 1 || $stickerQuantity > 10) {
-            $stickerError = 'Choose a sticker quantity from 1 to 10.';
+        requireResidentPermission('resident.stickers.order');
+        $stickerVehicleIds = is_array($_POST['vehicle_ids'] ?? null) ? array_values(array_unique(array_map('intval', $_POST['vehicle_ids']))) : [];
+        $stickerQuantity = count($stickerVehicleIds);
+        if ($stickerQuantity < 1 || $stickerQuantity > (int)$parkingPolicy['sticker_max_quantity']) {
+            $stickerError = 'Select between 1 and ' . (int)$parkingPolicy['sticker_max_quantity'] . ' approved vehicles.';
         }
 
         $existingStickerOrder = getLatestParkingStickerOrder($userId);
-        if ($stickerError === '' && $existingStickerOrder && $existingStickerOrder['claim_status'] !== 'issued') {
+        if ($stickerError === '' && $existingStickerOrder && $existingStickerOrder['claim_status'] !== 'issued' && $existingStickerOrder['status'] !== 'cancelled') {
             $stickerError = 'You already have a sticker order in progress. Check its status below.';
         } elseif ($stickerError === '') {
-            $billId = createBill(
-                $userId,
-                [['category' => 'Parking Sticker', 'description' => $stickerQuantity . ' resident parking sticker(s)', 'amount' => PARKING_STICKER_PRICE * $stickerQuantity]],
-                null,
-                null,
-                (new DateTime())->modify('+15 days')->format('Y-m-d'),
-                'unbilled'
-            );
-
-            if (!$billId) {
-                $stickerError = 'Unable to create the sticker bill. Please try again.';
-            } else {
-                $orderId = createParkingStickerOrderForBill($userId, $billId, $stickerQuantity);
-                if ($orderId) {
-                    logAudit('create', 'parking_sticker', $orderId, 'Created bill #' . $billId . ' for ' . $stickerQuantity . ' sticker(s)');
-                    redirect('payments.php');
-                }
-
-                $stickerError = 'The sticker bill was created, but its claim record could not be created. Please contact management before paying.';
-            }
+            $billId = purchaseParkingStickers($connection, $userId, $stickerQuantity, $stickerVehicleIds);
+            if ($billId) redirect('payments.php');
+            $stickerError = 'Unable to create the sticker order. Check for an existing order, then try again.';
         }
+    } elseif ($formAction === 'cancel_visitor_request') {
+        requireResidentPermission('resident.parking.request');
+        $requestId = (int)($_POST['request_id'] ?? 0);
+        if (cancelVisitorParkingRequest($connection, $userId, $requestId)) {
+            logAudit('cancel', 'parking_request', $requestId, 'Resident cancelled visitor parking');
+            setFlash('success', 'Parking request cancelled. Your visitor registration remains active.');
+            redirect('parking.php#parking-request-' . $requestId);
+        }
+        $errors[] = 'This parking request can no longer be cancelled.';
+    } elseif ($formAction === 'visitor_request') {
+        requireResidentPermission('resident.parking.request');
+        try {
+            $visitorId = filter_var($_POST['visitor_registration_id'] ?? null, FILTER_VALIDATE_INT);
+            if (!$visitorId) throw new InvalidArgumentException('Select a registered visitor. You can register a new visitor from the link below.');
+            $requestId = requestLinkedVisitorParking($connection, $userId, $visitorId, $_POST);
+            logAudit('create', 'parking_request', $requestId, 'Linked visitor registration #' . $visitorId);
+            setFlash('success', 'Parking request submitted for your registered visitor. Security will review the visit and assign a parking slot.');
+            redirect('parking.php#parking-request-' . $requestId);
+        } catch (InvalidArgumentException $e) { $errors[] = $e->getMessage(); }
+        catch (Throwable $e) { error_log($e->getMessage()); $errors[] = 'Unable to submit visitor parking. Please try again.'; }
     } else {
-        $requestType = $_POST['request_type'] ?? 'visitor';
-        $vehiclePlate = strtoupper(trim($_POST['vehicle_plate'] ?? ''));
-        $vehicleDescription = trim($_POST['vehicle_description'] ?? '');
-        $startDate = trim($_POST['start_date'] ?? '');
-        $endDate = trim($_POST['end_date'] ?? '');
-
-        if ($requestType !== 'visitor') {
-            $errors[] = 'Resident parking stickers are purchased separately below. Parking requests are for visitors only.';
-        } elseif ($vehiclePlate === '' || $startDate === '') {
-            $errors[] = 'Plate number and start date are required.';
-        } elseif ($startDate < date('Y-m-d')) {
-            $errors[] = 'Start date cannot be in the past.';
-        } elseif ($endDate !== '' && $endDate < $startDate) {
-            $errors[] = 'End date cannot be before the start date.';
-        } elseif ($endDate !== '' && (strtotime($endDate) - strtotime($startDate)) > (7 * 86400)) {
-            $errors[] = 'Visitor parking requests can cover at most 7 days.';
-        } else {
-            $finalEndDate = $endDate ?: $startDate;
-            if (createParkingRequest($userId, 'visitor', $vehiclePlate, $vehicleDescription, $startDate, $finalEndDate)) {
-                $success = 'Your visitor parking request has been submitted for admin review.';
-            } else {
-                $errors[] = 'Unable to submit your request. Please try again.';
-            }
-        }
+        $errors[] = 'Unknown parking action. Refresh the page and try again.';
     }
 }
+$latestStickerOrder = residentHasPermission('resident.stickers.order') ? getLatestParkingStickerOrder($userId) : null;
+ensureStickerVehicleLinks($connection);
+$eligibleStickerVehicles = residentHasPermission('resident.stickers.order') ? getEligibleStickerVehicles($connection,$userId) : [];
+$latestStickerVehicles = $latestStickerOrder ? getStickerVehicles($connection,(int)$latestStickerOrder['id']) : [];
 
-$latestStickerOrder = getLatestParkingStickerOrder($userId);
-
-$myRequests = getParkingRequestsForUser($userId);
+$myRequests = residentHasPermission('resident.parking.request') ? getParkingRequestsForUser($userId) : [];
+$activeParkingVisitors = [];
+foreach ($myRequests as $request) {
+    if (!empty($request['visitor_registration_id']) && in_array($request['status'], ['pending','approved'], true)) $activeParkingVisitors[(int)$request['visitor_registration_id']] = true;
+}
+$parkingVisitors = array_values(array_filter(getResidentServiceRequests($connection, 'visitor', $userId), static fn(array $v): bool => in_array($v['status'], ['pending','approved','checked_in'], true) && $v['end_date'] >= date('Y-m-d') && !isset($activeParkingVisitors[(int)$v['id']])));
+$selectedVisitorId = (int)($_POST['visitor_registration_id'] ?? $_GET['visitor_id'] ?? 0);
+$selectedVisitor = null;
+foreach ($parkingVisitors as $visitor) { if ((int)$visitor['id'] === $selectedVisitorId) $selectedVisitor = $visitor; }
+function parkingFormValue(string $field, string $default = ''): string { return htmlspecialchars(is_string($_POST[$field] ?? null) ? $_POST[$field] : $default, ENT_QUOTES, 'UTF-8'); }
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -96,6 +96,7 @@ $myRequests = getParkingRequestsForUser($userId);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celandine Residences - Parking</title>
     <link rel="stylesheet" href="../resident.css">
+    <link rel="stylesheet" href="../services.css?v=<?php echo filemtime(__DIR__ . '/../services.css'); ?>">
 </head>
 <body class="dashboard-page">
 
@@ -107,29 +108,7 @@ $myRequests = getParkingRequestsForUser($userId);
                 <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
 
-            <nav class="sidebar-nav">
-                <a href="dashboard.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('dashboard'); ?> Dashboard
-                </a>
-                <a href="payments.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('billing'); ?> Billing &amp; Payments
-                </a>
-                <a href="book_amenity.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('calendar'); ?> Book Amenity
-                </a>
-                <a href="parking.php" class="sidebar-link active">
-                    <?php echo systemSidebarIcon('parking'); ?> Parking
-                </a>
-                <a href="maintenance.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('maintenance'); ?> Maintenance
-                </a>
-                <a href="messages.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('messages'); ?> Messages
-                </a>
-                    <a href="announcements.php" class="sidebar-link">
-                        <?php echo systemSidebarIcon('announcements'); ?> Announcements
-                    </a>
-            </nav>
+            <nav class="sidebar-nav"><?php renderResidentSidebarNavigation(); ?></nav>
         </aside>
 
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -177,67 +156,37 @@ $myRequests = getParkingRequestsForUser($userId);
             <?php if ($stickerError !== ''): ?><div class="alert error"><?php echo htmlspecialchars($stickerError); ?></div><?php endif; ?>
             <?php if ($stickerSuccess !== ''): ?><div class="alert success"><?php echo htmlspecialchars($stickerSuccess); ?></div><?php endif; ?>
 
-            <section class="payment-methods-card parking-request-card">
-                <h3 class="section-title">Resident Parking Sticker</h3>
-                <p class="amenity-desc">Purchase a parking sticker for your resident vehicle. Price: <strong>₱<?php echo number_format(PARKING_STICKER_PRICE, 2); ?></strong>.</p>
-                <p class="amenity-desc">Quantity: <?php echo (int)($latestStickerOrder['quantity'] ?? 0); ?> · Order total: ₱<?php echo number_format((float)($latestStickerOrder['amount'] ?? 0), 2); ?></p>
-                <?php if ($latestStickerOrder && $latestStickerOrder['claim_status'] === 'issued'): ?>
-                    <p class="amenity-desc">Your parking sticker has been issued<?php if (!empty($latestStickerOrder['issued_at'])): ?> on <?php echo htmlspecialchars(date('M j, Y', strtotime($latestStickerOrder['issued_at']))); ?><?php endif; ?>.</p>
-                    <form method="POST" action="parking.php" id="stickerOrderForm">
-                        <input type="hidden" name="form_action" value="buy_sticker">
-                        <div class="parking-field">
-                            <label class="field-label" for="sticker_quantity">Order additional stickers</label>
-                            <input class="form-date" type="number" id="sticker_quantity" name="sticker_quantity" min="1" max="10" step="1" value="1" required>
-                        </div>
-                        <p class="amenity-desc">Total: <strong>₱<span id="stickerOrderTotal" data-unit-price="<?php echo number_format(PARKING_STICKER_PRICE, 2, '.', ''); ?>"><?php echo number_format(PARKING_STICKER_PRICE, 2); ?></span></strong></p>
-                        <button type="submit" class="proceed-payment-btn">Add Stickers to Billing</button>
-                    </form>
-                <?php elseif ($latestStickerOrder && $latestStickerOrder['bill_status'] === 'paid'): ?>
-                    <p class="amenity-desc">Payment verified. Please visit the Admin to claim your physical parking sticker. Provide a Reciept</p>
-                    <?php if (!empty($latestStickerOrder['bill_paid_at'])): ?><p class="amenity-desc">Paid on <?php echo htmlspecialchars(date('M j, Y g:i A', strtotime($latestStickerOrder['bill_paid_at']))); ?>.</p><?php endif; ?>
-                <?php elseif ($latestStickerOrder && $latestStickerOrder['bill_status'] !== 'paid'): ?>
-                    <p class="amenity-desc">Your sticker request is waiting for payment confirmation. Complete payment from Billing &amp; Payments. Online payments are verified automatically by PayMongo.</p>
-                    <a class="proceed-payment-btn" href="payments.php">Go to Billing &amp; Payments</a>
-                <?php elseif ($latestStickerOrder): ?>
-                    <p class="amenity-desc">This sticker order has already been processed. Contact management if you need help.</p>
-                <?php else: ?>
-                    <form method="POST" action="parking.php" id="stickerOrderForm">
-                        <input type="hidden" name="form_action" value="buy_sticker">
-                        <div class="parking-field">
-                            <label class="field-label" for="sticker_quantity">Sticker quantity</label>
-                            <input class="form-date" type="number" id="sticker_quantity" name="sticker_quantity" min="1" max="10" step="1" value="1" required>
-                        </div>
-                        <p class="amenity-desc">Total: <strong>₱<span id="stickerOrderTotal" data-unit-price="<?php echo number_format(PARKING_STICKER_PRICE, 2, '.', ''); ?>"><?php echo number_format(PARKING_STICKER_PRICE, 2); ?></span></strong></p>
-                        <button type="submit" class="proceed-payment-btn">Add Stickers to Billing</button>
-                    </form>
-                    <a class="proceed-payment-btn" href="payments.php">Back to Billing &amp; Payments</a>
-                <?php endif; ?>
-            </section>
+            <?php include __DIR__ . '/../includes/resident_sticker_panel.php'; ?>
 
-            <section class="payment-methods-card parking-request-card">
+            <?php if (residentHasPermission('resident.parking.request')): ?>
+            <section class="payment-methods-card parking-request-card" id="visitorParking">
                 <h3 class="section-title">Visitor Parking</h3>
-                <p class="amenity-desc">Submit visitor vehicle details to request a temporary QR pass. Visitor parking is limited to 7 days.</p>
-                <form method="POST" action="parking.php">
+                <p class="amenity-desc">Choose your registered visitor and add their vehicle. The parking period must include their visit date and can cover up to <?php echo (int)$parkingPolicy['visitor_max_days']; ?> days, including the start date. A parking pass requires an approved visitor registration and an assigned slot.</p>
+                <?php if (residentHasPermission('resident.visitors.register')): ?><div class="service-button-row"><a class="service-btn" href="visitors.php?needs_parking=1">Register visitor with parking</a><a class="service-btn service-btn-secondary" href="visitors.php">Manage visitor registrations</a></div><?php endif; ?>
+                <?php if (!$parkingVisitors): ?><div class="service-empty-state"><p>No eligible visitors need a parking request. Register a visitor first, or check your existing requests below.</p><?php if (residentHasPermission('resident.visitors.register')): ?><a class="service-btn service-btn-secondary" href="visitors.php?needs_parking=1">Register visitor &amp; request parking</a><?php endif; ?></div><?php else: ?>
+                <form method="POST" action="parking.php#visitorParking" class="visitor-parking-form"><?php echo workflowCsrfField(); ?>
                     <input type="hidden" name="form_action" value="visitor_request">
+                    <div class="parking-field service-wide"><label class="field-label" for="visitor_registration_id">Registered visitor</label><select class="form-date" id="visitor_registration_id" name="visitor_registration_id" required><option value="">Select a visitor</option><?php foreach ($parkingVisitors as $visitor): ?><option value="<?php echo (int)$visitor['id']; ?>" data-visit-date="<?php echo htmlspecialchars($visitor['start_date']); ?>" <?php echo (int)$visitor['id'] === $selectedVisitorId ? 'selected' : ''; ?>><?php echo htmlspecialchars($visitor['visitor_name'] . ' · ' . date('M j, Y', strtotime($visitor['start_date'])) . ' · ' . ucfirst($visitor['status'])); ?></option><?php endforeach; ?></select></div>
 
                     <div class="parking-field"><label class="field-label" for="vehicle_plate">Plate Number</label>
-                    <input class="form-date" type="text" id="vehicle_plate" name="vehicle_plate" placeholder="e.g. ABC 1234" maxlength="20" required>
+                    <input class="form-date" type="text" id="vehicle_plate" name="vehicle_plate" placeholder="e.g. ABC 1234" maxlength="20" value="<?php echo parkingFormValue('vehicle_plate'); ?>" required>
                     </div>
 
                     <div class="parking-field"><label class="field-label" for="vehicle_description">Vehicle (optional)</label>
-                    <input class="form-date" type="text" id="vehicle_description" name="vehicle_description" placeholder="e.g. Silver Toyota Vios" maxlength="120">
+                    <input class="form-date" type="text" id="vehicle_description" name="vehicle_description" placeholder="e.g. Silver Toyota Vios" maxlength="120" value="<?php echo parkingFormValue('vehicle_description'); ?>">
                     </div>
 
                     <div class="parking-field"><label class="field-label" for="start_date">Start Date</label>
-                    <input class="form-date" type="date" id="start_date" name="start_date" min="<?php echo date('Y-m-d'); ?>" required>
+                    <input class="form-date" type="date" id="start_date" name="start_date" min="<?php echo date('Y-m-d'); ?>" value="<?php echo parkingFormValue('start_date', $selectedVisitor['start_date'] ?? ''); ?>" required>
                     </div>
 
-                    <div class="parking-field"><label class="field-label" for="end_date">End Date (visitor only)</label>
-                    <input class="form-date" type="date" id="end_date" name="end_date" min="<?php echo date('Y-m-d'); ?>">
+                    <div class="parking-field"><label class="field-label" for="end_date">End date</label>
+                    <input class="form-date" type="date" id="end_date" name="end_date" min="<?php echo date('Y-m-d'); ?>" value="<?php echo parkingFormValue('end_date', $selectedVisitor['end_date'] ?? ''); ?>" required>
                     </div>
 
-                    <button type="submit" class="proceed-payment-btn">Submit Request</button>
+                    <button type="submit" class="service-btn service-wide">Submit parking request</button>
                 </form>
+                <?php endif; ?>
             </section>
 
             <section class="bookings-section">
@@ -246,24 +195,27 @@ $myRequests = getParkingRequestsForUser($userId);
                     <p class="bookings-empty">You have no parking requests yet.</p>
                 <?php else: ?>
                     <?php foreach ($myRequests as $request): ?>
-                        <div class="booking-item">
+                        <div class="booking-item" id="parking-request-<?php echo (int)$request['id']; ?>">
                             <?php echo systemIconFromGlyph('🚗', 'booking-icon'); ?>
                             <div class="booking-content">
                                 <h4><?php echo $request['request_type'] === 'resident_assignment' ? 'Resident Slot Request' : 'Visitor Parking'; ?> — <?php echo htmlspecialchars($request['vehicle_plate']); ?></h4>
                                 <p>
+                                    <?php if (!empty($request['visitor_name'])): ?><a href="visitors.php"><?php echo htmlspecialchars($request['visitor_name']); ?></a> · Visitor <?php echo htmlspecialchars(str_replace('_', ' ', $request['visitor_status'])); ?> · <?php endif; ?>
                                     <?php echo htmlspecialchars(date('M j, Y', strtotime($request['start_date']))); ?>
                                     <?php if ($request['end_date']): ?> to <?php echo htmlspecialchars(date('M j, Y', strtotime($request['end_date']))); ?><?php endif; ?>
                                     <?php if ($request['status'] === 'approved' && !empty($request['slot_code'])): ?> · Slot <?php echo htmlspecialchars($request['slot_code']); ?><?php endif; ?>
                                 </p>
                             </div>
                             <span class="badge badge-success unit-status <?php echo htmlspecialchars($request['status']); ?>"><?php echo htmlspecialchars(ucfirst($request['status'])); ?></span>
-                            <?php if ($request['request_type'] === 'visitor' && $request['status'] === 'approved'): ?>
-                                <a href="../parking_pass.php?request_id=<?php echo (int)$request['id']; ?>&amp;signature=<?php echo htmlspecialchars(parkingPassSignature((int)$request['id'])); ?>" class="admin-pill admin-pill-info">Download QR Pass</a>
+                            <?php if ($request['request_type'] === 'visitor' && $request['status'] === 'approved' && (empty($request['visitor_registration_id']) || in_array($request['visitor_status'], ['approved','checked_in'], true))): ?>
+                                <a href="../parking_pass.php?request_id=<?php echo (int)$request['id']; ?>&amp;signature=<?php echo htmlspecialchars(parkingPassSignature((int)$request['id'])); ?>" class="service-btn service-btn-secondary">Download QR Pass</a>
                             <?php endif; ?>
+                            <?php if ($request['request_type'] === 'visitor' && in_array($request['status'], ['pending','approved'], true)): ?><form method="post" action="parking.php"><?php echo workflowCsrfField(); ?><input type="hidden" name="form_action" value="cancel_visitor_request"><input type="hidden" name="request_id" value="<?php echo (int)$request['id']; ?>"><button type="submit" class="service-btn service-btn-danger">Cancel parking</button></form><?php endif; ?>
                         </div>
                     <?php endforeach; ?>
                 <?php endif; ?>
             </section>
+            <?php endif; ?>
         </main>
 
     </div>
@@ -284,27 +236,38 @@ $myRequests = getParkingRequestsForUser($userId);
             document.addEventListener('click', (e) => { if (!profileMenu.contains(e.target)) { profileMenu.classList.remove('open'); profileToggle.setAttribute('aria-expanded', 'false'); } });
         }
 
-        // Visitor parking is capped at 7 days; nudge the end date field accordingly.
-        const requestType = document.getElementById('request_type');
+        // Keep the date picker consistent with the configured inclusive duration.
+        const visitorSelect = document.getElementById('visitor_registration_id');
         const endDateField = document.getElementById('end_date');
         const startDateField = document.getElementById('start_date');
         function syncEndDateMax() {
-            if (!startDateField.value) return;
-            const max = new Date(startDateField.value);
-            max.setDate(max.getDate() + 7);
+            if (!startDateField || !endDateField || !startDateField.value) return;
+            const max = new Date(startDateField.value + 'T00:00:00Z');
+            max.setUTCDate(max.getUTCDate() + <?php echo (int)$parkingPolicy['visitor_max_days'] - 1; ?>);
+            endDateField.min = startDateField.value;
             endDateField.max = max.toISOString().slice(0, 10);
+            if (endDateField.value < endDateField.min || endDateField.value > endDateField.max) endDateField.value = startDateField.value;
         }
+        visitorSelect?.addEventListener('change', () => {
+            const visitDate = visitorSelect.selectedOptions[0]?.dataset.visitDate;
+            if (visitDate && startDateField && endDateField) { startDateField.value = visitDate; endDateField.value = visitDate; syncEndDateMax(); }
+        });
+        syncEndDateMax();
         if (startDateField && endDateField) {
             startDateField.addEventListener('change', syncEndDateMax);
         }
-        const stickerQuantity = document.getElementById('sticker_quantity');
         const stickerOrderTotal = document.getElementById('stickerOrderTotal');
-        if (stickerQuantity && stickerOrderTotal) {
-            const stickerUnitPrice = Number(stickerOrderTotal.dataset.unitPrice);
-            stickerQuantity.addEventListener('input', () => {
-                const quantity = Math.min(10, Math.max(1, Number.parseInt(stickerQuantity.value, 10) || 1));
-                stickerOrderTotal.textContent = (stickerUnitPrice * quantity).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            });
+        const stickerOrderForm = document.getElementById('stickerOrderForm');
+        if (stickerOrderTotal && stickerOrderForm) {
+            const boxes = [...stickerOrderForm.querySelectorAll('input[name="vehicle_ids[]"]')];
+            function syncStickerSelection() {
+                const quantity = boxes.filter(box => box.checked).length;
+                const allowed = quantity > 0 && quantity <= Number(stickerOrderTotal.dataset.maxQuantity);
+                stickerOrderTotal.textContent = (Number(stickerOrderTotal.dataset.unitPrice) * quantity).toLocaleString('en-PH', {minimumFractionDigits:2,maximumFractionDigits:2});
+                document.getElementById('submitStickerOrder').disabled = !allowed;
+            }
+            boxes.forEach(box => box.addEventListener('change', syncStickerSelection));
+            syncStickerSelection();
         }
     </script>
 </body>

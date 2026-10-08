@@ -2,41 +2,29 @@
 require_once 'config.php';
 
 if (isLoggedIn()) {
-    redirect(isSecurity() ? 'security/security_dashboard.php' : (isMaintenance() ? 'maintenance/maintenance_dashboard.php' : (isTreasurer() ? 'treasurer/treasurer_dashboard.php' : (isAdmin() ? 'admin/admin_dashboard.php' : 'resident/dashboard.php'))));
+    redirect(dashboardPathForRole());
 }
 
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireWorkflowCsrf();
     $email = trim($_POST['email'] ?? '');
 
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Please enter a valid email address.';
     } else {
         $connection = connectDb();
+        $allowed = allowAuthenticationRequest($connection, 'password_reset', 5);
         
-        $stmt = $connection->prepare('SELECT id, username FROM users WHERE email = ? LIMIT 1');
+        $stmt = $connection->prepare('SELECT id, username FROM users WHERE email = ? AND is_active = 1 LIMIT 1');
         $stmt->bind_param('s', $email);
         $stmt->execute();
         $result = $stmt->get_result();
 
-        if ($result->num_rows === 1) {
+        if ($allowed && $result->num_rows === 1) {
             $user = $result->fetch_assoc();
-            $resetToken = generateToken();
-
-            $columnCheck = $connection->query("SHOW COLUMNS FROM users LIKE 'reset_expires'");
-            $hasResetExpires = $columnCheck && $columnCheck->num_rows > 0;
-
-            if ($hasResetExpires) {
-                $expiresAt = date('Y-m-d H:i:s', time() + 60 * 60); // 1 hour
-                $update = $connection->prepare('UPDATE users SET reset_token = ?, reset_expires = ? WHERE id = ?');
-                $update->bind_param('ssi', $resetToken, $expiresAt, $user['id']);
-            } else {
-                $update = $connection->prepare('UPDATE users SET reset_token = ? WHERE id = ?');
-                $update->bind_param('si', $resetToken, $user['id']);
-            }
-
-            $update->execute();
+            $resetToken = issuePasswordResetToken($connection, (int)$user['id']);
 
             $resetLink = buildUrl('reset_password.php?token=' . urlencode($resetToken));
             $subject = 'Reset your password';
@@ -53,16 +41,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sent = sendMail($email, $subject, $message);
 
             if (!$sent) {
-                $mailError = getLastMailError();
-                $errors[] = 'Unable to send password reset email right now. Please check SMTP settings and try again later.';
-                if ($mailError) {
-                    $errors[] = 'Mailer error: ' . htmlspecialchars($mailError);
-                }
+                error_log('Password reset delivery unavailable; review configured mail transport.');
             }
         }
 
         if (empty($errors)) {
-            setFlash('success', 'If that account exists, a password reset link has been sent.');
+            setFlash('success', 'If the account is eligible, a reset link will be emailed. If it does not arrive, contact management.');
             redirect('login.php');
         }
     }
@@ -101,6 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
 
             <form method="post">
+                <?php echo workflowCsrfField(); ?>
                 <div class="input-wrap">
                     <?php echo systemIconFromGlyph('✉️', 'icon'); ?>
                     <input type="email" id="email" name="email" placeholder="Email" value="<?php echo htmlspecialchars($email ?? ''); ?>" required>

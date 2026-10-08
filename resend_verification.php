@@ -2,7 +2,7 @@
 require_once 'config.php';
 
 if (isLoggedIn()) {
-    redirect(isSecurity() ? 'security/security_dashboard.php' : (isMaintenance() ? 'maintenance/maintenance_dashboard.php' : (isTreasurer() ? 'treasurer/treasurer_dashboard.php' : (isAdmin() ? 'admin/admin_dashboard.php' : 'resident/dashboard.php'))));
+    redirect(dashboardPathForRole());
 }
 
 $errors = [];
@@ -10,26 +10,29 @@ $success = '';
 $email = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireWorkflowCsrf();
     $email = trim($_POST['email'] ?? '');
 
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Please enter a valid email address.';
     } else {
         $connection = connectDb();
+        $allowed = allowAuthenticationRequest($connection, 'resend_verification', 5);
         $stmt = $connection->prepare('SELECT id, username, is_verified FROM users WHERE email = ? LIMIT 1');
         $stmt->bind_param('s', $email);
         $stmt->execute();
         $result = $stmt->get_result();
 
-        if ($result->num_rows === 1) {
+        if ($allowed && $result->num_rows === 1) {
             $user = $result->fetch_assoc();
 
             if ((int)$user['is_verified'] === 1) {
                 $success = 'This account is already verified. You can log in.';
             } else {
                 $verificationToken = generateVerificationCode();
-                $update = $connection->prepare('UPDATE users SET verification_token = ? WHERE id = ?');
-                $update->bind_param('si', $verificationToken, $user['id']);
+                $digest = hash('sha256', $verificationToken);
+                $update = $connection->prepare('UPDATE users SET verification_token = ?, verification_expires = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?');
+                $update->bind_param('si', $digest, $user['id']);
 
                 if ($update->execute()) {
                     $verificationLink = buildUrl('verify.php?email=' . urlencode($email));
@@ -51,11 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($sent) {
                         $success = 'Verification email resent. Check your inbox.';
                     } else {
-                        $errors[] = 'Unable to send verification email. Please check SMTP settings and try again.';
-                        $mailError = getLastMailError();
-                        if ($mailError) {
-                            $errors[] = 'Mailer error: ' . htmlspecialchars($mailError);
-                        }
+                        error_log('Verification delivery unavailable; review configured mail transport.');
                     }
                 } else {
                     $errors[] = 'Unable to set verification code. Please try again later.';
@@ -64,6 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $success = 'If that email exists in our system, a verification email has been sent.';
         }
+        $success = 'If the account requires verification, a code will be emailed. If it does not arrive, contact management.';
     }
 }
 ?>
@@ -96,6 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
 
             <form method="post">
+                <?php echo workflowCsrfField(); ?>
                 <div class="input-wrap">
                     <?php echo systemIconFromGlyph('✉️', 'icon'); ?>
                     <input type="email" id="email" name="email" placeholder="Email address" value="<?php echo htmlspecialchars($email); ?>" required>

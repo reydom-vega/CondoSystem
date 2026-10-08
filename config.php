@@ -1,24 +1,45 @@
 <?php
-session_start();
+require_once __DIR__ . '/includes/environment.php';
+require_once __DIR__ . '/includes/deployment_schema.php';
+
+ini_set('session.use_strict_mode', '1');
+ini_set('session.use_only_cookies', '1');
+if (session_status() === PHP_SESSION_NONE) {
+    session_name('CONDOSESSID');
+    session_set_cookie_params(['path' => '/', 'secure' => appUsesSecureCookies(), 'httponly' => true, 'samesite' => 'Lax']);
+    session_start();
+}
 
 date_default_timezone_set('Asia/Manila');
 
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+if (PHP_SAPI !== 'cli') {
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: SAMEORIGIN');
+    header('Referrer-Policy: same-origin');
+    header('Cache-Control: no-store');
+}
+set_exception_handler(static function (Throwable $exception): void {
+    $reference = bin2hex(random_bytes(6));
+    error_log('Application error [' . $reference . ']: ' . $exception);
+    if (PHP_SAPI === 'cli') {
+        fwrite(STDERR, 'Application error. Reference: ' . $reference . PHP_EOL);
+        exit(1);
+    }
+    http_response_code(503);
+    echo 'The service is temporarily unavailable. Please try again later. Reference: ' . $reference;
+});
 
 $autoload = __DIR__ . '/vendor/autoload.php';
 if (!file_exists($autoload)) {
-    die('Composer autoload file not found. Please make sure the "vendor" directory exists in ' . __DIR__);
+    throw new RuntimeException('Install application dependencies with Composer before starting the application.');
 }
 require_once $autoload;
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
-
-function appSetting(string $name, string $localDefault = ''): string {
-    $value = getenv($name);
-    return $value === false ? $localDefault : trim($value);
-}
 
 function getUnitInventoryFilePath(): string {
     $baseDir = __DIR__;
@@ -95,23 +116,18 @@ function getUnitInventoryCount(): int {
     return count(loadUnitInventory());
 }
 
-// const DB_HOST = 'sql313.infinityfree.com';
-// const DB_USER = 'if0_42766988';
-// const DB_PASS = 'sWPUeIHorqr5MU2';
-// const DB_NAME = 'if0_42766988_Condo_System';
-
 const DB_HOST = 'localhost';
 const DB_USER = 'root';
 const DB_PASS = '';
 const DB_NAME = 'Condo_System';
 
 const SMTP_HOST      = 'smtp.gmail.com';
-const SMTP_USER      = 'celandinehomes@gmail.com';       
-const SMTP_PASS      = 'csjv xway hvsw wovm';           
+const SMTP_USER      = '';
+const SMTP_PASS      = '';
 const SMTP_PORT      = 587;                          
 const SMTP_SECURE    = 'tls'; 
-const SMTP_DEBUG     = 2;                            
-const MAIL_FROM      = 'celandinehomes@gmail.com';       
+const SMTP_DEBUG     = 0;
+const MAIL_FROM      = '';
 const MAIL_FROM_NAME = 'The Celandine Homes';
 
 $configuredDbHost = appSetting('CONDO_DB_HOST', DB_HOST);
@@ -127,12 +143,23 @@ function connectDb(): mysqli {
     global $configuredDbHost, $configuredDbUser, $configuredDbPass, $configuredDbName;
     $connection = new mysqli($configuredDbHost, $configuredDbUser, $configuredDbPass, $configuredDbName);
 
-    if ($connection->connect_error) {
-        die('Database connection failed: ' . $connection->connect_error);
-    }
-
+    $connection->set_charset('utf8mb4');
     $connection->query("SET time_zone = '+08:00'");
-    ensureUserRoles($connection);
+    if (schemaMutationAllowed()) {
+        static $rolesReady = false;
+        if (!$rolesReady) {
+            ensureUserRoles($connection);
+            $rolesReady = true;
+        }
+    } else {
+        $stmt = $connection->prepare('SELECT version FROM app_schema_versions WHERE version = ? LIMIT 1');
+        $version = APP_SCHEMA_VERSION;
+        $stmt->bind_param('s', $version);
+        $stmt->execute();
+        if (!$stmt->get_result()->fetch_assoc()) {
+            throw new RuntimeException('Database migration is required for this release.');
+        }
+    }
 
     return $connection;
 }
@@ -149,13 +176,15 @@ function getUserRoles(): array {
 }
 
 function ensureUserRoles(mysqli $connection): bool {
+    if (!schemaMutationAllowed()) return true;
     $usersTable = $connection->query("SHOW TABLES LIKE 'users'");
     if (!$usersTable || $usersTable->num_rows === 0) {
         return false;
     }
 
-    if (!$connection->query("ALTER TABLE users MODIFY role ENUM('resident', 'admin', 'superadmin', 'treasurer', 'maintenance', 'security') NOT NULL DEFAULT 'resident'")) {
-        return false;
+    $role = $connection->query("SHOW COLUMNS FROM users LIKE 'role'")->fetch_assoc();
+    if (!$role || !str_contains((string)$role['Type'], "'security'") || !str_contains((string)$role['Type'], "'treasurer'")) {
+        if (!$connection->query("ALTER TABLE users MODIFY role ENUM('resident', 'admin', 'superadmin', 'treasurer', 'maintenance', 'security') NOT NULL DEFAULT 'resident'")) return false;
     }
 
     $columns = [
@@ -166,12 +195,18 @@ function ensureUserRoles(mysqli $connection): bool {
         'last_seen_at' => "ALTER TABLE users ADD last_seen_at DATETIME DEFAULT NULL AFTER last_login_at",
         'session_version' => "ALTER TABLE users ADD session_version INT NOT NULL DEFAULT 0 AFTER last_seen_at",
         'verification_token' => "ALTER TABLE users ADD verification_token VARCHAR(100) DEFAULT NULL AFTER is_verified",
+        'verification_expires' => "ALTER TABLE users ADD verification_expires DATETIME DEFAULT NULL",
         // Existing accounts default to 'approved' so nobody who was already
         // set up before this feature gets locked out; new resident signups
         // should explicitly insert 'pending' instead.
         'status' => "ALTER TABLE users ADD status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'approved' AFTER is_verified",
         'rejection_reason' => "ALTER TABLE users ADD rejection_reason TEXT DEFAULT NULL AFTER status",
         'account_type' => "ALTER TABLE users ADD account_type VARCHAR(80) DEFAULT NULL AFTER rejection_reason",
+        'unit_owner_id' => "ALTER TABLE users ADD unit_owner_id INT DEFAULT NULL AFTER account_type",
+        'reset_token' => "ALTER TABLE users ADD reset_token VARCHAR(100) DEFAULT NULL",
+        'reset_expires' => "ALTER TABLE users ADD reset_expires DATETIME DEFAULT NULL",
+        'failed_login_attempts' => "ALTER TABLE users ADD failed_login_attempts INT NOT NULL DEFAULT 0",
+        'locked_until' => "ALTER TABLE users ADD locked_until DATETIME DEFAULT NULL",
     ];
     foreach ($columns as $column => $alter) {
         $exists = $connection->query("SHOW COLUMNS FROM users LIKE '{$column}'");
@@ -202,6 +237,7 @@ function ensureUserRoles(mysqli $connection): bool {
 }
 
 function ensurePaymentsTable(mysqli $connection): bool {
+    if (!schemaMutationAllowed()) return true;
     return $connection->query("CREATE TABLE IF NOT EXISTS payments (
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,
@@ -217,6 +253,7 @@ function ensurePaymentsTable(mysqli $connection): bool {
 }
 
 function ensureMaintenanceTable(mysqli $connection): bool {
+    if (!schemaMutationAllowed()) return true;
     if (!$connection->query("CREATE TABLE IF NOT EXISTS maintenance_requests (
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,
@@ -268,6 +305,7 @@ function ensureMaintenanceTable(mysqli $connection): bool {
 }
 
 function ensureMessagesTable(mysqli $connection): bool {
+    if (!schemaMutationAllowed()) return true;
     if (!$connection->query("CREATE TABLE IF NOT EXISTS messages (
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,
@@ -341,6 +379,7 @@ function storeMessageAttachment(array $upload): array {
 }
 
 function ensureBookingsTable(mysqli $connection): bool {
+    if (!schemaMutationAllowed()) return true;
     return $connection->query("CREATE TABLE IF NOT EXISTS bookings (
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,
@@ -382,110 +421,63 @@ function getUnreadNotificationCount(array $notifications): int {
 }
 
 function getNotifications(): array {
+    if (!isLoggedIn()) return [];
+    $role = (string)($_SESSION['role'] ?? '');
+    $userId = (int)($_SESSION['user_id'] ?? 0);
     $notifications = [];
     $connection = connectDb();
-    $isAdminUser = isAdmin();
-    $isTreasurer = isTreasurer();
-    $currentPath = $_SERVER['PHP_SELF'] ?? '';
-    $isApiRequest = str_ends_with($currentPath, '/api/notifications.php');
-    if ($isApiRequest) {
-        $pagePrefix = $isAdminUser ? '../superadmin/' : '../resident/';
-        $residentPrefix = $isAdminUser ? '' : '../resident/';
-    } else {
-        $pagePrefix = strpos($currentPath, '/superadmin/') !== false ? '' : '../superadmin/';
-        $residentPrefix = strpos($currentPath, '/superadmin/') !== false ? '../resident/' : '';
+    $can = static fn(string $capability): bool => roleHasCapability($role, $capability);
+    $add = static function (int $count, string $icon, string $title, string $message, string $route) use (&$notifications): void {
+        if ($count > 0) $notifications[] = ['icon' => $icon, 'title' => $title, 'message' => $count . ' ' . $message, 'time' => 'Now', 'link' => buildUrl($route), 'unread_count' => $count];
+    };
+    $count = static function (string $sql) use ($connection): int {
+        $result = $connection->query($sql);
+        return $result ? (int)($result->fetch_assoc()['total'] ?? 0) : 0;
+    };
+    if ($can('billing.manage') && ensureBillingTables($connection)) {
+        $add($count("SELECT COUNT(*) AS total FROM payments WHERE status = 'pending'"), 'credit-card', 'Pending payments', 'payment records await confirmation.', 'superadmin/unitpayments.php?status=pending');
+        $add($count("SELECT COUNT(*) AS total FROM payments WHERE status = 'overdue'"), 'violations', 'Overdue payments', 'payment records require follow-up.', 'superadmin/unitpayments.php?status=overdue');
     }
-
-    if ($isTreasurer) {
-        if (ensureBillingTables($connection)) {
-            $result = $connection->query("SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) AS pending, COALESCE(SUM(CASE WHEN status = 'overdue' THEN 1 ELSE 0 END), 0) AS overdue FROM payments");
-            if ($result) {
-                $totals = $result->fetch_assoc();
-                $pending = (int)($totals['pending'] ?? 0);
-                $overdue = (int)($totals['overdue'] ?? 0);
-                if ($pending > 0) $notifications[] = ['icon' => 'credit-card', 'title' => 'Pending payment records', 'message' => $pending . ' payment record' . ($pending === 1 ? '' : 's') . ' still awaiting confirmation.', 'time' => 'Today', 'link' => $pagePrefix . 'unitpayments.php?status=pending', 'unread_count' => $pending];
-                if ($overdue > 0) $notifications[] = ['icon' => 'violations', 'title' => 'Overdue payments', 'message' => $overdue . ' payment record' . ($overdue === 1 ? '' : 's') . ' require follow-up.', 'time' => 'Today', 'link' => $pagePrefix . 'unitpayments.php?status=overdue', 'unread_count' => $overdue];
-            }
-        }
-        if (ensureAnnouncementsTable($connection)) {
-            $result = $connection->query("SELECT COUNT(*) AS total FROM announcements WHERE is_active = 1 AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)");
-            $activeAnnouncements = $result ? (int)$result->fetch_assoc()['total'] : 0;
-            if ($activeAnnouncements > 0) $notifications[] = ['icon' => 'announcements', 'title' => 'New management announcement', 'message' => $activeAnnouncements . ' active announcement' . ($activeAnnouncements === 1 ? '' : 's') . ' for staff review.', 'time' => 'Now', 'link' => $pagePrefix . 'announcements.php', 'unread_count' => $activeAnnouncements];
-        }
-    } elseif ($isAdminUser) {
-        if (ensureMessagesTable($connection)) {
-            $result = $connection->query("SELECT COUNT(*) AS total FROM messages WHERE sender_role = 'resident' AND is_read = 0");
-            $unread = $result ? (int)$result->fetch_assoc()['total'] : 0;
-            if ($unread > 0) {
-                $notifications[] = ['icon' => 'messages', 'title' => 'New resident messages', 'message' => $unread . ' unread message' . ($unread === 1 ? '' : 's') . ' need a reply.', 'time' => 'Now', 'link' => $pagePrefix . 'admin_messages.php', 'unread_count' => $unread];
-            }
-        }
-        if (ensureMaintenanceTable($connection)) {
-            $result = $connection->query("SELECT COUNT(*) AS total FROM maintenance_requests WHERE status = 'pending'");
-            $pending = $result ? (int)$result->fetch_assoc()['total'] : 0;
-            if ($pending > 0) $notifications[] = ['icon' => 'maintenance', 'title' => 'Pending maintenance requests', 'message' => $pending . ' request' . ($pending === 1 ? '' : 's') . ' awaiting review.', 'time' => 'Today', 'link' => $pagePrefix . 'maintenancerequests.php', 'unread_count' => $pending];
-            if (isMaintenance()) {
-                $result = $connection->query("SELECT COUNT(*) AS total FROM maintenance_requests WHERE status = 'in_progress'");
-                $inProgress = $result ? (int)$result->fetch_assoc()['total'] : 0;
-                if ($inProgress > 0) $notifications[] = ['icon' => 'maintenance', 'title' => 'Maintenance work in progress', 'message' => $inProgress . ' request' . ($inProgress === 1 ? '' : 's') . ' currently being handled.', 'time' => 'Today', 'link' => $pagePrefix . 'maintenancerequests.php', 'unread_count' => $inProgress];
-            }
-        }
-        if (ensureBookingsTable($connection)) {
-            $result = $connection->query("SELECT COUNT(*) AS total FROM bookings WHERE status = 'pending'");
-            $pending = $result ? (int)$result->fetch_assoc()['total'] : 0;
-            if ($pending > 0) $notifications[] = ['icon' => 'calendar', 'title' => 'Pending booking requests', 'message' => $pending . ' amenity booking' . ($pending === 1 ? '' : 's') . ' awaiting approval.', 'time' => 'Today', 'link' => $pagePrefix . 'bookingrequest.php', 'unread_count' => $pending];
-        }
-        if (ensureParkingTables($connection)) {
-            $result = $connection->query("SELECT COUNT(*) AS total FROM parking_requests WHERE status = 'pending'");
-            $pending = $result ? (int)$result->fetch_assoc()['total'] : 0;
-            if ($pending > 0) $notifications[] = ['icon' => 'car', 'title' => 'Pending parking requests', 'message' => $pending . ' parking request' . ($pending === 1 ? '' : 's') . ' awaiting approval.', 'time' => 'Today', 'link' => $pagePrefix . 'parking.php', 'unread_count' => $pending];
-        }
-        if (ensureViolationsTable($connection)) {
-            $result = $connection->query("SELECT COUNT(*) AS total FROM violations WHERE status = 'disputed'");
-            $disputed = $result ? (int)$result->fetch_assoc()['total'] : 0;
-            if ($disputed > 0) $notifications[] = ['icon' => 'violations', 'title' => 'Disputed violations', 'message' => $disputed . ' violation' . ($disputed === 1 ? '' : 's') . ' disputed by resident' . ($disputed === 1 ? '' : 's') . '.', 'time' => 'Today', 'link' => $pagePrefix . 'violations.php', 'unread_count' => $disputed];
-        }
-    } else {
-        if (ensurePaymentsTable($connection)) {
-            $result = $connection->query("SELECT status, amount FROM payments WHERE user_id = " . (int)($_SESSION['user_id'] ?? 0) . " ORDER BY created_at DESC LIMIT 1");
-            $payment = $result ? $result->fetch_assoc() : null;
-            if ($payment && in_array($payment['status'], ['pending', 'overdue'], true)) $notifications[] = ['icon' => 'credit-card', 'title' => 'Payment ' . $payment['status'], 'message' => 'Your ₱' . number_format((float)$payment['amount'], 2) . ' payment needs attention.', 'time' => 'Today', 'link' => $residentPrefix . 'payments.php', 'unread_count' => 1];
-        }
-        if (ensureMessagesTable($connection)) {
-            $result = $connection->query("SELECT COUNT(*) AS total FROM messages WHERE user_id = " . (int)($_SESSION['user_id'] ?? 0) . " AND sender_role = 'admin' AND is_read = 0");
-            $unread = $result ? (int)$result->fetch_assoc()['total'] : 0;
-            if ($unread > 0) $notifications[] = ['icon' => 'messages', 'title' => 'New message from Management', 'message' => $unread . ' new message' . ($unread === 1 ? '' : 's') . ' in your inbox.', 'time' => 'Now', 'link' => $residentPrefix . 'messages.php', 'unread_count' => $unread];
-        }
-        if (ensureMaintenanceTable($connection)) {
-            $result = $connection->query("SELECT COUNT(*) AS total FROM maintenance_requests WHERE user_id = " . (int)($_SESSION['user_id'] ?? 0) . " AND status IN ('pending', 'approved', 'in_progress', 'reopened')");
-            $active = $result ? (int)$result->fetch_assoc()['total'] : 0;
-            if ($active > 0) $notifications[] = ['icon' => 'maintenance', 'title' => 'Maintenance request update', 'message' => $active . ' active request' . ($active === 1 ? '' : 's') . ' in progress.', 'time' => 'Today', 'link' => $residentPrefix . 'maintenance.php', 'unread_count' => $active];
-        }
-        if (ensureAnnouncementsTable($connection)) {
-            $result = $connection->query("SELECT COUNT(*) AS total FROM announcements WHERE priority = 'high' AND is_active = 1 AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)");
-            $highPriority = $result ? (int)$result->fetch_assoc()['total'] : 0;
-            if ($highPriority > 0) $notifications[] = ['icon' => 'announcements', 'title' => 'Important announcement', 'message' => $highPriority . ' high-priority announcement' . ($highPriority === 1 ? '' : 's') . ' posted.', 'time' => 'Now', 'link' => $residentPrefix . 'dashboard.php', 'unread_count' => $highPriority];
-        }
+    if ($can('messages.manage') && ensureMessagesTable($connection)) {
+        $add($count("SELECT COUNT(*) AS total FROM messages WHERE sender_role = 'resident' AND is_read = 0"), 'messages', 'New resident messages', 'unread messages need a reply.', 'superadmin/admin_messages.php');
     }
-
+    if ($can('maintenance.work') && ensureMaintenanceTable($connection)) {
+        if ($can('maintenance.review')) $add($count("SELECT COUNT(*) AS total FROM maintenance_requests WHERE status = 'pending'"), 'maintenance', 'Pending maintenance requests', 'requests await review.', 'superadmin/maintenancerequests.php?status=pending');
+        $add($count("SELECT COUNT(*) AS total FROM maintenance_requests WHERE status IN ('approved','reopened','in_progress')"), 'maintenance', 'Maintenance work queue', 'requests are ready for work or in progress.', 'superadmin/maintenancerequests.php');
+    }
+    if ($can('bookings.review') && ensureBookingsTable($connection)) {
+        $add($count("SELECT COUNT(*) AS total FROM bookings WHERE status = 'pending'"), 'calendar', 'Pending booking requests', 'bookings await approval.', 'superadmin/bookingrequest.php');
+    }
+    if ($can('parking.review') && ensureParkingTables($connection)) {
+        $add($count("SELECT COUNT(*) AS total FROM parking_requests WHERE status = 'pending'"), 'parking', 'Pending parking requests', 'parking requests await approval.', 'superadmin/parking.php');
+    }
+    if ($can('violations.review') && ensureViolationsTable($connection)) {
+        $add($count("SELECT COUNT(*) AS total FROM violations WHERE status = 'disputed'"), 'violations', 'Disputed violations', 'violations await review.', 'superadmin/violations.php');
+    }
+    if (($can('visitors.review') || $can('permits.review')) && ensureResidentServicesTables($connection)) {
+        if ($can('visitors.review')) $add($count("SELECT COUNT(*) AS total FROM resident_service_requests WHERE request_kind = 'visitor' AND status = 'pending' AND end_date >= CURRENT_DATE()"), 'visitors', 'Pending visitor registrations', 'visitor registrations await review.', 'superadmin/service_requests.php?kind=visitor');
+        if ($can('permits.review')) $add($count("SELECT COUNT(*) AS total FROM resident_service_requests WHERE request_kind = 'permit' AND status = 'pending' AND end_date >= CURRENT_DATE()"), 'calendar', 'Pending permit requests', 'permits await review.', 'superadmin/service_requests.php?kind=permit');
+    }
+    if ($can('vehicles.review') && ensureVehiclesTable($connection)) {
+        $add($count("SELECT COUNT(*) AS total FROM vehicles WHERE status = 'pending'"), 'parking', 'Pending vehicle registrations', 'vehicles await review.', 'superadmin/registeredvehicles.php');
+    }
+    if ($role === 'resident' && isApproved()) {
+        $billUsers=residentBillingUserIds($connection,$userId);
+        $payer=residentUserHasPermission($connection,$userId,'resident.billing.pay');
+        if ($billUsers && ensurePaymentsTable($connection)) $add($count("SELECT COUNT(*) AS total FROM payments WHERE user_id IN (".implode(',',array_map('intval',$billUsers)).") AND status IN ('pending','overdue')"), 'credit-card', $payer ? 'Payments need attention' : 'Unit bills available', $payer ? 'bills await payment.' : 'bills can be viewed; the unit owner handles payment.', 'resident/payments.php');
+        if (residentUserHasPermission($connection,$userId,'resident.messages.use') && ensureMessagesTable($connection)) $add($count("SELECT COUNT(*) AS total FROM messages WHERE user_id = $userId AND sender_role = 'admin' AND is_read = 0"), 'messages', 'New message from Management', 'unread messages are in your inbox.', 'resident/messages.php');
+        if (residentUserHasPermission($connection,$userId,'resident.maintenance.request') && ensureMaintenanceTable($connection)) $add($count("SELECT COUNT(*) AS total FROM maintenance_requests WHERE user_id = $userId AND status IN ('approved','in_progress','completed','reopened')"), 'maintenance', 'Maintenance request update', 'requests have updates or need confirmation.', 'resident/maintenance.php');
+        if (ensureAnnouncementsTable($connection)) $add($count("SELECT COUNT(*) AS total FROM announcements WHERE priority = 'high' AND is_active = 1 AND (expires_at IS NULL OR expires_at > NOW()) AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)"), 'announcements', 'Important announcement', 'important announcements were posted.', 'resident/announcements.php');
+    }
+    $connection->close();
     foreach ($notifications as &$notification) {
-        $notification['key'] = hash('sha256', implode('|', [
-            (string)($notification['icon'] ?? ''),
-            (string)($notification['title'] ?? ''),
-            (string)($notification['message'] ?? ''),
-            (string)($notification['link'] ?? ''),
-        ]));
+        $notification['key'] = hash('sha256', implode('|', [(string)$notification['icon'], (string)$notification['title'], (string)$notification['message'], (string)$notification['link']]));
     }
     unset($notification);
-
     $activeKeys = array_column($notifications, 'key');
-    $dismissedKeys = $_SESSION['dismissed_notification_keys'] ?? [];
-    $dismissedKeys = array_values(array_intersect($dismissedKeys, $activeKeys));
+    $dismissedKeys = array_values(array_intersect($_SESSION['dismissed_notification_keys'] ?? [], $activeKeys));
     $_SESSION['dismissed_notification_keys'] = $dismissedKeys;
-
-    return array_values(array_filter($notifications, static function (array $notification) use ($dismissedKeys): bool {
-        return !in_array($notification['key'], $dismissedKeys, true);
-    }));
+    return array_values(array_filter($notifications, static fn(array $notification): bool => !in_array($notification['key'], $dismissedKeys, true)));
 }
 
 function refreshSession(): void {
@@ -500,6 +492,9 @@ function updateUserLastSeen(?int $userId = null): void {
     if (empty($userId)) {
         return;
     }
+    static $touched = [];
+    if (isset($touched[$userId])) return;
+    $touched[$userId] = true;
 
     $connection = connectDb();
     $stmt = $connection->prepare('UPDATE users SET last_seen_at = NOW() WHERE id = ?');
@@ -563,30 +558,38 @@ function isLoggedIn(bool $checkExpiration = true): bool {
     }
 
     if ($checkExpiration && isSessionExpired()) {
-        session_unset();
-        session_destroy();
+        $_SESSION = [];
+        session_regenerate_id(true);
         return false;
     }
 
     $connection = connectDb();
-    $stmt = $connection->prepare('SELECT is_active, session_version FROM users WHERE id = ? LIMIT 1');
+    $stmt = $connection->prepare('SELECT is_active, is_verified, session_version, role, username, unit_number, account_type, unit_owner_id FROM users WHERE id = ? LIMIT 1');
     $userId = (int)$_SESSION['user_id'];
     $stmt->bind_param('i', $userId);
     $stmt->execute();
     $account = $stmt->get_result()->fetch_assoc();
-    if (!$account || (int)$account['is_active'] !== 1) {
-        session_unset();
-        session_destroy();
+    if (!$account || (int)$account['is_active'] !== 1 || (int)$account['is_verified'] !== 1) {
+        $_SESSION = [];
+        session_regenerate_id(true);
         return false;
     }
     if (!isset($_SESSION['session_version'])) {
         $_SESSION['session_version'] = (int)$account['session_version'];
     } elseif ((int)$account['session_version'] !== (int)$_SESSION['session_version']) {
-        session_unset();
-        session_destroy();
+        $_SESSION = [];
+        session_regenerate_id(true);
         return false;
     }
 
+    $_SESSION['role'] = $account['role'];
+    $_SESSION['username'] = $account['username'];
+    $_SESSION['unit_number'] = $account['unit_number'];
+    $_SESSION['account_type'] = $account['account_type'];
+    $_SESSION['unit_owner_id'] = $account['unit_owner_id'];
+    // Background feeds must not keep an otherwise idle session alive forever.
+    $requestPath = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? $_SERVER['PHP_SELF'] ?? ''));
+    if (!str_contains($requestPath, '/api/')) $_SESSION['last_activity'] = time();
     updateUserLastSeen($userId);
     return true;
 }
@@ -627,12 +630,8 @@ function isApproved(): bool {
     }
 
     $connection = connectDb();
-    $stmt = $connection->prepare('SELECT status FROM users WHERE id = ? LIMIT 1');
     $userId = (int)$_SESSION['user_id'];
-    $stmt->bind_param('i', $userId);
-    $stmt->execute();
-    $account = $stmt->get_result()->fetch_assoc();
-    return $account && $account['status'] === 'approved';
+    return (residentContext($connection,$userId)['approved'] ?? false) === true;
 }
 
 /**
@@ -696,9 +695,29 @@ function generateVerificationCode(int $length = 6): string {
 }
 
 function buildUrl(string $path): string {
+    $configuredBase = rtrim(appSetting('CONDO_APP_URL'), '/');
+    if ($configuredBase !== '') {
+        if (!filter_var($configuredBase, FILTER_VALIDATE_URL) || (appIsProduction() && !str_starts_with($configuredBase, 'https://'))) {
+            throw new RuntimeException('CONDO_APP_URL must be a valid HTTPS URL in production.');
+        }
+        return $configuredBase . '/' . ltrim($path, '/');
+    }
+    if (appIsProduction()) throw new RuntimeException('CONDO_APP_URL is required in production.');
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    if (!preg_match('/\A(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\z/i', $host)) {
+        throw new RuntimeException('Set CONDO_APP_URL for hosts other than localhost.');
+    }
     $baseDir = rtrim(dirname($_SERVER['PHP_SELF']), '/');
+    $scriptFile = str_replace('\\', '/', $_SERVER['SCRIPT_FILENAME'] ?? '');
+    $appRoot = rtrim(str_replace('\\', '/', __DIR__), '/') . '/';
+    $scriptUrl = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? $_SERVER['PHP_SELF']);
+    if (strncasecmp($scriptFile, $appRoot, strlen($appRoot)) === 0) {
+        $relativeScript = substr($scriptFile, strlen($appRoot));
+        if (str_ends_with($scriptUrl, '/' . $relativeScript)) {
+            $baseDir = substr($scriptUrl, 0, -strlen('/' . $relativeScript));
+        }
+    }
     return $scheme . '://' . $host . ($baseDir === '.' ? '' : $baseDir) . '/' . ltrim($path, '/');
 }
 
@@ -710,32 +729,27 @@ function sendMail(string $to, string $subject, string $message): bool {
     unset($_SESSION['mail_error']);
 
     $mail = new PHPMailer(true);
+    global $configuredSmtpHost, $configuredSmtpUser, $configuredSmtpPass, $configuredMailFrom;
 
     try {
         $mail->isSMTP();
-        $mail->SMTPDebug   = SMTP_DEBUG;
+        if ($configuredSmtpUser === '' || $configuredSmtpPass === '') return false;
+        $mail->SMTPDebug   = 0;
         $mail->Debugoutput = function($str, $level) {
             error_log("PHPMailer debug [{$level}]: {$str}");
         };
-        global $configuredSmtpHost, $configuredSmtpUser, $configuredSmtpPass, $configuredMailFrom;
         $mail->Host       = $configuredSmtpHost;
         $mail->SMTPAuth   = true;
         $mail->Username   = $configuredSmtpUser;
         $mail->Password   = $configuredSmtpPass;
-        $mail->SMTPSecure = SMTP_SECURE;
-        $mail->Port       = SMTP_PORT;
+        $mail->SMTPSecure = appSetting('CONDO_SMTP_SECURE', SMTP_SECURE);
+        $mail->Port       = (int)appSetting('CONDO_SMTP_PORT', (string)SMTP_PORT);
         $mail->CharSet    = 'UTF-8';
-        $mail->SMTPAutoTLS = SMTP_SECURE !== PHPMailer::ENCRYPTION_SMTPS;
+        $mail->SMTPAutoTLS = $mail->SMTPSecure !== PHPMailer::ENCRYPTION_SMTPS;
 
-        $mail->SMTPOptions = array(
-            'ssl' => array(
-                'verify_peer'       => false,
-                'verify_peer_name'  => false,
-                'allow_self_signed' => true
-            )
-        );
+        $mail->Timeout = 15;
         
-        $mail->setFrom($configuredMailFrom, MAIL_FROM_NAME);
+        $mail->setFrom($configuredMailFrom, appSetting('CONDO_MAIL_FROM_NAME', MAIL_FROM_NAME));
         $mail->addAddress($to);
         $mail->Subject      = $subject;
         $mail->Body         = $message;
@@ -752,6 +766,7 @@ function sendMail(string $to, string $subject, string $message): bool {
 }
 
 function ensureAnalyticsTable(mysqli $connection): bool {
+    if (!schemaMutationAllowed()) return true;
     return $connection->query("CREATE TABLE IF NOT EXISTS analytics (
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT,
@@ -974,6 +989,7 @@ function getAnalytics(): array {
 }
 
 function ensureAnnouncementsTable(mysqli $connection): bool {
+    if (!schemaMutationAllowed()) return true;
     if (!$connection->query("CREATE TABLE IF NOT EXISTS announcements (
         id INT AUTO_INCREMENT PRIMARY KEY,
         admin_id INT NOT NULL,
@@ -1078,16 +1094,28 @@ function deleteAnnouncement(int $announcementId): bool {
  * newer, self-contained feature logic.
  */
 require_once __DIR__ . '/includes/audit.php';
+require_once __DIR__ . '/includes/authorization.php';
+require_once __DIR__ . '/includes/resident_policy.php';
+require_once __DIR__ . '/includes/resident_navigation.php';
 require_once __DIR__ . '/includes/remember_me.php';
 require_once __DIR__ . '/includes/sms.php';
 require_once __DIR__ . '/includes/paymongo.php';
 require_once __DIR__ . '/includes/parking.php';
+require_once __DIR__ . '/includes/notification_outbox.php';
 require_once __DIR__ . '/includes/notify.php';
 require_once __DIR__ . '/includes/ui_icons.php';
 require_once __DIR__ . '/includes/billing.php';
 require_once __DIR__ . '/includes/violations.php';
 require_once __DIR__ . '/includes/visitors.php';
 require_once __DIR__ . '/includes/maintenance.php';
+require_once __DIR__ . '/includes/workflows.php';
+require_once __DIR__ . '/includes/resident_services.php';
+require_once __DIR__ . '/includes/parking_policy.php';
+require_once __DIR__ . '/includes/amenities.php';
+require_once __DIR__ . '/includes/access_scanner.php';
+require_once __DIR__ . '/includes/visitor_parking.php';
+require_once __DIR__ . '/includes/vehicles.php';
+require_once __DIR__ . '/includes/authentication.php';
 
 // If there's no active session but a valid remember-me cookie is
 // present, this restores the session so the account stays logged in

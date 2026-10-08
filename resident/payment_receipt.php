@@ -17,13 +17,17 @@ if ($paymentId <= 0) {
 }
 
 $connection = connectDb();
+$actorContext=residentContext($connection,$userId);
+if (!$actorContext || !$actorContext['approved'] || $actorContext['account_kind']!=='owner') {
+    http_response_code(403); exit('Only the approved unit owner can download payment receipts.');
+}
 ensurePaymongoColumns($connection);
 ensureBillingTables($connection);
-$stmt = $connection->prepare("SELECT p.*, u.full_name, u.email, u.unit_number FROM payments p INNER JOIN users u ON u.id = p.user_id WHERE p.id = ? AND p.user_id = ? AND p.status = 'paid' LIMIT 1");
-$stmt->bind_param('ii', $paymentId, $userId);
+$stmt = $connection->prepare("SELECT p.*, u.full_name, u.email, u.unit_number FROM payments p INNER JOIN users u ON u.id = p.user_id WHERE p.id = ? AND p.status = 'paid' LIMIT 1");
+$stmt->bind_param('i', $paymentId);
 $stmt->execute();
 $receipt = $stmt->get_result()->fetch_assoc();
-if (!$receipt) {
+if (!$receipt || !residentCanPayBill($connection,$userId,(int)$receipt['user_id'])) {
     http_response_code(404);
     exit('Receipt not found.');
 }

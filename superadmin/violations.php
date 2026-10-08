@@ -4,17 +4,13 @@ require_once '../config.php';
 if (!isLoggedIn()) {
     redirect('../login.php');
 }
-if (!isAdmin()) {
-    redirect('../resident/dashboard.php');
-}
-if (!isSecurity() && !isSuperAdmin()) {
-    redirect('../admin/admin_dashboard.php');
-}
+requireCapability('violations.manage');
 
 $username = $_SESSION['username'] ?? 'Administrator';
 $nameParts = preg_split('/\s+/', trim($username));
 $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? substr(end($nameParts), 0, 1) : ''));
 $connection = connectDb();
+if ($_SERVER['REQUEST_METHOD'] === 'POST') requireWorkflowCsrf();
 ensureViolationsTable($connection);
 $fineRates = getViolationFineRates();
 
@@ -25,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'issue') {
+        requireCapability('violations.issue');
         $targetUserId = (int)($_POST['user_id'] ?? 0);
         $violationType = trim($_POST['violation_type'] ?? '');
         $description = trim($_POST['description'] ?? '');
@@ -83,8 +80,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     logAudit('issue', 'violation', $violationId, $violationType . ' issued to user #' . $targetUserId . ' with fine ₱' . number_format($fineAmount, 2));
                     $notifyResult = notifyResidentOfViolation($violationId);
                     $success = 'Violation fine recorded and added to the resident\'s bill.';
-                    $success .= ' Email: ' . ($notifyResult['email_sent'] ? 'sent' : 'failed')
-                        . '. SMS: ' . ($notifyResult['sms_sent'] ? 'sent' : 'failed') . '.';
+                    $success .= ' Email notice: ' . ($notifyResult['email_queued'] ? 'queued' : 'unavailable')
+                        . '. SMS notice: ' . ($notifyResult['sms_queued'] ? 'queued' : 'unavailable') . '.';
                 } else {
                     if ($evidencePath !== null) {
                         @unlink($evidenceDirectory . '/' . $evidencePath);
@@ -98,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     } elseif ($action === 'resolve') {
+        requireCapability('violations.review');
         $violationId = (int)($_POST['violation_id'] ?? 0);
         $decision = $_POST['decision'] ?? '';
         if ($violationId > 0 && in_array($decision, ['waive', 'reject_dispute'], true) && resolveViolation($violationId, $decision)) {
@@ -175,35 +173,8 @@ $commonTypes = array_keys($fineRates);
 <body class="dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="<?php echo isSecurity() ? '../security/security_dashboard.php' : 'admin_dashboard.php'; ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
-            <nav class="sidebar-nav">
-                <?php if (isSecurity()): ?>
-                    <a href="../security/security_dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                    <a href="../security/scanner.php" class="sidebar-link"><?php echo systemSidebarIcon('scanner'); ?> QR Scanner</a>
-                    <a href="../security/visitor_log.php" class="sidebar-link"><?php echo systemSidebarIcon('visitors'); ?> Visitor Log</a>
-                    <a href="parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking Requests</a>
-                    <a href="violations.php" class="sidebar-link active"><?php echo systemSidebarIcon('violations'); ?> Violations</a>
-                <?php else: ?>
-                <a href="admin_dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                <a href="units.php" class="sidebar-link"><?php echo systemSidebarIcon('units'); ?> Units</a>
-                <a href="residents.php" class="sidebar-link"><?php echo systemSidebarIcon('residents'); ?> Residents</a>
-                <?php if (isSuperAdmin()): ?>
-                    <a href="pending_accounts.php" class="sidebar-link"><?php echo systemSidebarIcon('pending'); ?> Pending Accounts</a>
-                    <a href="staff.php" class="sidebar-link"><?php echo systemSidebarIcon('staff'); ?> Staff Management</a>
-                    <a href="unitpayments.php" class="sidebar-link"><?php echo systemSidebarIcon('billing'); ?> Billing & Payments</a>
-                    <a href="generate_bills.php" class="sidebar-link"><?php echo systemSidebarIcon('bills'); ?> Generate Bills</a>
-                <?php endif; ?>
-                <a href="violations.php" class="sidebar-link active"><?php echo systemSidebarIcon('violations'); ?> Violations</a>
-                <a href="bookingrequest.php" class="sidebar-link"><?php echo systemSidebarIcon('calendar'); ?> Booking Requests</a>
-                <a href="maintenancerequests.php" class="sidebar-link"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance Requests</a>
-                <a href="admin_messages.php" class="sidebar-link"><?php echo systemSidebarIcon('messages'); ?> Messages</a>
-                <a href="announcements.php" class="sidebar-link"><?php echo systemSidebarIcon('announcements'); ?> Announcements</a>
-                <?php if (isSuperAdmin()): ?><a href="analytics.php" class="sidebar-link"><?php echo systemSidebarIcon('analytics'); ?> Analytics</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="auditlog.php" class="sidebar-link"><?php echo systemSidebarIcon('audit'); ?> Audit Log</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="visitorlog.php" class="sidebar-link"><?php echo systemSidebarIcon('visitors'); ?> Visitor Log</a><?php endif; ?>
-                <?php endif; ?>
-            </nav>
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
+            <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -224,7 +195,7 @@ $commonTypes = array_keys($fineRates);
 
             <section class="unit-management-panel violation-create-panel">
                 <h3 class="section-title">Issue a Violation</h3>
-                <form method="post" id="violationForm" enctype="multipart/form-data" data-confirm="Issue this violation and add its fine to the resident's bill?" data-confirm-title="Issue violation" data-confirm-action="Issue violation">
+                <form method="post" id="violationForm" enctype="multipart/form-data" data-confirm="Issue this violation and add its fine to the resident's bill?" data-confirm-title="Issue violation" data-confirm-action="Issue violation"><?php echo workflowCsrfField(); ?>
                     <input type="hidden" name="action" value="issue">
                     <div class="violation-form-grid">
                         <div class="violation-field">
@@ -340,16 +311,16 @@ $commonTypes = array_keys($fineRates);
                                     <td><?php echo !empty($violation['payment_id']) ? 'DUES-' . (int)$violation['payment_id'] : '—'; ?></td>
                                     <td><?php echo !empty($violation['admin_remarks']) ? nl2br(htmlspecialchars($violation['admin_remarks'])) : '—'; ?></td>
                                     <td>
-                                        <?php if (in_array($violation['status'], ['unpaid', 'disputed'], true)): ?>
+                                        <?php if (canAccess('violations.review') && in_array($violation['status'], ['unpaid', 'disputed'], true)): ?>
                                             <div class="violation-actions">
                                             <?php if ($violation['status'] === 'disputed'): ?>
-                                                <form method="post" class="violation-action-form" data-confirm="Uphold the fine for this disputed violation? The fine will remain due." data-confirm-title="Uphold violation" data-confirm-action="Uphold">
+                                                <form method="post" class="violation-action-form" data-confirm="Uphold the fine for this disputed violation? The fine will remain due." data-confirm-title="Uphold violation" data-confirm-action="Uphold"><?php echo workflowCsrfField(); ?>
                                                 <input type="hidden" name="action" value="resolve">
                                                 <input type="hidden" name="violation_id" value="<?php echo (int)$violation['id']; ?>">
                                                     <button type="submit" name="decision" value="reject_dispute" class="btn-small btn-reject">Uphold</button>
                                                 </form>
                                             <?php endif; ?>
-                                                <form method="post" class="violation-action-form" data-confirm="Waive this violation fine? The charge will be removed from the resident's bill." data-confirm-title="Waive violation fine" data-confirm-action="Waive fine">
+                                                <form method="post" class="violation-action-form" data-confirm="Waive this violation fine? The charge will be removed from the resident's bill." data-confirm-title="Waive violation fine" data-confirm-action="Waive fine"><?php echo workflowCsrfField(); ?>
                                                     <input type="hidden" name="action" value="resolve">
                                                     <input type="hidden" name="violation_id" value="<?php echo (int)$violation['id']; ?>">
                                                     <button type="submit" name="decision" value="waive" class="btn-small btn-approve">Waive</button>

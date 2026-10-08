@@ -19,6 +19,7 @@
 const STANDARD_CHARGE_CATEGORIES = ['Condo Dues', 'Water', 'Electricity', 'Parking', 'Rent/Lease', 'Other'];
 
 function ensureBillingTables(mysqli $connection): bool {
+    if (!schemaMutationAllowed()) return true;
     $itemsOk = $connection->query("CREATE TABLE IF NOT EXISTS bill_items (
         id INT AUTO_INCREMENT PRIMARY KEY,
         payment_id INT NOT NULL,
@@ -58,7 +59,7 @@ function recalculateBillTotal(mysqli $connection, int $paymentId): void {
     $result->execute();
     $total = (float)$result->get_result()->fetch_assoc()['total'];
 
-    $update = $connection->prepare('UPDATE payments SET amount = ? WHERE id = ?');
+    $update = $connection->prepare("UPDATE payments SET amount = ? WHERE id = ? AND status IN ('pending','overdue') AND paymongo_checkout_id IS NULL");
     $update->bind_param('di', $total, $paymentId);
     $update->execute();
 }
@@ -72,83 +73,23 @@ function getBillItems(mysqli $connection, int $paymentId): array {
 }
 
 function addBillItem(int $paymentId, string $category, string $description, float $amount, ?int &$itemId = null): bool {
+    if (!canManageBilling() || !is_finite($amount) || $amount<=0 || $amount>99999999.99
+        || trim($category)==='' || strlen($category)>50 || strlen($description)>255) return false;
     $connection = connectDb();
     ensureBillingTables($connection);
-    $stmt = $connection->prepare('INSERT INTO bill_items (payment_id, category, description, amount) VALUES (?, ?, ?, ?)');
-    $stmt->bind_param('issd', $paymentId, $category, $description, $amount);
-    if (!$stmt->execute()) {
-        return false;
-    }
-    $itemId = (int)$connection->insert_id;
-    recalculateBillTotal($connection, $paymentId);
-    return true;
-}
-
-/**
- * Adds new charges to a pending bill that was opened for an outstanding
- * violation fine. Returns the bill ID, null when there is no eligible bill,
- * or false if a matching bill could not be updated.
- */
-function appendChargesToOpenFineBill(mysqli $connection, int $userId, array $items, ?string $periodStart, ?string $periodEnd, string $dueDate): int|false|null {
-    ensureBillingTables($connection);
+    ensurePaymongoColumns($connection);
     $connection->begin_transaction();
-
     try {
-        $findBill = $connection->prepare("SELECT p.id
-            FROM payments p
-            INNER JOIN bill_items bi ON bi.payment_id = p.id AND bi.category = 'Violation Fine'
-            INNER JOIN violations v ON v.bill_item_id = bi.id AND v.payment_id = p.id
-            WHERE p.user_id = ? AND p.status = 'pending'
-                AND v.status IN ('unpaid', 'disputed')
-            ORDER BY p.created_at ASC, p.id ASC
-            LIMIT 1 FOR UPDATE");
-        $findBill->bind_param('i', $userId);
-        if (!$findBill->execute()) {
-            throw new RuntimeException('Could not locate the resident fine bill.');
-        }
-        $bill = $findBill->get_result()->fetch_assoc();
-        if (!$bill) {
-            $connection->rollback();
-            return null;
-        }
-
-        $paymentId = (int)$bill['id'];
-        foreach ($items as $item) {
-            $amount = (float)($item['amount'] ?? 0);
-            if ($amount <= 0) {
-                continue;
-            }
-
-            $category = (string)($item['category'] ?? 'Other');
-            $description = (string)($item['description'] ?? '');
-            $insertItem = $connection->prepare('INSERT INTO bill_items (payment_id, category, description, amount) VALUES (?, ?, ?, ?)');
-            $insertItem->bind_param('issd', $paymentId, $category, $description, $amount);
-            if (!$insertItem->execute()) {
-                throw new RuntimeException('Could not append a charge to the resident fine bill.');
-            }
-        }
-
-        $totalQuery = $connection->prepare('SELECT COALESCE(SUM(amount), 0) AS total FROM bill_items WHERE payment_id = ?');
-        $totalQuery->bind_param('i', $paymentId);
-        if (!$totalQuery->execute()) {
-            throw new RuntimeException('Could not calculate the combined bill total.');
-        }
-        $total = (float)$totalQuery->get_result()->fetch_assoc()['total'];
-
-        $updateBill = $connection->prepare("UPDATE payments
-            SET amount = ?, due_date = ?, billing_period_start = ?, billing_period_end = ?
-            WHERE id = ? AND status = 'pending'");
-        $updateBill->bind_param('dsssi', $total, $dueDate, $periodStart, $periodEnd, $paymentId);
-        if (!$updateBill->execute() || $updateBill->affected_rows !== 1) {
-            throw new RuntimeException('The resident fine bill changed before charges could be appended.');
-        }
-
-        $connection->commit();
-        return $paymentId;
+        $bill=$connection->prepare("SELECT id FROM payments WHERE id=? AND status IN ('pending','overdue') AND paymongo_checkout_id IS NULL FOR UPDATE");
+        $bill->bind_param('i',$paymentId); $bill->execute();
+        if (!$bill->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
+        $stmt=$connection->prepare('INSERT INTO bill_items (payment_id,category,description,amount) VALUES (?,?,?,?)');
+        $amount=round($amount,2); $stmt->bind_param('issd',$paymentId,$category,$description,$amount);
+        if (!$stmt->execute()) throw new RuntimeException('Bill item insert failed.');
+        $itemId=(int)$connection->insert_id;
+        recalculateBillTotal($connection,$paymentId); $connection->commit(); return true;
     } catch (Throwable $error) {
-        $connection->rollback();
-        error_log('Could not append charges to resident fine bill for user #' . $userId . ': ' . $error->getMessage());
-        return false;
+        $connection->rollback(); error_log('Could not append bill item: '.$error->getMessage()); return false;
     }
 }
 
@@ -158,32 +99,60 @@ function appendChargesToOpenFineBill(mysqli $connection, int $userId, array $ite
  * Returns the new bill's id, or false on failure.
  */
 function createBill(int $userId, array $items, ?string $periodStart, ?string $periodEnd, string $dueDate, string $paymentMethod = 'unbilled'): int|false {
-    $connection = connectDb();
-    ensureBillingTables($connection);
-
-    $insert = $connection->prepare("INSERT INTO payments (user_id, amount, payment_method, status, due_date, billing_period_start, billing_period_end) VALUES (?, 0, ?, 'pending', ?, ?, ?)");
-    $insert->bind_param('issss', $userId, $paymentMethod, $dueDate, $periodStart, $periodEnd);
-    if (!$insert->execute()) {
-        return false;
-    }
-    $paymentId = $connection->insert_id;
-
+    if (!canManageBilling() || !workflowDate($dueDate)
+        || ($periodStart !== null && !workflowDate($periodStart))
+        || ($periodEnd !== null && (!workflowDate($periodEnd) || $periodStart === null || $periodEnd < $periodStart))
+        || !in_array($paymentMethod,['unbilled','cash','manual'],true)) return false;
+    $connection=connectDb(); ensurePaymentsTable($connection); ensureBillingTables($connection); ensureAuditLogTable($connection);
+    $charges=[]; $totalCents=0;
     foreach ($items as $item) {
-        $amount = (float)($item['amount'] ?? 0);
-        if ($amount <= 0) {
-            continue;
-        }
-        $category = $item['category'] ?? 'Other';
-        $description = $item['description'] ?? '';
-        $itemStmt = $connection->prepare('INSERT INTO bill_items (payment_id, category, description, amount) VALUES (?, ?, ?, ?)');
-        $itemStmt->bind_param('issd', $paymentId, $category, $description, $amount);
-        $itemStmt->execute();
+        $amount=(float)($item['amount'] ?? 0);
+        $category=trim((string)($item['category'] ?? 'Other'));
+        $description=trim((string)($item['description'] ?? ''));
+        if (!is_finite($amount) || $amount < 0 || $amount > 99999999.99 || strlen($category)>50 || $category==='' || strlen($description)>255) return false;
+        $cents=(int)round($amount*100);
+        if ($cents===0) continue;
+        $totalCents+=$cents;
+        $charges[]=['category'=>$category,'description'=>$description,'amount'=>$cents/100];
     }
-
-    recalculateBillTotal($connection, $paymentId);
-    trackEvent('bill_created', "Bill #{$paymentId} for user #{$userId}", $userId);
-
-    return $paymentId;
+    if (!$charges || $totalCents>9999999999) return false;
+    $connection->begin_transaction();
+    try {
+        $requested=$connection->prepare('SELECT id FROM users WHERE id=? FOR UPDATE');
+        $requested->bind_param('i',$userId); $requested->execute();
+        if (!$requested->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
+        // New charges belong to the current approved unit owner. Historical
+        // invoices retain their original account and amount.
+        $context=residentContext($connection,$userId);
+        if (!$context || !$context['approved'] || empty($context['billing_user_id'])) { $connection->rollback(); return false; }
+        $userId=(int)$context['billing_user_id'];
+        $resident=$connection->prepare("SELECT id FROM users WHERE id=? AND role='resident' AND is_verified=1 AND is_active=1 AND status='approved' FOR UPDATE");
+        $resident->bind_param('i',$userId); $resident->execute();
+        if (!$resident->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
+        $owner=residentContext($connection,$userId);
+        if (!$owner || !$owner['approved'] || $owner['account_kind']!=='owner') { $connection->rollback(); return false; }
+        if ($periodStart!==null) {
+            $existing=$connection->prepare("SELECT id FROM payments WHERE user_id=? AND billing_period_start=? AND status<>'rolled_forward' LIMIT 1 FOR UPDATE");
+            $existing->bind_param('is',$userId,$periodStart); $existing->execute();
+            if ($existing->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
+        }
+        $total=$totalCents/100;
+        $insert=$connection->prepare("INSERT INTO payments (user_id,amount,payment_method,status,due_date,billing_period_start,billing_period_end) VALUES (?,?,?,'pending',?,?,?)");
+        $insert->bind_param('idssss',$userId,$total,$paymentMethod,$dueDate,$periodStart,$periodEnd);
+        if (!$insert->execute()) throw new RuntimeException('Could not create bill.');
+        $paymentId=(int)$connection->insert_id;
+        foreach ($charges as $charge) {
+            $line=$connection->prepare('INSERT INTO bill_items (payment_id,category,description,amount) VALUES (?,?,?,?)');
+            $line->bind_param('issd',$paymentId,$charge['category'],$charge['description'],$charge['amount']);
+            if (!$line->execute()) throw new RuntimeException('Could not create bill item.');
+        }
+        if (!logAudit('bill_created','payment',$paymentId,'Itemized bill created for resident #'.$userId,$connection)) throw new RuntimeException('Could not audit bill creation.');
+        $connection->commit();
+        trackEvent('bill_created',"Bill #{$paymentId} for user #{$userId}",$userId);
+        return $paymentId;
+    } catch (Throwable $error) {
+        $connection->rollback(); error_log('Bill creation failed: '.$error->getMessage()); return false;
+    }
 }
 
 /** The resident's most recent unpaid/overdue bill, or null if they're all settled. */
@@ -216,23 +185,6 @@ function getOpenBillsForUser(int $userId): array {
         }
     }
     return $bills;
-}
-
-/**
- * Finds the resident's current open bill, or creates a fresh empty one
- * (due in 15 days) if they don't have one. Used when a violation fine
- * needs somewhere to land — the resident should be able to pay a new
- * fine together with whatever else they already owe.
- */
-function getOrCreateOpenBillForUser(int $userId, ?string $dueDate = null): int {
-    $connection = connectDb();
-    $existing = getOpenBillForUser($connection, $userId);
-    if ($existing) {
-        return (int)$existing['id'];
-    }
-    $dueDate = $dueDate ?: (new DateTime())->modify('+15 days')->format('Y-m-d');
-    $newId = createBill($userId, [], null, null, $dueDate);
-    return $newId ?: 0;
 }
 
 /** A bill with its items attached; falls back to one synthetic line item for pre-billing-feature rows that have none. */
@@ -275,176 +227,59 @@ function getBillHistoryForUser(int $userId, int $limit = 12): array {
     return $bills;
 }
 
-function rollOverdueBillsIntoCurrent(mysqli $connection, array $overdueBills, array $currentItems, string $periodStart, string $periodEnd, string $dueDate): int|false {
-    if (empty($overdueBills)) {
-        return false;
+/** Statements visible to this resident, with gateway details restricted to owners. */
+function getResidentVisibleBills(mysqli $connection, int $actorId, bool $paid = false, int $limit = 12): array {
+    ensureBillingTables($connection);
+    $context=residentContext($connection,$actorId);
+    $ids=array_values(array_unique(array_map('intval',residentBillingUserIds($connection,$actorId))));
+    if (!$context || !$context['approved'] || !$ids) return [];
+    $owner=$context['account_kind']==='owner';
+    $columns=$owner ? '*' : 'id,user_id,amount,status,due_date,billing_period_start,billing_period_end,paid_at,created_at';
+    $status=$paid ? "status='paid'" : "status IN ('pending','overdue')";
+    $order=$paid ? 'paid_at DESC,id DESC' : 'due_date ASC,created_at ASC,id ASC';
+    $query='SELECT '.$columns.' FROM payments WHERE user_id IN ('.implode(',',$ids).') AND '.$status.' ORDER BY '.$order;
+    if ($paid) $query.=' LIMIT '.max(1,min(100,$limit));
+    $bills=$connection->query($query)->fetch_all(MYSQLI_ASSOC);
+    foreach ($bills as &$bill) {
+        $bill['items']=getBillItems($connection,(int)$bill['id']);
+        if (!$bill['items']) $bill['items']=[['category'=>'Payment','description'=>null,'amount'=>$bill['amount']]];
     }
-
-    $overdueBill = $overdueBills[0];
-    $paymentId = (int)$overdueBill['id'];
-    ensurePaymongoColumns($connection);
-    $connection->begin_transaction();
-    try {
-        foreach ($overdueBills as $sourceBill) {
-            $sourceId = (int)$sourceBill['id'];
-            $selectItems = $connection->prepare('SELECT * FROM bill_items WHERE payment_id = ? ORDER BY id ASC');
-            $selectItems->bind_param('i', $sourceId);
-            if (!$selectItems->execute()) {
-                throw new RuntimeException('Could not load an overdue bill breakdown.');
-            }
-            $overdueItems = $selectItems->get_result()->fetch_all(MYSQLI_ASSOC);
-            if (empty($overdueItems)) {
-                $overdueItems = [[
-                    'category' => 'Payment',
-                    'description' => '',
-                    'amount' => $sourceBill['amount'],
-                ]];
-            }
-
-            foreach ($overdueItems as $item) {
-                $category = 'Overdue: ' . substr((string)$item['category'], 0, 40);
-                $sourceDetails = 'From DUES-' . $sourceId . ', originally due ' . $sourceBill['due_date'];
-                $description = trim($sourceDetails . (!empty($item['description']) ? ' - ' . $item['description'] : ''));
-                $description = substr($description, 0, 255);
-                $itemId = (int)($item['id'] ?? 0);
-                if ($sourceId === $paymentId && $itemId > 0) {
-                    $updateItem = $connection->prepare('UPDATE bill_items SET category = ?, description = ? WHERE id = ? AND payment_id = ?');
-                    $updateItem->bind_param('ssii', $category, $description, $itemId, $sourceId);
-                    if (!$updateItem->execute()) {
-                        throw new RuntimeException('Could not label the overdue bill items.');
-                    }
-                } else {
-                    $amount = (float)$item['amount'];
-                    $insertItem = $connection->prepare('INSERT INTO bill_items (payment_id, category, description, amount) VALUES (?, ?, ?, ?)');
-                    $insertItem->bind_param('issd', $paymentId, $category, $description, $amount);
-                    if (!$insertItem->execute()) {
-                        throw new RuntimeException('Could not preserve an overdue bill amount.');
-                    }
-                }
-            }
-
-            if ($sourceId !== $paymentId) {
-                $archiveSource = $connection->prepare("UPDATE payments SET amount = 0, status = 'rolled_forward', gateway_status = 'rolled_forward', paymongo_checkout_id = NULL, checkout_url = NULL, paymongo_payment_id = NULL, payment_channel = NULL WHERE id = ? AND status = 'overdue'");
-                $archiveSource->bind_param('i', $sourceId);
-                if (!$archiveSource->execute() || $archiveSource->affected_rows !== 1) {
-                    throw new RuntimeException('An overdue source bill changed before it could be rolled forward.');
-                }
-            }
-        }
-
-        foreach ($currentItems as $item) {
-            $category = (string)($item['category'] ?? 'Other');
-            $description = (string)($item['description'] ?? '');
-            $amount = (float)($item['amount'] ?? 0);
-            if ($amount <= 0) {
-                continue;
-            }
-            $insertItem = $connection->prepare('INSERT INTO bill_items (payment_id, category, description, amount) VALUES (?, ?, ?, ?)');
-            $insertItem->bind_param('issd', $paymentId, $category, $description, $amount);
-            if (!$insertItem->execute()) {
-                throw new RuntimeException('Could not add the current billing charges.');
-            }
-        }
-
-        $recalculate = $connection->prepare('SELECT COALESCE(SUM(amount), 0) AS total FROM bill_items WHERE payment_id = ?');
-        $recalculate->bind_param('i', $paymentId);
-        if (!$recalculate->execute()) {
-            throw new RuntimeException('Could not total the rolled-over bill.');
-        }
-        $total = (float)$recalculate->get_result()->fetch_assoc()['total'];
-
-        $updateBill = $connection->prepare("UPDATE payments SET amount = ?, status = 'pending', due_date = ?, billing_period_start = ?, billing_period_end = ?, payment_method = 'unbilled', paymongo_checkout_id = NULL, checkout_url = NULL, paymongo_payment_id = NULL, gateway_status = 'rolled_forward', payment_channel = NULL WHERE id = ? AND status = 'overdue'");
-        $updateBill->bind_param('dsssi', $total, $dueDate, $periodStart, $periodEnd, $paymentId);
-        if (!$updateBill->execute() || $updateBill->affected_rows !== 1) {
-            throw new RuntimeException('The overdue bill changed before it could be rolled forward.');
-        }
-
-        $connection->commit();
-        trackEvent('bill_overdue_rolled_forward', count($overdueBills) . " overdue bill(s) rolled into bill #{$paymentId} for period {$periodStart}", (int)$overdueBill['user_id']);
-        return $paymentId;
-    } catch (Throwable $error) {
-        $connection->rollback();
-        error_log('Could not roll overdue bill #' . $paymentId . ' forward: ' . $error->getMessage());
-        return false;
-    }
+    return $bills;
 }
 
-/**
- * Bulk-generates one bill per resident for a billing period, skipping
- * anyone who already has a pending/overdue bill for that exact period
- * (so re-running this is safe). $chargeTemplate is
- * ['Condo Dues' => 2500.00, 'Water' => 450.00, ...] — a category with
- * amount 0 is left out of the generated bills entirely.
- */
+function getResidentBillingSummary(mysqli $connection, int $actorId): array {
+    $ids=array_values(array_unique(array_map('intval',residentBillingUserIds($connection,$actorId))));
+    if (!$ids) return ['count'=>0,'amount'=>0.0];
+    ensurePaymentsTable($connection);
+    $row=$connection->query("SELECT COUNT(*) AS count,COALESCE(SUM(amount),0) AS amount FROM payments WHERE user_id IN (".implode(',',$ids).") AND status IN ('pending','overdue')")->fetch_assoc();
+    return ['count'=>(int)$row['count'],'amount'=>(float)$row['amount']];
+}
+
+/** One statement per approved unit owner per billing period, including paid-history deduplication. */
 function generateStandardMonthlyBills(array $chargeTemplate, string $periodStart, string $periodEnd, string $dueDate): array {
-    $connection = connectDb();
-    ensureBillingTables($connection);
-
-    $items = [];
-    foreach ($chargeTemplate as $category => $amount) {
-        if ((float)$amount > 0) {
-            $items[] = ['category' => $category, 'description' => '', 'amount' => (float)$amount];
+    if (!canManageBilling() || !workflowDate($periodStart) || !workflowDate($periodEnd)
+        || $periodEnd<$periodStart || !workflowDate($dueDate)) {
+        return ['created'=>0,'skipped'=>0,'bill_ids'=>[],'error'=>'Billing permission and valid billing dates are required.'];
+    }
+    $connection=connectDb(); ensureBillingTables($connection);
+    $items=[];
+    foreach ($chargeTemplate as $category=>$amount) {
+        if (!in_array($category,STANDARD_CHARGE_CATEGORIES,true) || !is_numeric($amount) || !is_finite((float)$amount) || (float)$amount<0) {
+            return ['created'=>0,'skipped'=>0,'bill_ids'=>[],'error'=>'Invalid billing charge.'];
         }
+        if ((float)$amount>0) $items[]=['category'=>$category,'description'=>'','amount'=>(float)$amount];
     }
-    if (empty($items)) {
-        return ['created' => 0, 'skipped' => 0, 'error' => 'No charges with an amount greater than zero were provided.'];
-    }
-
-    $residentsResult = $connection->query("SELECT id FROM users WHERE role = 'resident' AND is_verified = 1");
-    $residents = $residentsResult ? $residentsResult->fetch_all(MYSQLI_ASSOC) : [];
-
-    $created = 0;
-    $skipped = 0;
-    $newBillIds = [];
-
+    if (!$items) return ['created'=>0,'skipped'=>0,'bill_ids'=>[],'error'=>'Enter at least one charge greater than zero.'];
+    $residents=$connection->query("SELECT id FROM users WHERE role='resident' AND is_verified=1 AND is_active=1 AND status='approved'")->fetch_all(MYSQLI_ASSOC);
+    $created=0; $skipped=0; $ids=[];
     foreach ($residents as $resident) {
-        $userId = (int)$resident['id'];
-        $currentPeriodCheck = $connection->prepare("SELECT id FROM payments WHERE user_id = ? AND billing_period_start = ? AND status IN ('pending', 'overdue') LIMIT 1");
-        $currentPeriodCheck->bind_param('is', $userId, $periodStart);
-        $currentPeriodCheck->execute();
-        if ($currentPeriodCheck->get_result()->fetch_assoc()) {
-            $skipped++;
-            continue;
-        }
-
-        $openCheck = $connection->prepare("SELECT id FROM payments WHERE user_id = ? AND status = 'pending' LIMIT 1");
-        $openCheck->bind_param('i', $userId);
-        $openCheck->execute();
-        if ($openCheck->get_result()->fetch_assoc()) {
-            $combinedBillId = appendChargesToOpenFineBill($connection, $userId, $items, $periodStart, $periodEnd, $dueDate);
-            if ($combinedBillId) {
-                $created++;
-                $newBillIds[] = $combinedBillId;
-            } else {
-                $skipped++;
-            }
-            continue;
-        }
-
-        $overdueCheck = $connection->prepare("SELECT * FROM payments WHERE user_id = ? AND status = 'overdue' ORDER BY due_date ASC, id ASC");
-        $overdueCheck->bind_param('i', $userId);
-        $overdueCheck->execute();
-        $overdueBills = $overdueCheck->get_result()->fetch_all(MYSQLI_ASSOC);
-
-        if (!empty($overdueBills)) {
-            $rolledBillId = rollOverdueBillsIntoCurrent($connection, $overdueBills, $items, $periodStart, $periodEnd, $dueDate);
-            if ($rolledBillId) {
-                $created++;
-                $newBillIds[] = $rolledBillId;
-            } else {
-                $skipped++;
-            }
-            continue;
-        }
-
-        $billId = createBill($userId, $items, $periodStart, $periodEnd, $dueDate);
-        if ($billId) {
-            $created++;
-            $newBillIds[] = $billId;
-        }
+        $context=residentContext($connection,(int)$resident['id']);
+        if (!$context || !$context['approved'] || $context['account_kind']!=='owner') continue;
+        // Locking the resident in createBill serializes competing generation requests.
+        // Paid history also counts: rerunning a month must never bill residents twice.
+        $id=createBill((int)$resident['id'],$items,$periodStart,$periodEnd,$dueDate);
+        if ($id===false) $skipped++; else { $created++; $ids[]=$id; }
     }
-
-    logAudit('generate_bills', 'payment', null, "Generated {$created} bill(s) for period {$periodStart} to {$periodEnd}; skipped {$skipped} resident(s) because the period was already billed or an open bill could not be rolled forward");
-
-    return ['created' => $created, 'skipped' => $skipped, 'bill_ids' => $newBillIds, 'error' => null];
+    logAudit('generate_bills','payment',null,"Generated {$created} bill(s) for {$periodStart} to {$periodEnd}; skipped {$skipped}.");
+    return ['created'=>$created,'skipped'=>$skipped,'bill_ids'=>$ids,'error'=>null];
 }

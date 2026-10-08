@@ -6,13 +6,10 @@
 
 require_once '../config.php';
 
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: private, no-store');
 
-if (!isLoggedIn() || !isAdmin()) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
-    exit;
-}
+requireCapability('management.dashboard', true);
 
 $connection = connectDb();
 
@@ -37,7 +34,7 @@ try {
     // Get pending booking requests
     ensureBookingsTable($connection);
     $pendingBookings = 0;
-    $result = $connection->query("SELECT COUNT(*) as count FROM amenity_bookings WHERE status = 'pending'");
+    $result = $connection->query("SELECT COUNT(*) as count FROM bookings WHERE status = 'pending'");
     if ($result) {
         $row = $result->fetch_assoc();
         $pendingBookings = $row['count'] ?? 0;

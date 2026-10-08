@@ -21,22 +21,19 @@ $connection = connectDb();
 ensurePaymongoColumns($connection);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireWorkflowCsrf();
     $action = $_POST['action'] ?? '';
 
     if ($action === 'mark_paid') {
         $paymentId = (int)($_POST['payment_id'] ?? 0);
         if ($paymentId > 0) {
-            $update = $connection->prepare("UPDATE payments SET status = 'paid', paid_at = NOW(), payment_method = 'cash', payment_channel = 'cash' WHERE id = ? AND payment_method = 'cash' AND status IN ('pending', 'overdue')");
-            $update->bind_param('i', $paymentId);
-            if ($update->execute() && $update->affected_rows === 1) {
-                markViolationsPaidForBill($paymentId);
-                logAudit('mark_paid', 'payment', $paymentId, 'Manually marked as paid by admin via Cash');
+            if (confirmCashBillPayment($connection, $paymentId)) {
                 $successMessage = 'Payment marked as paid via Cash.';
             }
         }
     } elseif ($action === 'send_reminders') {
         $reminderResult = sendDueDateReminders(3);
-        $successMessage = "Reminders sent to {$reminderResult['due_count']} resident(s) — {$reminderResult['emails_sent']} email(s), {$reminderResult['sms_sent']} SMS.";
+        $successMessage = "Reminders queued for {$reminderResult['due_count']} bill(s): {$reminderResult['emails_queued']} email notice(s), {$reminderResult['sms_queued']} SMS notice(s).";
         logAudit('send_reminders', 'payment', null, $successMessage);
     }
 }
@@ -101,29 +98,8 @@ $paymentCount = count($payments);
 <body class="dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="admin_dashboard.php" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
-            <nav class="sidebar-nav">
-                <a href="<?php echo isTreasurer() ? '../treasurer/treasurer_dashboard.php' : 'admin_dashboard.php'; ?>" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                <?php if (isSuperAdmin()): ?>
-                <a href="units.php" class="sidebar-link"><?php echo systemSidebarIcon('units'); ?> Units</a>
-                <a href="residents.php" class="sidebar-link"><?php echo systemSidebarIcon('residents'); ?> Residents</a>
-                <a href="pending_accounts.php" class="sidebar-link"><?php echo systemSidebarIcon('pending'); ?> Pending Accounts</a>
-                <a href="staff.php" class="sidebar-link"><?php echo systemSidebarIcon('staff'); ?> Staff Management</a>
-                <?php endif; ?>
-                <a href="unitpayments.php" class="sidebar-link active"><?php echo systemSidebarIcon('billing'); ?> Billing & Payments</a>
-                <a href="generate_bills.php" class="sidebar-link"><?php echo systemSidebarIcon('bills'); ?> Generate Bills</a>
-                <?php if (isSuperAdmin()): ?>
-                    <a href="violations.php" class="sidebar-link"><?php echo systemSidebarIcon('violations'); ?> Violations</a>
-                    <a href="bookingrequest.php" class="sidebar-link"><?php echo systemSidebarIcon('calendar'); ?> Booking Requests</a>
-                    <a href="maintenancerequests.php" class="sidebar-link"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance Requests</a>
-                    <a href="admin_messages.php" class="sidebar-link"><?php echo systemSidebarIcon('messages'); ?> Messages</a>
-                    <a href="announcements.php" class="sidebar-link"><?php echo systemSidebarIcon('announcements'); ?> Announcements</a>
-                    <a href="analytics.php" class="sidebar-link"><?php echo systemSidebarIcon('analytics'); ?> Analytics</a>
-                    <a href="parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking</a>
-                    <a href="auditlog.php" class="sidebar-link"><?php echo systemSidebarIcon('audit'); ?> Audit Log</a>
-                    <a href="visitorlog.php" class="sidebar-link"><?php echo systemSidebarIcon('visitors'); ?> Visitor Log</a>
-                <?php endif; ?>
-            </nav>
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
+            <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -168,7 +144,7 @@ $paymentCount = count($payments);
                                     </div>
                                 </details>
                             <?php endif; ?>
-                        </td><td><?php echo htmlspecialchars(paymentChannelLabel($payment['payment_channel'] ?? null, $payment['payment_method'] ?? null)); ?></td><td class="payment-date-cell"><?php echo htmlspecialchars(date('M j, Y', strtotime($paymentDate))); ?></td><td class="payment-time-cell"><?php echo htmlspecialchars(date('g:i A', strtotime($paymentDate))); ?></td><td><strong><?php echo htmlspecialchars($reference); ?></strong><?php if (!empty($payment['paymongo_payment_id'])): ?><br><small>Payment ID: <?php echo htmlspecialchars($payment['paymongo_payment_id']); ?></small><?php endif; ?></td><td><span class="unit-status <?php echo htmlspecialchars($payment['status']); ?>"><?php echo htmlspecialchars(ucfirst($payment['status'])); ?></span></td><td><?php if (in_array($payment['status'], ['pending', 'overdue'], true) && $payment['payment_method'] === 'cash'): ?><form method="post" class="manual-payment-confirm"><input type="hidden" name="action" value="mark_paid"><input type="hidden" name="payment_id" value="<?php echo (int)$payment['id']; ?>"><button type="submit" class="btn-small btn-approve">Confirm Cash Paid</button></form><?php elseif (in_array($payment['status'], ['pending', 'overdue'], true) && in_array($payment['payment_method'], ['bank', 'online'], true)): ?><span>Awaiting PayMongo</span><?php else: ?>—<?php endif; ?></td></tr><?php endforeach; ?>
+                        </td><td><?php echo htmlspecialchars(paymentChannelLabel($payment['payment_channel'] ?? null, $payment['payment_method'] ?? null)); ?></td><td class="payment-date-cell"><?php echo htmlspecialchars(date('M j, Y', strtotime($paymentDate))); ?></td><td class="payment-time-cell"><?php echo htmlspecialchars(date('g:i A', strtotime($paymentDate))); ?></td><td><strong><?php echo htmlspecialchars($reference); ?></strong><?php if (!empty($payment['paymongo_payment_id'])): ?><br><small>Payment ID: <?php echo htmlspecialchars($payment['paymongo_payment_id']); ?></small><?php endif; ?></td><td><span class="unit-status <?php echo htmlspecialchars($payment['status']); ?>"><?php echo htmlspecialchars(ucfirst($payment['status'])); ?></span></td><td><?php if (in_array($payment['status'], ['pending', 'overdue'], true) && $payment['payment_method'] === 'cash'): ?><form method="post" class="manual-payment-confirm"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="mark_paid"><input type="hidden" name="payment_id" value="<?php echo (int)$payment['id']; ?>"><button type="submit" class="btn-small btn-approve">Confirm Cash Paid</button></form><?php elseif (in_array($payment['status'], ['pending', 'overdue'], true) && in_array($payment['payment_method'], ['bank', 'online'], true)): ?><span>Awaiting PayMongo</span><?php else: ?>—<?php endif; ?></td></tr><?php endforeach; ?>
                     <?php endif; ?>
                 </tbody></table></div>
             </section>

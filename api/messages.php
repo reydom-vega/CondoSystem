@@ -6,11 +6,13 @@
 
 require_once '../config.php';
 
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: private, no-store');
 
-if (!isLoggedIn()) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
+requireCapability('resident.messages.use', true);
+if (!isApproved()) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Resident approval required']);
     exit;
 }
 

@@ -7,25 +7,10 @@ $success_message = '';
 
 $token = trim($_GET['token'] ?? $_POST['token'] ?? '');
 $user = null;
-$hasResetExpires = false;
 
 if ($token !== '') {
     $connection = connectDb();
-    $columnCheck = $connection->query("SHOW COLUMNS FROM users LIKE 'reset_expires'");
-    $hasResetExpires = $columnCheck && $columnCheck->num_rows > 0;
-    $sql = $hasResetExpires
-        ? 'SELECT id FROM users WHERE reset_token = ? AND (reset_expires IS NULL OR reset_expires > ?) LIMIT 1'
-        : 'SELECT id FROM users WHERE reset_token = ? LIMIT 1';
-    $stmt = $connection->prepare($sql);
-    if ($hasResetExpires) {
-        $currentTime = date('Y-m-d H:i:s');
-        $stmt->bind_param('ss', $token, $currentTime);
-    } else {
-        $stmt->bind_param('s', $token);
-    }
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $user = $result->fetch_assoc();
+    $user = findPasswordResetUser($connection, $token);
 }
 
 
@@ -37,6 +22,7 @@ if ($token === '') {
 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($errors)) {
+    requireWorkflowCsrf();
     $password = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
 
@@ -58,11 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($errors)) {
         $errors[] = "Passwords do not match.";
     }
     if (empty($errors)) {
-        $hashed_password = password_hash($password, PASSWORD_BCRYPT);
-        $resetExpiryColumn = $hasResetExpires ? ', reset_expires = NULL' : '';
-        $stmt = $connection->prepare("UPDATE users SET password_hash = ?, reset_token = NULL{$resetExpiryColumn} WHERE id = ?");
-        $stmt->bind_param('si', $hashed_password, $user['id']);
-        if ($stmt->execute() && $stmt->affected_rows === 1) {
+        if (allowAuthenticationRequest($connection, 'reset_submit', 10) && completePasswordReset($connection, $token, $password)) {
             $success_message = 'Your password has been reset successfully! You can now log in with your new password.';
         } else {
             $errors[] = 'Unable to reset your password. Please request a new reset link.';
@@ -103,6 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($errors)) {
         <?php elseif (!empty($token)): ?>
 
             <form method="POST" action="reset_password.php" id="resetForm">
+                <?php echo workflowCsrfField(); ?>
                 <input type="hidden" name="token" value="<?php echo htmlspecialchars($token); ?>">
                 <div class="form-group">
                     <label class="field-label" for="password">New Password</label>

@@ -20,27 +20,24 @@ $activeBookings = 0;
 $activeRequests = 0;
 $unreadMessages = 0;
 if (ensurePaymentsTable($connection)) {
-    $paymentResult = $connection->query("SELECT amount FROM payments WHERE user_id = " . (int)$_SESSION['user_id'] . " ORDER BY created_at DESC LIMIT 1");
-    if ($paymentResult && ($payment = $paymentResult->fetch_assoc())) {
-        $monthlyDue = (float)$payment['amount'];
-    }
+    $monthlyDue = getResidentBillingSummary($connection,(int)$_SESSION['user_id'])['amount'];
 }
-if (ensureBookingsTable($connection)) {
+if (residentHasPermission('resident.amenities.book') && ensureBookingsTable($connection)) {
     $bookingResult = $connection->query("SELECT COUNT(*) AS total FROM bookings WHERE user_id = " . (int)$_SESSION['user_id'] . " AND status IN ('pending', 'confirmed')");
     if ($bookingResult) $activeBookings = (int)$bookingResult->fetch_assoc()['total'];
 }
-if (ensureMaintenanceTable($connection)) {
+if (residentHasPermission('resident.maintenance.request') && ensureMaintenanceTable($connection)) {
     $requestResult = $connection->query("SELECT COUNT(*) AS total FROM maintenance_requests WHERE user_id = " . (int)$_SESSION['user_id'] . " AND status IN ('pending', 'approved', 'in_progress', 'reopened')");
     if ($requestResult) $activeRequests = (int)$requestResult->fetch_assoc()['total'];
 }
-if (ensureMessagesTable($connection)) {
+if (residentHasPermission('resident.messages.use') && ensureMessagesTable($connection)) {
     $messageResult = $connection->query("SELECT COUNT(*) AS total FROM messages WHERE user_id = " . (int)$_SESSION['user_id'] . " AND sender_role = 'admin' AND is_read = 0");
     if ($messageResult) $unreadMessages = (int)$messageResult->fetch_assoc()['total'];
 }
 
 // Get announcements — only for approved residents; a pending account
 // shouldn't see admin announcements until its unit is assigned.
-$announcements = $accountApproved ? getAnnouncements(5, true) : [];
+$announcements = residentHasPermission('resident.announcements.view') ? getAnnouncements(5, true) : [];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -56,7 +53,7 @@ $announcements = $accountApproved ? getAnnouncements(5, true) : [];
             <div class="approval-modal">
                 <?php echo systemIconFromGlyph('⏳', 'approval-modal-icon'); ?>
                 <h2 id="approval-modal-title">Your account is awaiting admin approval.</h2>
-                <p>Please go to the admin office to assign your unit number and bring a valid ID to confirm that you are the unit owner.</p>
+                <p>Visit the admin office with a valid ID and proof of unit ownership or authorized tenancy. Management must confirm your unit and account type before enabling resident services.</p>
                 <button type="button" id="approvalModalClose">I Understand</button>
             </div>
         </div>
@@ -70,32 +67,7 @@ $announcements = $accountApproved ? getAnnouncements(5, true) : [];
                 <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
 
-            <nav class="sidebar-nav">
-                <a href="dashboard.php" class="sidebar-link active">
-                    <?php echo systemSidebarIcon('dashboard'); ?> Dashboard
-                </a>
-                <a href="payments.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('billing'); ?> Billing &amp; Payments
-                </a>
-                <a href="residentviolation.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('violations'); ?> Violations
-                </a>
-                <a href="book_amenity.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('calendar'); ?> Book Amenity
-                </a>
-                <a href="parking.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('parking'); ?> Parking
-                </a>
-                <a href="maintenance.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('maintenance'); ?> Maintenance
-                </a>
-                <a href="messages.php" class="sidebar-link">
-                    <?php echo systemSidebarIcon('messages'); ?> Messages
-                </a>
-                    <a href="announcements.php" class="sidebar-link">
-                        <?php echo systemSidebarIcon('announcements'); ?> Announcements
-                    </a>
-            </nav>
+            <nav class="sidebar-nav"><?php renderResidentSidebarNavigation(); ?></nav>
         </aside>
 
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -141,7 +113,7 @@ $announcements = $accountApproved ? getAnnouncements(5, true) : [];
             <section class="welcome-banner">
                 <div class="welcome-text">
                     <h2>Welcome, <?php echo htmlspecialchars($username); ?>!</h2>
-                    <p><?php echo $unitNumber; ?> • Member since <?php echo htmlspecialchars($memberSince); ?></p>
+                    <p><?php echo $unitNumber; ?> • <?php echo htmlspecialchars(residentAccountLabel(), ENT_QUOTES, 'UTF-8'); ?> • Member since <?php echo htmlspecialchars($memberSince); ?></p>
                 </div>
                 <div class="welcome-hand"><?php echo systemIcon('hand', 'welcome-hand-icon'); ?></div>
             </section>
@@ -151,21 +123,24 @@ $announcements = $accountApproved ? getAnnouncements(5, true) : [];
                     <?php echo systemIcon('hourglass', 'dashboard-reminder-icon'); ?>
                     <div>
                         <strong style="color: #fbbf24;">Your account is awaiting admin approval.</strong>
-                        <p style="color: #9ca3af; margin: 4px 0 0; font-size: 0.9em;">Please go to the admin to assign your unit number and bring a valid ID to confirm that you are the unit owner.</p>
+                        <p style="color: #9ca3af; margin: 4px 0 0; font-size: 0.9em;">Bring a valid ID and proof of unit ownership or authorized tenancy to management so they can confirm your unit and account type.</p>
                     </div>
                 </section>
             <?php endif; ?>
 
             <section class="stats-grid">
+                <?php if (residentHasPermission('resident.billing.view')): ?>
                 <a href="payments.php" class="stat-card">
                     <div class="stat-head">
                         <?php echo systemIconFromGlyph('💳', 'stat-icon icon-yellow'); ?>
                         <span class="badge badge-danger">Due</span>
                     </div>
                     <div class="stat-value">₱<?php echo number_format($monthlyDue, 2); ?></div>
-                    <div class="stat-label">Monthly Dues</div>
+                    <div class="stat-label">Outstanding Unit Bills</div>
                 </a>
 
+                <?php endif; ?>
+                <?php if (residentHasPermission('resident.amenities.book')): ?>
                 <a href="book_amenity.php" class="stat-card">
                     <div class="stat-head">
                         <?php echo systemIconFromGlyph('📅', 'stat-icon icon-blue'); ?>
@@ -175,6 +150,8 @@ $announcements = $accountApproved ? getAnnouncements(5, true) : [];
                     <div class="stat-label">Active Bookings</div>
                 </a>
 
+                <?php endif; ?>
+                <?php if (residentHasPermission('resident.maintenance.request')): ?>
                 <a href="maintenance.php" class="stat-card">
                     <div class="stat-head">
                         <?php echo systemIconFromGlyph('🔧', 'stat-icon icon-pink'); ?>
@@ -183,6 +160,8 @@ $announcements = $accountApproved ? getAnnouncements(5, true) : [];
                     <div class="stat-label">Maintenance Requests</div>
                 </a>
 
+                <?php endif; ?>
+                <?php if (residentHasPermission('resident.messages.use')): ?>
                 <a href="messages.php" class="stat-card">
                     <div class="stat-head">
                         <?php echo systemIconFromGlyph('✉️', 'stat-icon icon-purple'); ?>
@@ -191,8 +170,29 @@ $announcements = $accountApproved ? getAnnouncements(5, true) : [];
                     <div class="stat-value"><?php echo $unreadMessages; ?></div>
                     <div class="stat-label">Messages</div>
                 </a>
+                <?php endif; ?>
             </section>
 
+            <?php if (residentHasPermission('resident.billing.view') && !residentHasPermission('resident.billing.pay')): ?>
+                <section class="notice-banner" style="background: #1f293d; border: 1px solid #4b5563; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;">
+                    <strong>Unit billing is read-only for tenants.</strong>
+                    <p style="color: #9ca3af; margin: 4px 0 0;">You can review bills for your approved unit. The unit owner handles payments, receipts, and paid sticker orders.</p>
+                </section>
+            <?php endif; ?>
+
+            <section class="stats-grid" aria-label="Resident services">
+                <?php if (residentHasPermission('resident.visitors.register')): ?>
+                <a href="visitors.php" class="stat-card"><div class="stat-head"><?php echo systemSidebarIcon('visitors'); ?></div><div class="stat-label">Visitor Registration</div><p>Register guests and view their access passes.</p></a>
+                <?php endif; ?>
+                <?php if (residentHasPermission('resident.permits.request')): ?>
+                <a href="permits.php" class="stat-card"><div class="stat-head"><?php echo systemSidebarIcon('calendar'); ?></div><div class="stat-label">Permit Requests</div><p>Request move-in, move-out, renovation, or delivery approval.</p></a>
+                <?php endif; ?>
+                <?php if (residentHasPermission('resident.parking.request') || residentHasPermission('resident.stickers.order')): ?>
+                <a href="parking.php" class="stat-card"><div class="stat-head"><?php echo systemSidebarIcon('parking'); ?></div><div class="stat-label"><?php echo residentHasPermission('resident.stickers.order') ? 'Parking &amp; Stickers' : 'Visitor Parking'; ?></div><p><?php echo residentHasPermission('resident.stickers.order') ? 'Order stickers and request visitor parking.' : 'Request temporary parking for your registered visitors.'; ?></p></a>
+                <?php endif; ?>
+            </section>
+
+            <?php if (!$accountApproved || residentHasPermission('resident.announcements.view')): ?>
             <section class="announcements-section">
                 <h3 class="section-title">Recent Announcements</h3>
 
@@ -228,6 +228,7 @@ $announcements = $accountApproved ? getAnnouncements(5, true) : [];
                     <?php endforeach; ?>
                 <?php endif; ?>
             </section>
+            <?php endif; ?>
         </main>
 
     </div>

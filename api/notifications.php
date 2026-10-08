@@ -25,6 +25,12 @@ if (!isLoggedIn()) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $token = is_string($_POST['csrf_token'] ?? null) ? $_POST['csrf_token'] : '';
+    if ($token === '' || !hash_equals(workflowCsrfToken(), $token)) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Invalid session token']);
+        exit;
+    }
     $action = $_POST['action'] ?? '';
     $notifications = getNotifications();
 

@@ -10,6 +10,7 @@
  */
 
 function ensureAuditLogTable(mysqli $connection): bool {
+    if (!schemaMutationAllowed()) return true;
     $created = $connection->query("CREATE TABLE IF NOT EXISTS audit_logs (
         id INT AUTO_INCREMENT PRIMARY KEY,
         admin_id INT DEFAULT NULL,
@@ -48,9 +49,11 @@ function ensureAuditLogTable(mysqli $connection): bool {
  * 'announcement', 'parking_request'. $details is a short human-readable
  * note shown in the log table.
  */
-function logAudit(string $action, string $entityType, ?int $entityId = null, string $details = ''): bool {
-    $connection = connectDb();
-    ensureAuditLogTable($connection);
+function logAudit(string $action, string $entityType, ?int $entityId = null, string $details = '', ?mysqli $connection = null): bool {
+    $ownsConnection = $connection === null;
+    try {
+    $connection ??= connectDb();
+    if ($ownsConnection) ensureAuditLogTable($connection);
 
     $adminId = $_SESSION['user_id'] ?? null;
     $adminName = $_SESSION['username'] ?? 'System';
@@ -58,8 +61,17 @@ function logAudit(string $action, string $entityType, ?int $entityId = null, str
     $ip = $_SERVER['REMOTE_ADDR'] ?? '';
 
     $stmt = $connection->prepare('INSERT INTO audit_logs (admin_id, admin_name, admin_role, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-    $stmt->bind_param('isssisss', $adminId, $adminName, $adminRole, $action, $entityType, $entityId, $details, $ip);
+    if (!$stmt) return false;
+    $stmt->bind_param('issssiss', $adminId, $adminName, $adminRole, $action, $entityType, $entityId, $details, $ip);
     return $stmt->execute();
+    } catch (Throwable $error) {
+        if (!$ownsConnection) throw $error;
+        // A committed operation must not be presented as failed if logging is unavailable.
+        error_log('Audit storage unavailable: action=' . $action . ', entity=' . $entityType . ', id=' . (int)$entityId);
+        return false;
+    } finally {
+        if ($ownsConnection && $connection instanceof mysqli) $connection->close();
+    }
 }
 
 /**

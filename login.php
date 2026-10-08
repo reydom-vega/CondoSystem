@@ -1,12 +1,13 @@
 <?php
 require_once 'config.php';
 if (isLoggedIn()) {
-    redirect(isSecurity() ? 'security/security_dashboard.php' : (isMaintenance() ? 'maintenance/maintenance_dashboard.php' : (isTreasurer() ? 'treasurer/treasurer_dashboard.php' : (isAdmin() ? 'admin/admin_dashboard.php' : 'resident/dashboard.php'))));
+    redirect(dashboardPathForRole());
 }
 
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireWorkflowCsrf();
     $identifier = trim($_POST['identifier'] ?? '');
     $password = $_POST['password'] ?? '';
     $rememberMe = !empty($_POST['remember_me']);
@@ -15,28 +16,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = getLoginErrorMessage('empty');
     } else {
         $connection = connectDb();
-        $stmt = $connection->prepare('SELECT id, username, email, unit_number, password_hash, failed_login_attempts, locked_until, is_verified, is_active, session_version, role FROM users WHERE username = ? OR email = ? LIMIT 1');
-        $stmt->bind_param('ss', $identifier, $identifier);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        if ($result->num_rows === 1) {
-            $user = $result->fetch_assoc();
-            $now = new DateTime();
-            $lockedUntil = $user['locked_until'] ? new DateTime($user['locked_until']) : null;
-
-            if ($lockedUntil && $lockedUntil > $now) {
-                $errors[] = getLoginErrorMessage('locked');
-            } elseif ((int)$user['is_active'] !== 1) {
-                $errors[] = 'This account has been deactivated. Please contact a SuperAdmin.';
-            } elseif ((int)$user['is_verified'] !== 1) {
-                setFlash('error', 'Account not verified. Check your email for the verification link, or request a new verification email.');
-                redirect('login.php');
-            } else {
-                if (password_verify($password, $user['password_hash'])) {
-                    $connection->query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = NOW(), last_seen_at = NOW() WHERE id = ' . (int)$user['id']);
-
+        $user = authenticateCredentials($connection, $identifier, $password);
+        if ($user) {
                     session_regenerate_id(true);
+                    $_SESSION = [];
                     $_SESSION['user_id'] = (int)$user['id'];
                     $_SESSION['username'] = $user['username'];
                     $_SESSION['unit_number'] = $user['unit_number']; 
@@ -57,23 +40,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         redirect('signuppending.php');
                     }
 
-                    redirect(isSecurity() ? 'security/security_dashboard.php' : (isMaintenance() ? 'maintenance/maintenance_dashboard.php' : (isTreasurer() ? 'treasurer/treasurer_dashboard.php' : (isAdmin() ? 'admin/admin_dashboard.php' : 'resident/dashboard.php'))));
-                } else {
-                    $newAttempts = (int)$user['failed_login_attempts'] + 1;
-                    $remainingAttempts = 5 - $newAttempts;
-
-                    if ($newAttempts >= 5) {
-                        $lockUntil = (new DateTime())->modify('+1 minute')->format('Y-m-d H:i:s');
-                        $connection->query('UPDATE users SET failed_login_attempts = ' . $newAttempts . ', locked_until = "' . $lockUntil . '" WHERE id = ' . (int)$user['id']);
-                        $errors[] = getLoginErrorMessage('locked');
-                    } else {
-                        $connection->query('UPDATE users SET failed_login_attempts = ' . $newAttempts . ' WHERE id = ' . (int)$user['id']);
-                        $errors[] = "Invalid username or password.<br><span style='font-size: 0.9em; opacity: 0.85;'>You have {$remainingAttempts} attempt(s) remaining before your account is locked.</span>";
-                    }
-                }
-            }
+                    redirect(dashboardPathForRole());
         } else {
-            $errors[] = getLoginErrorMessage('invalid');
+            $errors[] = 'Unable to sign in. Check your credentials, or try again in 15 minutes. Contact management if your account is unavailable.';
         }
     }
 }
@@ -119,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
 
             <form method="post" action="login.php">
+                <?php echo workflowCsrfField(); ?>
                 <div class="input-wrap">
                     <label class="field-label" for="identifier">Username or Email</label>
                     <input type="text" id="identifier" name="identifier" placeholder="Username or email" value="<?php echo htmlspecialchars($identifier ?? ''); ?>" required>

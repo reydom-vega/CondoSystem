@@ -19,21 +19,15 @@ $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? su
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celandine Residences - QR Scanner</title>
     <link rel="stylesheet" href="../security.css">
-</head>
+<link rel="stylesheet" href="../services.css?v=<?php echo filemtime(__DIR__ . '/../services.css'); ?>"></head>
 <body class="dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="security_dashboard.php" class="sidebar-brand">
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
                 <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
-            <nav class="sidebar-nav">
-                <a href="security_dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                <a href="scanner.php" class="sidebar-link active"><?php echo systemSidebarIcon('scanner'); ?> QR Scanner</a>
-                <a href="visitor_log.php" class="sidebar-link"><?php echo systemSidebarIcon('visitors'); ?> Visitor Log</a>
-                <a href="../superadmin/parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking Requests</a>
-                <a href="../superadmin/violations.php" class="sidebar-link"><?php echo systemSidebarIcon('violations'); ?> Violations</a>
-            </nav>
+            <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
         <main class="dashboard-main">
@@ -63,7 +57,8 @@ $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? su
                 <div class="admin-panel scanner-panel">
                     <h2>Scan Result</h2>
                     <div class="scanner-result"><strong>Detected content</strong><span id="scanResult">No QR code scanned yet.</span></div>
-                    <a id="openResult" class="scanner-link" target="_blank" rel="noopener noreferrer">Open scanned link</a>
+                    <a id="openResult" class="scanner-link" target="_blank" rel="noopener noreferrer">View verified pass details</a>
+                    <form id="manualScanForm" class="service-actions"><label class="field-label" for="manualScan">Scan or paste a pass URL</label><input id="manualScan" type="text" maxlength="4096" required><button class="service-btn" type="submit">Verify pass</button></form>
                 </div>
             </section>
             <section class="admin-panel scanner-history-panel">
@@ -101,6 +96,7 @@ $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? su
         let scannerRunning = false;
         let lastSavedContent = '';
         let lastSavedAt = 0;
+        let scanBusy = false;
         const status = document.getElementById('scannerStatus');
         const result = document.getElementById('scanResult');
         const openResult = document.getElementById('openResult');
@@ -132,44 +128,40 @@ $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? su
         }
         async function saveScan(decodedText) {
             const now = Date.now();
-            if (decodedText === lastSavedContent && now - lastSavedAt < 5000) return;
+            if (decodedText === lastSavedContent && now - lastSavedAt < 5000) return null;
             lastSavedContent = decodedText;
             lastSavedAt = now;
             try {
                 const response = await fetch(historyEndpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-                    body: JSON.stringify({ content: decodedText })
+                    body: JSON.stringify({ content: decodedText, csrf_token: <?php echo json_encode(workflowCsrfToken()); ?> })
                 });
                 const data = await response.json();
                 if (!response.ok || !data.success) throw new Error(data.error || 'Unable to save this scan.');
                 loadScanHistory();
+                return data.verification;
             } catch (error) {
+                lastSavedContent = '';
                 setStatus('QR detected, but scan history could not be saved. Check the connection and try again.');
+                return null;
             }
         }
         async function handleScan(decodedText) {
+            if (scanBusy || (decodedText === lastSavedContent && Date.now() - lastSavedAt < 5000)) return;
+            scanBusy = true;
+            openResult.style.display = 'none';
+            openResult.removeAttribute('href');
             result.textContent = decodedText;
-            await saveScan(decodedText);
             try {
-                const scannedUrl = new URL(decodedText);
-                if (scannedUrl.origin === window.location.origin && scannedUrl.pathname.endsWith('/parking_pass.php')) {
-                    window.location.href = scannedUrl.href;
-                    return;
-                }
-            } catch (error) {
-                // Keep displaying non-URL QR content in the result panel.
-            }
-            try {
-                const url = new URL(decodedText);
-                if (url.protocol === 'http:' || url.protocol === 'https:') {
-                    openResult.href = url.href;
+                const verification = await saveScan(decodedText);
+                if (!verification) return;
+                setStatus(verification.message);
+                if (verification.recognized && verification.pass_url) {
+                    openResult.href = verification.pass_url;
                     openResult.style.display = 'block';
                 }
-            } catch (error) {
-                openResult.style.display = 'none';
-            }
-            setStatus('QR code detected. Camera remains active for another scan.');
+            } finally { scanBusy = false; }
         }
         async function startScanner() {
             if (scannerRunning) return;
@@ -193,6 +185,7 @@ $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? su
         document.getElementById('startScanner').addEventListener('click', startScanner);
         document.getElementById('stopScanner').addEventListener('click', stopScanner);
         document.getElementById('refreshHistory').addEventListener('click', loadScanHistory);
+        document.getElementById('manualScanForm').addEventListener('submit', event => { event.preventDefault(); lastSavedContent = ''; handleScan(document.getElementById('manualScan').value.trim()); });
         loadScanHistory();
     </script>
 </body>

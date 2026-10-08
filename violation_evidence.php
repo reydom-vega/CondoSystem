@@ -5,7 +5,7 @@ if (!isLoggedIn()) {
     http_response_code(403);
     exit('Forbidden');
 }
-$isAuthorizedStaff = isAdmin() && (isSecurity() || isSuperAdmin());
+$isAuthorizedStaff = canAccess('violations.manage');
 $isResident = !isAdmin() && (($_SESSION['role'] ?? '') === 'resident');
 if (!$isAuthorizedStaff && !$isResident) {
     http_response_code(403);

@@ -10,7 +10,7 @@ if (!isLoggedIn() || !isSecurity()) {
 }
 
 $connection = connectDb();
-$connection->query("CREATE TABLE IF NOT EXISTS qr_scan_logs (
+if (schemaMutationAllowed()) $connection->query("CREATE TABLE IF NOT EXISTS qr_scan_logs (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     username VARCHAR(100) NOT NULL,
@@ -23,7 +23,8 @@ $connection->query("CREATE TABLE IF NOT EXISTS qr_scan_logs (
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $payload = json_decode(file_get_contents('php://input'), true);
-    $content = trim((string)($payload['content'] ?? ''));
+    requireWorkflowCsrf(is_array($payload) && is_string($payload['csrf_token'] ?? null) ? $payload['csrf_token'] : '');
+    $content = is_string($payload['content'] ?? null) ? trim($payload['content']) : '';
 
     if ($content === '' || strlen($content) > 4096) {
         http_response_code(422);
@@ -43,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    echo json_encode(['success' => true, 'id' => $stmt->insert_id]);
+    echo json_encode(['success' => true, 'id' => $stmt->insert_id, 'verification' => verifyAccessScan($connection, $content)]);
     exit;
 }
 

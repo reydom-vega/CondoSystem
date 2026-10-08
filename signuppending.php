@@ -15,7 +15,7 @@ if (isApproved()) {
 
 $connection = connectDb();
 $userId = (int)$_SESSION['user_id'];
-$accountStmt = $connection->prepare('SELECT full_name, username, email, contact_number, unit_number, status, rejection_reason FROM users WHERE id = ? AND role = \'resident\' LIMIT 1');
+$accountStmt = $connection->prepare('SELECT full_name, username, email, contact_number, unit_number, status, rejection_reason, account_type, session_version FROM users WHERE id = ? AND role = \'resident\' LIMIT 1');
 $accountStmt->bind_param('i', $userId);
 $accountStmt->execute();
 $account = $accountStmt->get_result()->fetch_assoc();
@@ -26,13 +26,14 @@ if (!$account) {
 }
 
 $resubmitErrors = [];
+if ($_SERVER['REQUEST_METHOD'] === 'POST') requireWorkflowCsrf();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $account['status'] === 'rejected' && isset($_POST['resubmit_application'])) {
     $fullName = trim($_POST['full_name'] ?? '');
     $username = trim($_POST['username'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $contactNumber = trim($_POST['contact_number'] ?? '');
-    $unitNumber = trim($_POST['unit_number'] ?? '');
+    $unitNumber = normalizeUnitNumber($_POST['unit_number'] ?? '');
 
     if ($fullName === '' || $username === '' || $email === '' || $contactNumber === '' || $unitNumber === '') {
         $resubmitErrors[] = 'Please complete all fields before resubmitting.';
@@ -46,6 +47,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $account['status'] === 'rejected' &
     if (!preg_match('/^[0-9]{11}$/', $contactNumber)) {
         $resubmitErrors[] = 'Contact number must be exactly 11 digits.';
     }
+    if (strlen($fullName) > 100 || strlen($email) > 100) $resubmitErrors[] = 'Name and email must be 100 characters or shorter.';
+    $inventoryUnits = array_map(static fn(array $unit): string => normalizeUnitNumber((string)($unit['unit_number'] ?? '')), loadUnitInventory());
+    if (!in_array($unitNumber, $inventoryUnits, true)) $resubmitErrors[] = 'Please enter a unit number from the condominium inventory.';
 
     if (empty($resubmitErrors)) {
         $duplicateStmt = $connection->prepare('SELECT id FROM users WHERE (username = ? OR email = ?) AND id <> ? LIMIT 1');
@@ -57,14 +61,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $account['status'] === 'rejected' &
         if ($duplicateExists) {
             $resubmitErrors[] = 'That username or email is already registered to another account.';
         } else {
-            $resubmitStmt = $connection->prepare("UPDATE users SET full_name = ?, username = ?, email = ?, contact_number = ?, unit_number = ?, status = 'pending', rejection_reason = NULL WHERE id = ? AND status = 'rejected'");
-            $resubmitStmt->bind_param('sssssi', $fullName, $username, $email, $contactNumber, $unitNumber, $userId);
+            $expectedVersion = (int)$account['session_version'];
+            $resubmitStmt = $connection->prepare("UPDATE users SET full_name = ?, username = ?, email = ?, contact_number = ?, unit_number = ?, status = 'pending', rejection_reason = NULL, unit_owner_id = NULL, phone_verified = 0, phone_otp = NULL, phone_otp_expires = NULL, phone_otp_attempts = 0, phone_otp_sent_at = NULL, reset_token = NULL, reset_expires = NULL, session_version = session_version + 1 WHERE id = ? AND role = 'resident' AND status = 'rejected' AND session_version = ?");
+            $resubmitStmt->bind_param('sssssii', $fullName, $username, $email, $contactNumber, $unitNumber, $userId, $expectedVersion);
             $resubmitted = $resubmitStmt->execute() && $resubmitStmt->affected_rows === 1;
             $resubmitStmt->close();
 
             if ($resubmitted) {
                 $_SESSION['username'] = $username;
                 $_SESSION['unit_number'] = $unitNumber;
+                $_SESSION['unit_owner_id'] = null;
+                $_SESSION['session_version'] = $expectedVersion + 1;
                 logAudit('resubmit', 'user', $userId, 'Resident resubmitted registration for admin review');
                 setFlash('success', 'Your updated application has been resubmitted for admin review.');
                 redirect('signuppending.php');
@@ -269,6 +276,7 @@ $pageFlash = getFlash();
                 <?php endif; ?>
 
                 <form method="POST" action="signuppending.php" class="resubmit-form">
+                    <?php echo workflowCsrfField(); ?>
                     <div class="resubmit-field">
                         <label for="full_name">Full name</label>
                         <div class="input-wrap">
@@ -312,6 +320,9 @@ $pageFlash = getFlash();
             <?php else: ?>
                 <h1 class="status-heading">Registration Submitted</h1>
                 <p class="status-message">Thank you for registering. Your application is now under review by Admin.</p>
+                <?php if (in_array(residentAccountKind($account['account_type']), ['tenant', 'occupant'], true)): ?>
+                <p class="status-message">Management must confirm your occupancy and link your account to an approved unit owner. You can view unit bills after approval; the unit owner handles payment.</p>
+                <?php endif; ?>
                 <p class="status-message">You'll receive an email confirmation once your account is approved. Please check your inbox regularly for updates.</p>
                 <p class="status-update">For updates on your account status,<br>Contact your Property Manager</p>
                 <?php if ($pageFlash): ?>

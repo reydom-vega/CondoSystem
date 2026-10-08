@@ -20,17 +20,21 @@ const REMEMBER_COOKIE_NAME = 'remember_token';
 const REMEMBER_DURATION_DAYS = 30;
 
 function ensureRememberTokensTable(mysqli $connection): bool {
-    return $connection->query("CREATE TABLE IF NOT EXISTS remember_tokens (
+    if (!schemaMutationAllowed()) return true;
+    if (!$connection->query("CREATE TABLE IF NOT EXISTS remember_tokens (
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,
         selector VARCHAR(24) NOT NULL UNIQUE,
         validator_hash VARCHAR(255) NOT NULL,
+        session_version INT NOT NULL DEFAULT 0,
         expires_at DATETIME NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX (user_id),
         INDEX (expires_at),
         CONSTRAINT fk_remember_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )") === true;
+    )")) return false;
+    $column = $connection->query("SHOW COLUMNS FROM remember_tokens LIKE 'session_version'");
+    return $column->num_rows > 0 || $connection->query('ALTER TABLE remember_tokens ADD session_version INT NOT NULL DEFAULT 0') === true;
 }
 
 /**
@@ -58,13 +62,13 @@ function issueRememberToken(int $userId): void {
     $validatorHash = hash('sha256', $validator);
     $expiresAt = (new DateTime())->modify('+' . REMEMBER_DURATION_DAYS . ' days')->format('Y-m-d H:i:s');
 
-    $stmt = $connection->prepare('INSERT INTO remember_tokens (user_id, selector, validator_hash, expires_at) VALUES (?, ?, ?, ?)');
+    $stmt = $connection->prepare('INSERT INTO remember_tokens (user_id, selector, validator_hash, expires_at, session_version) SELECT id, ?, ?, ?, session_version FROM users WHERE id = ? AND is_active = 1');
     if (!$stmt) {
         error_log('Remember Me: Prepare failed: ' . $connection->error);
         return;
     }
     
-    $stmt->bind_param('isss', $userId, $selector, $validatorHash, $expiresAt);
+    $stmt->bind_param('sssi', $selector, $validatorHash, $expiresAt, $userId);
     if (!$stmt->execute()) {
         error_log('Remember Me: Execute failed: ' . $stmt->error);
         $stmt->close();
@@ -72,7 +76,7 @@ function issueRememberToken(int $userId): void {
     }
     $stmt->close();
 
-    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    $isHttps = appUsesSecureCookies();
 
     $setCookieResult = setcookie(REMEMBER_COOKIE_NAME, $selector . ':' . $validator, [
         'expires'  => time() + (86400 * REMEMBER_DURATION_DAYS),
@@ -100,7 +104,7 @@ function attemptAutoLogin(): void {
     }
 
     $parts = explode(':', $_COOKIE[REMEMBER_COOKIE_NAME], 2);
-    if (count($parts) !== 2 || $parts[0] === '' || $parts[1] === '') {
+    if (count($parts) !== 2 || !preg_match('/\A[a-f0-9]{24}\z/', $parts[0]) || !preg_match('/\A[a-f0-9]{64}\z/', $parts[1])) {
         error_log('Remember Me: Cookie format invalid');
         forgetRememberToken();
         return;
@@ -113,7 +117,7 @@ function attemptAutoLogin(): void {
         return;
     }
 
-    $stmt = $connection->prepare('SELECT rt.id, rt.user_id, rt.validator_hash, rt.expires_at, u.username, u.unit_number, u.role, u.is_verified, u.is_active, u.session_version, u.locked_until FROM remember_tokens rt INNER JOIN users u ON u.id = rt.user_id WHERE rt.selector = ? LIMIT 1');
+    $stmt = $connection->prepare('SELECT rt.id, rt.user_id, rt.validator_hash, rt.expires_at, rt.session_version AS token_session_version, u.username, u.unit_number, u.role, u.is_verified, u.is_active, u.session_version, u.locked_until FROM remember_tokens rt INNER JOIN users u ON u.id = rt.user_id WHERE rt.selector = ? LIMIT 1');
     if (!$stmt) {
         error_log('Remember Me: Prepare failed in auto-login: ' . $connection->error);
         return;
@@ -157,13 +161,20 @@ function attemptAutoLogin(): void {
 
     $isValid = $validatorMatch && $tokenNotExpired && $userVerified && $userNotLocked;
     $isValid = $isValid && $userActive;
+    $isValid = $isValid && (int)$row['token_session_version'] === (int)$row['session_version'];
 
     if (!$isValid) {
         forgetRememberToken();
         return;
     }
 
+    // Consume atomically before restoring a session: simultaneous requests cannot reuse it.
+    $consume = $connection->prepare('DELETE FROM remember_tokens WHERE id = ? AND validator_hash = ?');
+    $consume->bind_param('is', $row['id'], $row['validator_hash']);
+    $consume->execute();
+    if ($consume->affected_rows !== 1) return;
     session_regenerate_id(true);
+    $_SESSION = [];
     $_SESSION['user_id'] = (int)$row['user_id'];
     $_SESSION['username'] = $row['username'];
     $_SESSION['unit_number'] = $row['unit_number'];
@@ -176,12 +187,6 @@ function attemptAutoLogin(): void {
 
     // Rotate: the old token is single-use, so a copied-but-already-used
     // cookie stops working even if it leaks later.
-    $deleteStmt = $connection->prepare('DELETE FROM remember_tokens WHERE id = ?');
-    if ($deleteStmt) {
-        $deleteStmt->bind_param('i', $row['id']);
-        $deleteStmt->execute();
-        $deleteStmt->close();
-    }
     issueRememberToken((int)$row['user_id']);
 }
 
@@ -213,7 +218,7 @@ function forgetRememberToken(): void {
     $setCookieResult = setcookie(REMEMBER_COOKIE_NAME, '', [
         'expires'  => time() - 3600,
         'path'     => '/',
-        'secure'   => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+        'secure'   => appUsesSecureCookies(),
         'httponly' => true,
         'samesite' => 'Lax',
     ]);

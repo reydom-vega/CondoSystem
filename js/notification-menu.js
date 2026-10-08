@@ -94,8 +94,10 @@
 
     async function postAction(payload) {
         const form = new URLSearchParams(payload);
+        form.set('csrf_token', document.getElementById('notificationMenu')?.dataset.csrfToken || '');
         const response = await fetch(endpoint, {
             method: 'POST',
+            keepalive: true,
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', 'Accept': 'application/json' },
             body: form.toString(),

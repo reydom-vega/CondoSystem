@@ -4,9 +4,7 @@ require_once '../config.php';
 if (!isLoggedIn()) {
     redirect('../login.php');
 }
-if (!isAdmin() || isTreasurer() || isSecurity()) {
-    redirect('../resident/dashboard.php');
-}
+requireCapability('maintenance.work');
 
 $username = $_SESSION['username'] ?? 'Maintenance';
 $roleLabel = getUserRoles()[$_SESSION['role'] ?? 'maintenance'] ?? 'Maintenance';
@@ -22,6 +20,7 @@ $statusFilter = (string)($_GET['status'] ?? 'all');
 $search = trim((string)($_GET['search'] ?? ''));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireWorkflowCsrf();
     $requestId = (int)($_POST['request_id'] ?? 0);
     $action = (string)($_POST['action'] ?? '');
     $requestQuery = $connection->prepare('SELECT status FROM maintenance_requests WHERE id = ? LIMIT 1');
@@ -38,7 +37,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'cancel' => ['pending', 'cancelled'],
     ];
 
-    if (!$tableReady || $requestId <= 0 || !$current) {
+    if (in_array($action, ['approve', 'reject', 'cancel'], true) && !canAccess('maintenance.review')) {
+        $errors[] = 'Only management can review or cancel a pending request.';
+    } elseif (!$tableReady || $requestId <= 0 || !$current) {
         $errors[] = 'Maintenance request not found.';
     } elseif (isset($transitions[$action])) {
         [$expectedStatus, $nextStatus] = $transitions[$action];
@@ -46,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'This request has changed and cannot use that action now.';
         } elseif ($action === 'complete') {
             $completionNote = trim((string)($_POST['completion_note'] ?? ''));
+            if (strlen($completionNote) > 5000) $errors[] = 'Completion notes must be 5,000 characters or fewer.';
             $before = storeMaintenanceImage($_FILES['before_photo'] ?? []);
             $after = storeMaintenanceImage($_FILES['after_photo'] ?? []);
             foreach ([$before, $after] as $upload) {
@@ -128,20 +130,8 @@ if ($tableReady) {
 <body class="dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="<?php echo isMaintenance() ? '../maintenance/maintenance_dashboard.php' : 'admin_dashboard.php'; ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
-            <nav class="sidebar-nav">
-                <?php if (isMaintenance()): ?>
-                    <a href="../maintenance/maintenance_dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                    <a href="maintenancerequests.php" class="sidebar-link active"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance Requests</a>
-                <?php else: ?>
-                    <a href="admin_dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                    <a href="units.php" class="sidebar-link"><?php echo systemSidebarIcon('units'); ?> Units</a>
-                    <a href="residents.php" class="sidebar-link"><?php echo systemSidebarIcon('residents'); ?> Residents</a>
-                    <?php if (isSuperAdmin()): ?><a href="pending_accounts.php" class="sidebar-link"><?php echo systemSidebarIcon('pending'); ?> Pending Accounts</a><a href="staff.php" class="sidebar-link"><?php echo systemSidebarIcon('staff'); ?> Staff Management</a><a href="unitpayments.php" class="sidebar-link"><?php echo systemSidebarIcon('billing'); ?> Billing &amp; Payments</a><a href="generate_bills.php" class="sidebar-link"><?php echo systemSidebarIcon('bills'); ?> Generate Bills</a><a href="violations.php" class="sidebar-link"><?php echo systemSidebarIcon('violations'); ?> Violations</a><?php endif; ?>
-                    <a href="bookingrequest.php" class="sidebar-link"><?php echo systemSidebarIcon('calendar'); ?> Booking Requests</a><a href="maintenancerequests.php" class="sidebar-link active"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance Requests</a><a href="admin_messages.php" class="sidebar-link"><?php echo systemSidebarIcon('messages'); ?> Messages</a><a href="announcements.php" class="sidebar-link"><?php echo systemSidebarIcon('announcements'); ?> Announcements</a>
-                    <?php if (isSuperAdmin()): ?><a href="analytics.php" class="sidebar-link"><?php echo systemSidebarIcon('analytics'); ?> Analytics</a><a href="parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking</a><a href="auditlog.php" class="sidebar-link"><?php echo systemSidebarIcon('audit'); ?> Audit Log</a><a href="visitorlog.php" class="sidebar-link"><?php echo systemSidebarIcon('visitors'); ?> Visitor Log</a><?php endif; ?>
-                <?php endif; ?>
-            </nav>
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
+            <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
         <main class="dashboard-main">
@@ -157,19 +147,19 @@ if ($tableReady) {
                     <div class="maintenance-admin-evidence"><?php foreach (['evidence_path' => 'Submitted Photo', 'before_photo_path' => 'Before Photo', 'after_photo_path' => 'After Photo'] as $field => $label): ?><?php if (!empty($selectedRequest[$field])): ?><a href="../maintenance_evidence.php?id=<?php echo (int)$selectedRequest['id']; ?>&amp;field=<?php echo rawurlencode($field); ?>" target="_blank" rel="noopener"><img src="../maintenance_evidence.php?id=<?php echo (int)$selectedRequest['id']; ?>&amp;field=<?php echo rawurlencode($field); ?>" alt="<?php echo htmlspecialchars($label); ?>"><span><?php echo htmlspecialchars($label); ?></span></a><?php endif; ?><?php endforeach; ?></div>
                     <div class="maintenance-admin-actions">
                         <a class="maintenance-back-button" href="maintenancerequests.php?status=<?php echo rawurlencode($statusFilter); ?>&amp;search=<?php echo rawurlencode($search); ?>">Back to requests</a>
-                        <?php if ($selectedRequest['status'] === 'pending'): ?>
-                            <form method="post" data-confirm="Approve maintenance request <?php echo htmlspecialchars(maintenanceRequestCode((int)$selectedRequest['id']), ENT_QUOTES, 'UTF-8'); ?>?" data-confirm-title="Approve maintenance request" data-confirm-action="Approve"><input type="hidden" name="request_id" value="<?php echo (int)$selectedRequest['id']; ?>"><button class="maintenance-admin-button approve" name="action" value="approve">Approve</button></form>
-                            <form method="post" data-confirm="Reject maintenance request <?php echo htmlspecialchars(maintenanceRequestCode((int)$selectedRequest['id']), ENT_QUOTES, 'UTF-8'); ?>? This cannot be undone." data-confirm-title="Reject maintenance request" data-confirm-action="Reject"><input type="hidden" name="request_id" value="<?php echo (int)$selectedRequest['id']; ?>"><button class="maintenance-admin-button reject" name="action" value="reject">Reject</button></form>
+                        <?php if ($selectedRequest['status'] === 'pending' && canAccess('maintenance.review')): ?>
+                            <form method="post" data-confirm="Approve maintenance request <?php echo htmlspecialchars(maintenanceRequestCode((int)$selectedRequest['id']), ENT_QUOTES, 'UTF-8'); ?>?" data-confirm-title="Approve maintenance request" data-confirm-action="Approve"><?php echo workflowCsrfField(); ?><input type="hidden" name="request_id" value="<?php echo (int)$selectedRequest['id']; ?>"><button class="maintenance-admin-button approve" name="action" value="approve">Approve</button></form>
+                            <form method="post" data-confirm="Reject maintenance request <?php echo htmlspecialchars(maintenanceRequestCode((int)$selectedRequest['id']), ENT_QUOTES, 'UTF-8'); ?>? This cannot be undone." data-confirm-title="Reject maintenance request" data-confirm-action="Reject"><?php echo workflowCsrfField(); ?><input type="hidden" name="request_id" value="<?php echo (int)$selectedRequest['id']; ?>"><button class="maintenance-admin-button reject" name="action" value="reject">Reject</button></form>
                         <?php elseif ($selectedRequest['status'] === 'approved' || $selectedRequest['status'] === 'reopened'): ?>
-                            <form method="post"><input type="hidden" name="request_id" value="<?php echo (int)$selectedRequest['id']; ?>"><button class="maintenance-admin-button approve" name="action" value="<?php echo $selectedRequest['status'] === 'reopened' ? 'reopen_start' : 'start'; ?>">Start Work</button></form>
+                            <form method="post"><?php echo workflowCsrfField(); ?><input type="hidden" name="request_id" value="<?php echo (int)$selectedRequest['id']; ?>"><button class="maintenance-admin-button approve" name="action" value="<?php echo $selectedRequest['status'] === 'reopened' ? 'reopen_start' : 'start'; ?>">Start Work</button></form>
                         <?php endif; ?>
                     </div>
                     <?php if ($selectedRequest['status'] === 'in_progress'): ?>
-                        <form method="post" enctype="multipart/form-data" class="maintenance-complete-form">
+                        <form method="post" enctype="multipart/form-data" class="maintenance-complete-form"><?php echo workflowCsrfField(); ?>
                             <input type="hidden" name="request_id" value="<?php echo (int)$selectedRequest['id']; ?>">
                             <input type="hidden" name="action" value="complete">
-                            <label>Completion Notes (optional)<textarea name="completion_note" rows="3" placeholder="Describe the work completed and verification..."></textarea></label>
-                            <div class="maintenance-photo-fields"><label>Before Photo (optional)<input type="file" name="before_photo" accept="image/jpeg,image/png,image/webp"></label><label>After Photo (optional)<input type="file" name="after_photo" accept="image/jpeg,image/png,image/webp"></label></div>
+                            <label class="field-label">Completion Notes (optional)<textarea name="completion_note" rows="3" placeholder="Describe the work completed and verification..."></textarea></label>
+                            <div class="maintenance-photo-fields"><label class="field-label">Before Photo (optional)<input type="file" name="before_photo" accept="image/jpeg,image/png,image/webp"></label><label class="field-label">After Photo (optional)<input type="file" name="after_photo" accept="image/jpeg,image/png,image/webp"></label></div>
                             <button class="maintenance-admin-button approve" type="submit">Mark Completed</button>
                         </form>
                     <?php endif; ?>

@@ -1,14 +1,12 @@
 <?php
 /**
- * PayMongo integration (sandbox/test mode).
+ * PayMongo integration. Credentials select test or live mode.
  *
  * Uses the Checkout API: we create a Checkout Session from the server and
- * redirect the resident to PayMongo's hosted payment page, then trust the
- * `checkout_session.payment.paid` webhook (see webhooks/paymongo_webhook.php)
- * to confirm the payment actually went through. The success/cancel
- * redirect alone is never treated as proof of payment — a resident could
- * hit "back" on the success URL without paying, and the webhook is the
- * only signed, server-to-server confirmation.
+ * redirect the resident to PayMongo's hosted payment page, then verify the
+ * signed checkout webhook or an authenticated Checkout Session lookup.
+ * The stored session, exact amount, and currency must match. A browser
+ * success/cancel redirect is never treated as proof of payment.
  *
  * Reference: https://developers.paymongo.com/docs/checkout-api
  *
@@ -17,12 +15,14 @@
  * sandbox payments and live keys only when ready to accept real payments.
  */
 
-const PAYMONGO_SECRET_KEY = 'apikeydito';
-const PAYMONGO_WEBHOOK_SECRET = 'apikeydito';
+// Credentials belong in the environment, never in the application source.
+const PAYMONGO_SECRET_KEY = '';
+const PAYMONGO_WEBHOOK_SECRET = '';
 const PAYMONGO_PAYMENT_METHODS_DEFAULT = 'card,gcash,paymaya,dob';
 const PARKING_STICKER_PRICE = 1000.00;
 
 function ensureParkingStickerOrdersTable(mysqli $connection): bool {
+    if (!schemaMutationAllowed()) return true;
     $created = $connection->query("CREATE TABLE IF NOT EXISTS parking_sticker_orders (
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,
@@ -77,20 +77,30 @@ function ensureParkingStickerOrdersTable(mysqli $connection): bool {
 }
 
 function createParkingStickerOrderForBill(int $userId, int $billPaymentId, int $quantity = 1): int|false {
+    if (!canManageBilling()) return false;
     $connection = connectDb();
     if (!ensureParkingStickerOrdersTable($connection)) {
         return false;
     }
-    if ($quantity < 1 || $quantity > 10) {
+    $policy = getParkingPolicy($connection);
+    if ($quantity < 1 || $quantity > (int)$policy['sticker_max_quantity']) {
         return false;
     }
-    $amount = PARKING_STICKER_PRICE * $quantity;
-    $stmt = $connection->prepare("INSERT INTO parking_sticker_orders (user_id, quantity, amount, bill_payment_id, status, claim_status) VALUES (?, ?, ?, ?, 'pending', 'not_submitted')");
-    $stmt->bind_param('iidi', $userId, $quantity, $amount, $billPaymentId);
-    if (!$stmt->execute()) {
-        return false;
-    }
-    return (int)$connection->insert_id;
+    $connection->begin_transaction();
+    try {
+        $bill=$connection->prepare("SELECT amount,status FROM payments WHERE id=? AND user_id=? AND status IN ('pending','overdue','paid') FOR UPDATE");
+        $bill->bind_param('ii',$billPaymentId,$userId); $bill->execute(); $payment=$bill->get_result()->fetch_assoc();
+        $existing=$connection->prepare('SELECT id FROM parking_sticker_orders WHERE bill_payment_id=? LIMIT 1');
+        $existing->bind_param('i',$billPaymentId); $existing->execute();
+        $existingOrder=$existing->get_result()->fetch_assoc();
+        if (!$payment || (float)$payment['amount']<=0 || $existingOrder) { $connection->rollback(); return false; }
+        $amount=(float)$payment['amount'];
+        $status=$payment['status']==='paid' ? 'paid' : 'pending';
+        $stmt=$connection->prepare("INSERT INTO parking_sticker_orders (user_id,quantity,amount,bill_payment_id,status,claim_status) VALUES (?,?,?,?,?,'not_submitted')");
+        $stmt->bind_param('iidis',$userId,$quantity,$amount,$billPaymentId,$status);
+        if (!$stmt->execute()) throw new RuntimeException('Could not link historical sticker bill.');
+        $id=(int)$connection->insert_id; $connection->commit(); return $id;
+    } catch (Throwable $error) { $connection->rollback(); error_log('Historical sticker linkage failed: '.$error->getMessage()); return false; }
 }
 
 function getLatestParkingStickerOrder(int $userId): ?array {
@@ -98,7 +108,7 @@ function getLatestParkingStickerOrder(int $userId): ?array {
     if (!ensureParkingStickerOrdersTable($connection)) {
         return null;
     }
-    $stmt = $connection->prepare('SELECT o.*, p.status AS bill_status, p.paid_at AS bill_paid_at FROM parking_sticker_orders o INNER JOIN payments p ON p.id = o.bill_payment_id WHERE o.user_id = ? ORDER BY o.id DESC LIMIT 1');
+    $stmt = $connection->prepare('SELECT o.*, p.status AS bill_status, p.paid_at AS bill_paid_at FROM parking_sticker_orders o INNER JOIN payments p ON p.id = o.bill_payment_id AND p.user_id=o.user_id WHERE o.user_id = ? ORDER BY o.id DESC LIMIT 1');
     $stmt->bind_param('i', $userId);
     $stmt->execute();
     return $stmt->get_result()->fetch_assoc() ?: null;
@@ -118,20 +128,60 @@ function getParkingStickerClaims(mysqli $connection): array {
     if (!ensureParkingStickerOrdersTable($connection)) {
         return [];
     }
+    ensurePaymongoColumns($connection);
+    ensureStickerVehicleLinks($connection);
     $result = $connection->query("SELECT o.id, o.user_id, o.quantity, o.amount, o.claim_status, o.proof_file, o.proof_submitted_at, o.issued_at, p.status AS payment_status, p.payment_method, p.paymongo_payment_id, p.gateway_status, p.paid_at, u.full_name, u.username, u.email, u.unit_number FROM parking_sticker_orders o INNER JOIN payments p ON p.id = o.bill_payment_id INNER JOIN users u ON u.id = o.user_id ORDER BY (p.status = 'paid' AND o.claim_status <> 'issued') DESC, FIELD(p.status, 'pending', 'overdue', 'paid'), o.created_at DESC");
-    return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
-}
-
-function markParkingStickerIssued(int $orderId, int $adminId): bool {
-    $connection = connectDb();
-    if (!ensureParkingStickerOrdersTable($connection)) {
-        return false;
+    $claims = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    foreach ($claims as &$claim) {
+        $claim['vehicles'] = getStickerVehicles($connection,(int)$claim['id']);
+        $context=residentContext($connection,(int)$claim['user_id']);
+        $sponsorId=$context && $context['approved'] ? (int)$context['billing_user_id'] : 0;
+        $claim['eligible_vehicles'] = !$claim['vehicles'] && $sponsorId>0 ? getEligibleStickerVehicles($connection,$sponsorId) : [];
     }
-    $stmt = $connection->prepare("UPDATE parking_sticker_orders o INNER JOIN payments p ON p.id = o.bill_payment_id SET o.status = 'paid', o.claim_status = 'issued', o.issued_by = ?, o.issued_at = NOW() WHERE o.id = ? AND o.claim_status <> 'issued' AND p.status = 'paid'");
-    $stmt->bind_param('ii', $adminId, $orderId);
-    return $stmt->execute() && $stmt->affected_rows === 1;
+    unset($claim);
+    return $claims;
 }
 
+function markParkingStickerIssued(int $orderId, int $adminId, array $vehicleIds = []): bool {
+    if (!canReviewPermits() || $adminId !== (int)$_SESSION['user_id']) return false;
+    $db = connectDb();
+    if (!ensureStickerVehicleLinks($db)) return false;
+    ensureAuditLogTable($db);
+    $db->begin_transaction();
+    try {
+        $find = $db->prepare("SELECT o.*, p.status AS payment_status, p.amount AS payment_amount FROM parking_sticker_orders o JOIN payments p ON p.id=o.bill_payment_id AND p.user_id=o.user_id WHERE o.id=? FOR UPDATE");
+        $find->bind_param('i',$orderId); $find->execute(); $order=$find->get_result()->fetch_assoc();
+        if (!$order || $order['payment_status']!=='paid' || $order['status']==='cancelled'
+            || (int)round((float)$order['amount']*100)!==(int)round((float)$order['payment_amount']*100)) { $db->rollback(); return false; }
+        $context=residentContext($db,(int)$order['user_id']);
+        $sponsorId=$context && $context['approved'] ? (int)$context['billing_user_id'] : 0;
+        if ($sponsorId<1 || !stickerVehicleBelongsToSponsor($db,$sponsorId,(int)$order['user_id'],true)) { $db->rollback(); return false; }
+        $vehicles=getStickerVehicles($db,$orderId);
+        if ($order['claim_status']==='issued' && $vehicles) { $db->rollback(); return false; }
+        if (!$vehicles) {
+            if (!linkStickerVehicles($db,$orderId,$sponsorId,(int)$order['quantity'],$vehicleIds)) { $db->rollback(); return false; }
+            $vehicles=getStickerVehicles($db,$orderId);
+        }
+        if (count($vehicles)!==(int)$order['quantity']) { $db->rollback(); return false; }
+        foreach ($vehicles as $index=>$vehicle) {
+            $check=$db->prepare("SELECT id,user_id FROM vehicles WHERE id=? AND status='approved' FOR UPDATE");
+            $check->bind_param('i',$vehicle['id']); $check->execute();
+            $registered=$check->get_result()->fetch_assoc();
+            if (!$registered || !stickerVehicleBelongsToSponsor($db,$sponsorId,(int)$registered['user_id'],true)) { $db->rollback(); return false; }
+            $number='CS-' . str_pad((string)$orderId,6,'0',STR_PAD_LEFT) . '-' . str_pad((string)($index+1),2,'0',STR_PAD_LEFT);
+            $update=$db->prepare('UPDATE parking_sticker_vehicles SET sticker_number=? WHERE order_id=? AND vehicle_id=?');
+            $update->bind_param('sii',$number,$orderId,$vehicle['id']);
+            if (!$update->execute()) throw new RuntimeException('Could not record sticker number.');
+        }
+        if ($order['claim_status']!=='issued') {
+            $issue=$db->prepare("UPDATE parking_sticker_orders SET status='paid',claim_status='issued',issued_by=?,issued_at=NOW() WHERE id=? AND claim_status<>'issued'");
+            $issue->bind_param('ii',$adminId,$orderId);
+            if (!$issue->execute() || $issue->affected_rows!==1) throw new RuntimeException('Order changed before issuance.');
+        }
+        if (!logAudit('sticker_issued','parking_sticker',$orderId,'Sticker issuance recorded for approved registered vehicles.',$db)) throw new RuntimeException('Could not audit issuance.');
+        $db->commit(); return true;
+    } catch (Throwable $e) { $db->rollback(); error_log($e->getMessage()); return false; }
+}
 function paymongoSecretKey(): string {
     return appSetting('CONDO_PAYMONGO_SECRET_KEY', PAYMONGO_SECRET_KEY);
 }
@@ -140,7 +190,19 @@ function paymongoWebhookSecret(): string {
     return appSetting('CONDO_PAYMONGO_WEBHOOK_SECRET', PAYMONGO_WEBHOOK_SECRET);
 }
 
+function paymongoIsLiveMode(): bool {
+    return str_starts_with(paymongoSecretKey(), 'sk_live_');
+}
+
+function paymongoCheckoutUrlIsSafe(?string $url): bool {
+    $parts = parse_url((string)$url);
+    return is_array($parts) && ($parts['scheme'] ?? '') === 'https'
+        && strtolower($parts['host'] ?? '') === 'checkout.paymongo.com'
+        && !isset($parts['user']) && !isset($parts['pass']);
+}
+
 function ensurePaymongoColumns(mysqli $connection): void {
+    if (!schemaMutationAllowed()) return;
     $checks = [
         'paymongo_checkout_id' => "ALTER TABLE payments ADD COLUMN paymongo_checkout_id VARCHAR(100) DEFAULT NULL",
         'paymongo_payment_id'  => "ALTER TABLE payments ADD COLUMN paymongo_payment_id VARCHAR(100) DEFAULT NULL",
@@ -153,6 +215,10 @@ function ensurePaymongoColumns(mysqli $connection): void {
         if (!$columnCheck || $columnCheck->num_rows === 0) {
             $connection->query($alterSql);
         }
+    }
+    foreach (['paymongo_checkout_id'=>'ux_payment_checkout', 'paymongo_payment_id'=>'ux_payment_gateway'] as $column=>$index) {
+        $exists=$connection->query("SHOW INDEX FROM payments WHERE Key_name='{$index}'");
+        if ($exists && $exists->num_rows===0) $connection->query("ALTER TABLE payments ADD UNIQUE INDEX {$index} ({$column})");
     }
 }
 
@@ -214,6 +280,16 @@ function paymongoPaymentMethodsForSelection(string $selection): array {
  * webhook can reconcile the event back to this exact row.
  */
 function createPaymongoCheckoutSession(int $paymentId, array $items, string $description, string $residentName, string $residentEmail, string $successUrl, string $cancelUrl, array $extraMetadata = [], ?array $paymentMethodTypes = null): array {
+    // The provider adapter also enforces payer authorization so a forged direct
+    // call cannot bypass the resident payment workflow.
+    $denied=['success'=>false,'checkout_url'=>null,'checkout_id'=>null,'error'=>'Only the approved unit owner can start a payment.'];
+    if (!isLoggedIn()) return $denied;
+    $authorizationDb=connectDb();
+    $billOwner=$authorizationDb->prepare('SELECT user_id,status,amount,paymongo_checkout_id FROM payments WHERE id=? LIMIT 1');
+    $billOwner->bind_param('i',$paymentId); $billOwner->execute();
+    $billAccount=$billOwner->get_result()->fetch_assoc();
+    if (!$billAccount || !in_array($billAccount['status'],['pending','overdue'],true) || (float)$billAccount['amount']<=0
+        || !empty($billAccount['paymongo_checkout_id']) || !residentCanPayBill($authorizationDb,(int)$_SESSION['user_id'],(int)$billAccount['user_id'])) return $denied;
     $secretKey = paymongoSecretKey();
     if ($secretKey === '') {
         return ['success' => false, 'checkout_url' => null, 'checkout_id' => null, 'error' => 'PayMongo is not configured. Set CONDO_PAYMONGO_SECRET_KEY for your PayMongo account.'];
@@ -285,9 +361,8 @@ function createPaymongoCheckoutSession(int $paymentId, array $items, string $des
     $decoded = json_decode($body, true);
 
     if ($httpCode < 200 || $httpCode >= 300 || !isset($decoded['data']['id'])) {
-        $apiError = $decoded['errors'][0]['detail'] ?? ('PayMongo request failed (HTTP ' . $httpCode . ')');
-        error_log('PayMongo checkout session error: ' . $body);
-        return ['success' => false, 'checkout_url' => null, 'checkout_id' => null, 'error' => $apiError];
+        error_log('PayMongo checkout session request failed (HTTP ' . $httpCode . ').');
+        return ['success' => false, 'checkout_url' => null, 'checkout_id' => null, 'error' => 'The payment provider could not create a checkout. Contact billing staff if this continues.'];
     }
 
     return [
@@ -298,165 +373,4 @@ function createPaymongoCheckoutSession(int $paymentId, array $items, string $des
     ];
 }
 
-function reconcilePaymongoCheckoutPayment(mysqli $connection, int $paymentId, int $userId): bool {
-    if (paymongoSecretKey() === '') {
-        error_log('PayMongo checkout verification skipped: CONDO_PAYMONGO_SECRET_KEY is not configured.');
-        return false;
-    }
-    ensurePaymongoColumns($connection);
-    $paymentQuery = $connection->prepare('SELECT id, user_id, status, paymongo_checkout_id FROM payments WHERE id = ? AND user_id = ? LIMIT 1');
-    $paymentQuery->bind_param('ii', $paymentId, $userId);
-    $paymentQuery->execute();
-    $payment = $paymentQuery->get_result()->fetch_assoc();
-    if (!$payment || $payment['status'] === 'paid' || empty($payment['paymongo_checkout_id'])) {
-        return false;
-    }
-
-    $checkoutId = (string)$payment['paymongo_checkout_id'];
-    $ch = curl_init('https://api.paymongo.com/v1/checkout_sessions/' . rawurlencode($checkoutId));
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 12,
-        CURLOPT_USERPWD => paymongoSecretKey() . ':',
-        CURLOPT_HTTPHEADER => ['Accept: application/json'],
-    ]);
-    $body = curl_exec($ch);
-    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
-    curl_close($ch);
-
-    if ($body === false || $httpCode < 200 || $httpCode >= 300) {
-        error_log('PayMongo checkout verification failed for payment #' . $paymentId . ': ' . ($curlError ?: 'HTTP ' . $httpCode));
-        return false;
-    }
-
-    $checkout = json_decode($body, true);
-    $resource = $checkout['data'] ?? [];
-    $attributes = $resource['attributes'] ?? [];
-    if (($resource['id'] ?? '') !== $checkoutId) {
-        return false;
-    }
-
-    $metadataPaymentId = (int)($attributes['metadata']['payment_id'] ?? 0);
-    if ($metadataPaymentId > 0 && $metadataPaymentId !== $paymentId) {
-        error_log('PayMongo checkout metadata mismatch for payment #' . $paymentId);
-        return false;
-    }
-
-    $isPaid = ($attributes['status'] ?? '') === 'paid';
-    $paymongoPaymentId = null;
-    foreach (($attributes['payments'] ?? []) as $checkoutPayment) {
-        $paymentAttributes = $checkoutPayment['attributes'] ?? [];
-        if (($paymentAttributes['status'] ?? '') === 'paid') {
-            $isPaid = true;
-            $paymongoPaymentId = $checkoutPayment['id'] ?? null;
-            break;
-        }
-    }
-    if (!$isPaid) {
-        return false;
-    }
-
-    $gatewayStatus = 'checkout_session.paid';
-    $update = $connection->prepare("UPDATE payments SET status = 'paid', paid_at = COALESCE(paid_at, NOW()), paymongo_payment_id = COALESCE(?, paymongo_payment_id), gateway_status = ? WHERE id = ? AND user_id = ? AND status <> 'paid'");
-    $update->bind_param('ssii', $paymongoPaymentId, $gatewayStatus, $paymentId, $userId);
-    if (!$update->execute() || $update->affected_rows !== 1) {
-        return false;
-    }
-
-    markViolationsPaidForBill($paymentId);
-    logAudit('checkout_reconcile', 'payment', $paymentId, 'PayMongo checkout status confirmed payment as paid');
-    return true;
-}
-
-/**
- * Verifies the `Paymongo-Signature` header against the raw request body.
- * Must be called with the UNPARSED request body — parsing/re-encoding
- * JSON before this check can change byte-for-byte content and break the
- * signature even for a legitimate request.
- *
- * Reference: https://docs.paymongo.com/docs/developer-tools-webhook-setup-management
- */
-function verifyPaymongoWebhookSignature(string $rawBody, ?string $signatureHeader): bool {
-    if (!$signatureHeader) {
-        return false;
-    }
-
-    $parts = [];
-    foreach (explode(',', $signatureHeader) as $segment) {
-        [$key, $value] = array_pad(explode('=', trim($segment), 2), 2, null);
-        if ($key !== null && $value !== null) {
-            $parts[$key] = $value;
-        }
-    }
-
-    $timestamp = $parts['t'] ?? null;
-    // Test-mode signature ('te') for sandbox keys; fall back to live ('li')
-    // in case the board later switches this endpoint to live keys.
-    $providedSignature = $parts['te'] ?? $parts['li'] ?? null;
-
-    if ($timestamp === null || $providedSignature === null) {
-        return false;
-    }
-
-    $expectedSignature = hash_hmac('sha256', $timestamp . '.' . $rawBody, paymongoWebhookSecret());
-
-    return hash_equals($expectedSignature, $providedSignature);
-}
-
-/**
- * Best-effort extraction of our internal payment_id from a decoded
- * PayMongo webhook event. Tries the metadata we attached at checkout
- * creation first (most reliable), then falls back to matching the
- * checkout session id we stored on the payments row. Returns null if
- * neither can be determined. Also extracts the paid channel from the
- * underlying payment resource when PayMongo includes it.
- */
-function extractPaymongoWebhookContext(array $event): array {
-    $resource = $event['data']['attributes']['data'] ?? [];
-    $attributes = $resource['attributes'] ?? [];
-
-    $metadata = $attributes['metadata'] ?? null;
-    if (!$metadata && isset($attributes['payments'][0]['attributes']['metadata'])) {
-        $metadata = $attributes['payments'][0]['attributes']['metadata'];
-    }
-
-    $checkoutId = null;
-    if (($resource['type'] ?? '') === 'checkout_session') {
-        $checkoutId = $resource['id'] ?? null;
-    }
-
-    $paymentId = null;
-    $paymentAttributes = $attributes['payments'][0]['attributes'] ?? [];
-    if (isset($attributes['payments'][0]['id'])) {
-        $paymentId = $attributes['payments'][0]['id'];
-    } elseif (($resource['type'] ?? '') === 'payment') {
-        $paymentId = $resource['id'] ?? null;
-        $paymentAttributes = $attributes;
-    }
-
-    $methodCandidates = [
-        $paymentAttributes['source']['type'] ?? null,
-        $paymentAttributes['payment_method_details']['type'] ?? null,
-        $paymentAttributes['payment_method_type'] ?? null,
-        $paymentAttributes['payment_method'] ?? null,
-    ];
-    $paymentChannel = null;
-    foreach ($methodCandidates as $candidate) {
-        if (is_string($candidate) && normalizePaymentChannel($candidate) !== null) {
-            $paymentChannel = normalizePaymentChannel($candidate);
-            break;
-        }
-    }
-
-    $paymentAmount = $paymentAttributes['amount'] ?? null;
-
-    return [
-        'internal_payment_id' => isset($metadata['payment_id']) ? (int)$metadata['payment_id'] : null,
-        'checkout_id'         => $checkoutId,
-        'paymongo_payment_id' => $paymentId,
-        'payment_channel'     => $paymentChannel,
-        'amount'              => is_numeric($paymentAmount) ? (int)$paymentAmount : null,
-        'event_type'          => $event['data']['attributes']['type'] ?? null,
-    ];
-}
+require_once __DIR__ . '/payment_confirmation.php';

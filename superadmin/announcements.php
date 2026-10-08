@@ -4,9 +4,7 @@ require_once '../config.php';
 if (!isLoggedIn()) {
     redirect('../login.php');
 }
-if (!isAdmin()) {
-    redirect('../resident/dashboard.php');
-}
+requireCapability('announcements.manage');
 
 $username = $_SESSION['username'] ?? 'Administrator';
 $nameParts = preg_split('/\s+/', trim($username));
@@ -16,6 +14,7 @@ $errors = [];
 $success = false;
 $announcements = [];
 $connection = connectDb();
+if ($_SERVER['REQUEST_METHOD'] === 'POST') requireWorkflowCsrf();
 
 // Handle delete
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
@@ -55,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $success = true;
                 if ($shouldNotify) {
                     $notifyResult = notifyResidentsOfAnnouncement($announcementId);
-                    $notifySummary = "Email sent to {$notifyResult['emails_sent']} resident(s); SMS sent to {$notifyResult['sms_sent']} resident(s).";
+                    $notifySummary = "Queued {$notifyResult['emails_queued']} email notice(s) and {$notifyResult['sms_queued']} SMS notice(s). Delivery runs in the notification worker.";
                 }
             } else {
                 $errors[] = 'Failed to update announcement.';
@@ -67,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $success = true;
                 if ($shouldNotify) {
                     $notifyResult = notifyResidentsOfAnnouncement($newAnnouncementId);
-                    $notifySummary = "Email sent to {$notifyResult['emails_sent']} resident(s); SMS sent to {$notifyResult['sms_sent']} resident(s).";
+                    $notifySummary = "Queued {$notifyResult['emails_queued']} email notice(s) and {$notifyResult['sms_queued']} SMS notice(s). Delivery runs in the notification worker.";
                 }
             } else {
                 $errors[] = 'Failed to create announcement.';
@@ -90,30 +89,11 @@ $announcements = getAnnouncements(50, false);
 <body class="dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="admin_dashboard.php" class="sidebar-brand">
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
                 <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
-            <nav class="sidebar-nav">
-                <a href="admin_dashboard.php" class="sidebar-link"><?php echo systemSidebarIcon('dashboard'); ?> Dashboard</a>
-                <a href="units.php" class="sidebar-link"><?php echo systemSidebarIcon('units'); ?> Units</a>
-                <a href="residents.php" class="sidebar-link"><?php echo systemSidebarIcon('residents'); ?> Residents</a>
-                <?php if (isSuperAdmin()): ?>
-                    <a href="pending_accounts.php" class="sidebar-link"><?php echo systemSidebarIcon('pending'); ?> Pending Accounts</a>
-                    <a href="staff.php" class="sidebar-link"><?php echo systemSidebarIcon('staff'); ?> Staff Management</a>
-                    <a href="unitpayments.php" class="sidebar-link"><?php echo systemSidebarIcon('billing'); ?> Billing & Payments</a>
-                    <a href="generate_bills.php" class="sidebar-link"><?php echo systemSidebarIcon('bills'); ?> Generate Bills</a>
-                    <a href="violations.php" class="sidebar-link"><?php echo systemSidebarIcon('violations'); ?> Violations</a>
-                <?php endif; ?>
-                <a href="bookingrequest.php" class="sidebar-link"><?php echo systemSidebarIcon('calendar'); ?> Booking Requests</a>
-                <a href="maintenancerequests.php" class="sidebar-link"><?php echo systemSidebarIcon('maintenance'); ?> Maintenance Requests</a>
-                <a href="admin_messages.php" class="sidebar-link"><?php echo systemSidebarIcon('messages'); ?> Messages</a>
-                <a href="announcements.php" class="sidebar-link active"><?php echo systemSidebarIcon('announcements'); ?> Announcements</a>
-                <?php if (isSuperAdmin()): ?><a href="analytics.php" class="sidebar-link"><?php echo systemSidebarIcon('analytics'); ?> Analytics</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="parking.php" class="sidebar-link"><?php echo systemSidebarIcon('parking'); ?> Parking</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="auditlog.php" class="sidebar-link"><?php echo systemSidebarIcon('audit'); ?> Audit Log</a><?php endif; ?>
-                <?php if (isSuperAdmin()): ?><a href="visitorlog.php" class="sidebar-link"><?php echo systemSidebarIcon('visitors'); ?> Visitor Log</a><?php endif; ?>
-            </nav>
+            <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -194,7 +174,7 @@ $announcements = getAnnouncements(50, false);
                                 </div>
                                 <div class="announcement-actions">
                                     <button class="btn-small btn-edit" onclick="editAnnouncement(<?php echo $announcement['id']; ?>, <?php echo htmlspecialchars(json_encode($announcement), ENT_QUOTES); ?>)">Edit</button>
-                                    <form method="post" style="display: inline;" data-confirm="Delete this announcement? This action cannot be undone." data-confirm-title="Delete announcement" data-confirm-action="Delete">
+                                    <form method="post" style="display: inline;" data-confirm="Delete this announcement? This action cannot be undone." data-confirm-title="Delete announcement" data-confirm-action="Delete"><?php echo workflowCsrfField(); ?>
                                         <input type="hidden" name="action" value="delete">
                                         <input type="hidden" name="announcement_id" value="<?php echo $announcement['id']; ?>">
                                         <button type="submit" class="btn-small btn-delete">Delete</button>
@@ -214,7 +194,7 @@ $announcements = getAnnouncements(50, false);
                 <span id="modalTitle">New Announcement</span>
                 <button class="modal-close" onclick="closeModal()">&times;</button>
             </div>
-            <form method="post" style="margin-top: 20px;">
+            <form method="post" style="margin-top: 20px;"><?php echo workflowCsrfField(); ?>
                 <input type="hidden" name="action" value="save">
                 <input type="hidden" name="announcement_id" id="announcement_id" value="0">
                 

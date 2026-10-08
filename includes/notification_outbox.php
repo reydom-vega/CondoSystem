@@ -47,7 +47,12 @@ function notificationStillRelevant(mysqli $db, array $job): bool {
         $id = (int)$job['user_id']; $find->bind_param('i',$id); $find->execute();
         $user = $find->get_result()->fetch_assoc();
         if (!$user) return false;
-        if ($job['event_kind']==='payment_receipt' && (residentContext($db,$id)['account_kind'] ?? '')!=='owner') return false;
+        if ($job['event_kind']==='payment_receipt') {
+            $receiptId=(int)$job['entity_id'];
+            $receipt=$db->prepare("SELECT user_id FROM payments WHERE id=? AND status='paid'");
+            $receipt->bind_param('i',$receiptId); $receipt->execute(); $paidBill=$receipt->get_result()->fetch_assoc();
+            if (!$paidBill || !residentCanPayBill($db,$id,(int)$paidBill['user_id'],$receiptId)) return false;
+        }
         $accountStates=['account_approved'=>'approved','account_rejected'=>'rejected'];
         $accountNotice=isset($accountStates[$job['event_kind']]);
         if ($accountNotice && ($user['role']!=='resident' || (int)$user['is_active']!==1 || (int)$user['is_verified']!==1 || $user['status']!==$accountStates[$job['event_kind']] || $job['entity_id']===null || (int)$job['entity_id']!==(int)$user['session_version'])) return false;
@@ -60,7 +65,7 @@ function notificationStillRelevant(mysqli $db, array $job): bool {
         $find = $db->prepare("SELECT user_id FROM payments WHERE id=? AND status IN ('pending','overdue') AND amount>0");
         $id=(int)$job['entity_id']; $userId=(int)$job['user_id']; $find->bind_param('i',$id); $find->execute();
         $bill=$find->get_result()->fetch_assoc();
-        if (!$bill || !residentCanPayBill($db,$userId,(int)$bill['user_id'])) return false;
+        if (!$bill || !residentCanPayBill($db,$userId,(int)$bill['user_id'],$id)) return false;
     }
     if ($job['event_kind']==='announcement') {
         $find=$db->prepare('SELECT id FROM announcements WHERE id=? AND is_active=1 AND (expires_at IS NULL OR expires_at>NOW())');

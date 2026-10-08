@@ -3,11 +3,7 @@ require_once '../config.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-if (!isLoggedIn() || !isSecurity()) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
-    exit;
-}
+requireCapability('security.gate', true);
 
 $connection = connectDb();
 if (schemaMutationAllowed()) $connection->query("CREATE TABLE IF NOT EXISTS qr_scan_logs (
@@ -34,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $contentType = filter_var($content, FILTER_VALIDATE_URL) ? 'link' : 'text';
     $userId = (int)$_SESSION['user_id'];
-    $username = (string)($_SESSION['username'] ?? 'Security');
+    $username = (string)($_SESSION['username'] ?? (isSuperAdmin() ? 'Superadmin' : 'Security'));
     $stmt = $connection->prepare('INSERT INTO qr_scan_logs (user_id, username, scanned_content, content_type) VALUES (?, ?, ?, ?)');
     $stmt->bind_param('isss', $userId, $username, $content, $contentType);
 

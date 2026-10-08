@@ -1101,6 +1101,7 @@ require_once __DIR__ . '/includes/remember_me.php';
 require_once __DIR__ . '/includes/sms.php';
 require_once __DIR__ . '/includes/paymongo.php';
 require_once __DIR__ . '/includes/parking.php';
+require_once __DIR__ . '/includes/parking_allocation.php';
 require_once __DIR__ . '/includes/notification_outbox.php';
 require_once __DIR__ . '/includes/notify.php';
 require_once __DIR__ . '/includes/ui_icons.php';

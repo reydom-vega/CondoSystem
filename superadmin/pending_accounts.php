@@ -11,6 +11,9 @@ $username = $_SESSION['username'] ?? 'Administrator';
 $nameParts = preg_split('/\s+/', trim($username));
 $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? substr(end($nameParts), 0, 1) : ''));
 $pendingApprovals = [];
+$searchInput = $_POST['search'] ?? $_GET['search'] ?? '';
+$search = is_string($searchInput) ? trim($searchInput) : '';
+$pendingAccountsUrl = 'pending_accounts.php' . ($search !== '' ? '?search=' . rawurlencode($search) : '');
 
 $connection = connectDb();
 ensureNotificationOutboxTable($connection);
@@ -49,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             error_log('Resident approval failed: ' . $error->getMessage());
             setFlash('error', 'Unable to approve this account. Please try again.');
         }
-        redirect('pending_accounts.php');
+        redirect($pendingAccountsUrl);
     }
 
     // 2. Handle Reject
@@ -71,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $rejectionReason = $selectedRejectionReason;
         } else {
             setFlash('error', 'Please select a valid reason for rejecting this account.');
-            redirect('pending_accounts.php');
+            redirect($pendingAccountsUrl);
         }
 
         $applicantStmt = $connection->prepare("SELECT full_name, email, session_version FROM users WHERE id = ? AND role = 'resident' AND status = 'pending'");
@@ -82,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$applicant) {
             setFlash('error', 'This registration is no longer pending review.');
-            redirect('pending_accounts.php');
+            redirect($pendingAccountsUrl);
         }
 
         $previousVersion = (int)$applicant['session_version'];
@@ -105,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             setFlash('error', 'Unable to reject this account. Please try again.');
         }
-        redirect('pending_accounts.php');
+        redirect($pendingAccountsUrl);
     }
 }
 
@@ -113,6 +116,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $pendingResult = $connection->query("SELECT id, full_name, username, email, contact_number, unit_number, account_type, created_at FROM users WHERE role = 'resident' AND is_verified = 1 AND status = 'pending' ORDER BY created_at ASC");
 if ($pendingResult) {
     $pendingApprovals = $pendingResult->fetch_all(MYSQLI_ASSOC);
+}
+if ($search !== '') {
+    $pendingApprovals = array_filter($pendingApprovals, static function (array $pending) use ($search): bool {
+        foreach (['full_name', 'username', 'email', 'contact_number', 'unit_number', 'account_type'] as $field) {
+            if (stripos((string)($pending[$field] ?? ''), $search) !== false) {
+                return true;
+            }
+        }
+        return false;
+    });
 }
 ?>
 <!DOCTYPE html>
@@ -123,6 +136,7 @@ if ($pendingResult) {
     <title>Celandine Residences - Pending Accounts</title>
     <link rel="stylesheet" href="../styles.css">
     <style>
+        .pending-search-clear { color: var(--link-orange); font-weight: 600; white-space: nowrap; }
         .pending-approve-dialog,
         .pending-reject-dialog {
             position: fixed;
@@ -270,8 +284,14 @@ if ($pendingResult) {
             </section>
 
             <section class="admin-panel pending-accounts-panel">
+                <form class="unit-filters" method="get" action="pending_accounts.php" role="search">
+                    <label for="pendingSearch">Search pending accounts</label>
+                    <input id="pendingSearch" type="search" name="search" value="<?php echo htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Search name, unit, username, email, contact or purpose..." aria-label="Search pending accounts by name, unit, username, email, contact or purpose">
+                    <button type="submit">Search</button>
+                    <?php if ($search !== ''): ?><a class="pending-search-clear" href="pending_accounts.php">Clear search</a><?php endif; ?>
+                </form>
                 <?php if (empty($pendingApprovals)): ?>
-                    <p class="admin-empty">No pending resident registrations found.</p>
+                    <p class="admin-empty"><?php echo $search !== '' ? 'No pending accounts match your search.' : 'No pending resident registrations found.'; ?></p>
                 <?php else: ?>
                     <div class="pending-table-wrap">
                         <table class="pending-table">
@@ -312,6 +332,7 @@ if ($pendingResult) {
     </div>
     <dialog class="system-confirm-dialog pending-approve-dialog" id="approveDialog" aria-labelledby="approveDialogTitle">
         <form method="POST" action="pending_accounts.php" id="approveForm"><?php echo workflowCsrfField(); ?>
+            <input type="hidden" name="search" value="<?php echo htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="approve_user_id" id="approveUserId">
             <label class="field-label" for="approveAssignedUnit">Verified unit</label>
             <select name="assigned_unit" id="approveAssignedUnit" required><option value="">Choose a unit</option><?php foreach(loadUnitInventory() as $unit): ?><option value="<?php echo htmlspecialchars($unit['unit_number'],ENT_QUOTES,'UTF-8'); ?>"><?php echo htmlspecialchars($unit['unit_number']); ?></option><?php endforeach; ?></select>
@@ -326,6 +347,7 @@ if ($pendingResult) {
 
     <dialog class="system-confirm-dialog pending-reject-dialog" id="rejectDialog" aria-labelledby="rejectDialogTitle">
         <form method="POST" action="pending_accounts.php" id="rejectForm"><?php echo workflowCsrfField(); ?>
+            <input type="hidden" name="search" value="<?php echo htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="reject_user_id" id="rejectUserId">
             <h2 id="rejectDialogTitle">Confirm rejection</h2>
             <p id="rejectDialogMessage">Choose a reason before rejecting this account.</p>

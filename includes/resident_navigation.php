@@ -3,7 +3,7 @@
 function residentSidebarLinks(): array {
     $links = [['dashboard.php', 'dashboard', 'Dashboard']];
     $candidates = [
-        ['payments.php', 'billing', residentHasPermission('resident.billing.pay') ? 'Billing & Payments' : 'Unit Bills', 'resident.billing.view'],
+        ['payments.php', 'billing', (residentHasPermission('resident.billing.pay') || residentHasPermission('resident.stickers.order')) ? 'Billing & Payments' : 'Unit Bills', 'resident.billing.view'],
         ['residentviolation.php', 'violations', 'Your Violations', 'resident.violations.view'],
         ['book_amenity.php', 'calendar', 'Book Amenity', 'resident.amenities.book'],
         ['parking.php', 'parking', residentHasPermission('resident.stickers.order') ? 'Parking & Stickers' : 'Visitor Parking', 'resident.parking.request'],

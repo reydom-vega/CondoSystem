@@ -71,6 +71,7 @@ function residentUserHasPermission(mysqli $db,int $userId,string $capability): b
     if (!$context) return false;
     if ($capability==='resident.profile.edit') return (int)$context['is_active']===1 && (int)$context['is_verified']===1;
     if (!$context['approved']) return false;
+    if ($capability==='resident.stickers.order' && $context['account_kind']==='tenant') return appSetting('CONDO_TENANT_PARKING','1')==='1';
     $permissions=[
         'resident.portal'=>null, 'resident.billing.view'=>null, 'resident.billing.pay'=>'owner',
         'resident.announcements.view'=>null, 'resident.violations.view'=>null,
@@ -116,7 +117,14 @@ function residentBillingUserIds(mysqli $db,int $actorId): array {
     return $ids;
 }
 
-function residentCanPayBill(mysqli $db,int $actorId,int $billUserId): bool {
+function residentCanPayBill(mysqli $db,int $actorId,int $billUserId,?int $paymentId=null): bool {
     $actor=residentContext($db,$actorId);
+    if (!$actor || !$actor['approved']) return false;
+    if ($paymentId!==null) {
+        $find=$db->prepare('SELECT user_id,billing_scope FROM payments WHERE id=?');
+        $find->bind_param('i',$paymentId); $find->execute(); $bill=$find->get_result()->fetch_assoc();
+        if (!$bill || (int)$bill['user_id']!==$billUserId) return false;
+        if ($bill['billing_scope']==='personal_parking') return $actor['account_kind']==='tenant' && $actorId===$billUserId;
+    }
     return $actor && $actor['approved'] && $actor['account_kind']==='owner' && in_array($billUserId,residentBillingUserIds($db,$actorId),true);
 }

@@ -21,7 +21,7 @@ function staffSidebarLinks(): array {
         ['superadmin/parking.php', 'parking', 'Parking & Stickers', 'parking.review'],
         ['superadmin/parkinginventory.php', 'parking', 'Parking Inventory', 'parking.configure'],
         ['superadmin/parking_configuration.php', 'parking', 'Parking Configuration', 'parking.configure'],
-        ['security/scanner.php', 'scanner', 'QR Scanner', 'security.gate'],
+        [$role === 'superadmin' ? 'superadmin/scanner.php' : 'security/scanner.php', 'scanner', 'QR Scanner', 'security.gate'],
         [$role === 'security' ? 'security/visitor_log.php' : 'superadmin/visitorlog.php', 'visitors', 'Visitor Log', 'visitors.logs'],
         ['superadmin/analytics.php', 'analytics', 'Analytics', 'analytics.read'],
         ['superadmin/auditlog.php', 'audit', 'Audit Log', 'audit.read'],

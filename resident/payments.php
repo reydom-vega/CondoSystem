@@ -20,7 +20,7 @@ ensurePaymentsTable($connection);
 ensurePaymongoColumns($connection);
 ensureBillingTables($connection);
 $residentContext=residentContext($connection,$userId);
-$canPay=$residentContext && $residentContext['approved'] && $residentContext['account_kind']==='owner';
+$canPay=$residentContext && $residentContext['approved'] && in_array($residentContext['account_kind'],['owner','tenant'],true);
 $billingTitle=$canPay ? 'Billing & Payments' : 'Unit Bills';
 
 $profileStmt = $connection->prepare('SELECT full_name, email FROM users WHERE id = ? LIMIT 1');
@@ -58,6 +58,10 @@ $success = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireWorkflowCsrf();
     if (!$canPay) { http_response_code(403); exit('Only the approved unit owner can pay bills. Tenant billing access is read-only.'); }
+    $requestedBillId=(int)($_POST['bill_id'] ?? 0);
+    $authorizeBill=$connection->prepare('SELECT user_id FROM payments WHERE id=?');
+    $authorizeBill->bind_param('i',$requestedBillId); $authorizeBill->execute(); $requestedBill=$authorizeBill->get_result()->fetch_assoc();
+    if (!$requestedBill || !residentCanPayBill($connection,$userId,(int)$requestedBill['user_id'],$requestedBillId)) { http_response_code(403); exit('You are not authorized to pay this bill. Tenants can pay only their own parking charges.'); }
     $formAction = $_POST['form_action'] ?? '';
     if ($formAction === 'pay_bill') {
         $result = startResidentBillPayment($connection, (int)($_POST['bill_id'] ?? 0), $userId,
@@ -147,7 +151,10 @@ $billHistory = getResidentVisibleBills($connection,$userId,true);
                 <div class="alert error"><ul><?php foreach ($errors as $error): ?><li><?php echo htmlspecialchars($error); ?></li><?php endforeach; ?></ul></div>
             <?php endif; ?>
             <?php if (!$canPay): ?>
-                <div class="alert"><strong>Billing is read-only for tenants and occupants.</strong> You can review your unit's itemized statements and recorded payment status. Only the approved unit owner can select a payment method, pay bills, or download payment receipts.</div>
+                <div class="alert"><strong>Billing is read-only for authorized occupants.</strong> You can review your unit's itemized statements and recorded payment status. The approved unit owner pays shared unit bills; tenants pay their own requested parking.</div>
+            <?php endif; ?>
+            <?php if (($residentContext['account_kind'] ?? '')==='tenant'): ?>
+                <div class="alert">You pay for parking requested through your account. Unit dues and other shared bills are handled by the unit owner.</div>
             <?php endif; ?>
 
             <div class="billing-overview-grid">
@@ -177,7 +184,7 @@ $billHistory = getResidentVisibleBills($connection,$userId,true);
                         <tr class="soa-total-row"><td>Total Due</td><td>₱<?php echo number_format((float)$bill['amount'], 2); ?></td></tr>
                     </table>
                     <p class="billing-due">Due Date: <strong class="billing-due-strong"><?php echo htmlspecialchars(date('F j, Y', strtotime($bill['due_date']))); ?></strong></p>
-                    <?php if ($canPay && residentCanPayBill($connection,$userId,(int)$bill['user_id'])): ?>
+                    <?php if ($canPay && residentCanPayBill($connection,$userId,(int)$bill['user_id'],(int)$bill['id'])): ?>
                     <form method="POST" action="payments.php">
                         <?php echo workflowCsrfField(); ?>
                         <input type="hidden" name="form_action" value="pay_bill">
@@ -224,7 +231,7 @@ $billHistory = getResidentVisibleBills($connection,$userId,true);
                                 <tr><td><?php echo htmlspecialchars($item['category']); ?><?php if (!empty($item['description'])): ?> — <?php echo htmlspecialchars($item['description']); ?><?php endif; ?></td><td class="soa-amount">₱<?php echo number_format((float)$item['amount'], 2); ?></td></tr>
                             <?php endforeach; ?></tbody>
                         </table>
-                        <?php if ($canPay && residentCanPayBill($connection,$userId,(int)$bill['user_id'])): ?><a class="history-receipt-link" href="payment_receipt.php?id=<?php echo (int)$bill['id']; ?>">Download Receipt (PDF)</a><?php endif; ?>
+                        <?php if ($canPay && residentCanPayBill($connection,$userId,(int)$bill['user_id'],(int)$bill['id'])): ?><a class="history-receipt-link" href="payment_receipt.php?id=<?php echo (int)$bill['id']; ?>">Download Receipt (PDF)</a><?php endif; ?>
                     </details>
                     <?php endforeach; endif; ?>
                 </section>

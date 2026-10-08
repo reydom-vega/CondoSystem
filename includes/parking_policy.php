@@ -36,14 +36,15 @@ function purchaseParkingStickers(mysqli $db, int $userId, int $quantity, array $
         // Serialize orders by resident to prevent duplicate unpaid orders.
         $owner = $db->prepare("SELECT id FROM users WHERE id = ? AND role = 'resident' AND status = 'approved' AND is_active = 1 AND is_verified = 1 AND unit_number IS NOT NULL AND unit_number <> '' FOR UPDATE");
         $owner->bind_param('i', $userId); $owner->execute();
-        if (!$owner->get_result()->fetch_assoc() || !residentUserHasPermission($db,$userId,'resident.stickers.order')) throw new RuntimeException('An approved unit owner is required.');
+        if (!$owner->get_result()->fetch_assoc() || !residentUserHasPermission($db,$userId,'resident.stickers.order')) throw new RuntimeException('An approved resident with parking access is required.');
         $existing = $db->prepare("SELECT o.id FROM parking_sticker_orders o LEFT JOIN payments p ON p.id = o.bill_payment_id WHERE o.user_id = ? AND o.claim_status <> 'issued' AND o.status <> 'cancelled' AND (p.status IS NULL OR p.status <> 'cancelled') LIMIT 1");
         $existing->bind_param('i', $userId); $existing->execute();
         if ($existing->get_result()->fetch_assoc()) throw new RuntimeException('A sticker order is already in progress.');
         $amount = round((float)$policy['sticker_price'] * $quantity, 2);
         $due = (new DateTimeImmutable())->modify('+15 days')->format('Y-m-d');
-        $bill = $db->prepare("INSERT INTO payments (user_id, amount, payment_method, status, due_date) VALUES (?, ?, 'unbilled', 'pending', ?)");
-        $bill->bind_param('ids', $userId, $amount, $due);
+        $billingScope=residentContext($db,$userId)['account_kind']==='tenant' ? 'personal_parking' : 'unit';
+        $bill = $db->prepare("INSERT INTO payments (user_id, amount, payment_method, status, due_date, billing_scope) VALUES (?, ?, 'unbilled', 'pending', ?, ?)");
+        $bill->bind_param('idss', $userId, $amount, $due, $billingScope);
         if (!$bill->execute()) throw new RuntimeException('Could not create sticker bill.');
         $billId = (int)$db->insert_id;
         $description = $quantity . ' resident parking sticker(s)';

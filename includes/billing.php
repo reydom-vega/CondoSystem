@@ -32,6 +32,7 @@ function ensureBillingTables(mysqli $connection): bool {
     )") === true;
 
     $checks = [
+        'billing_scope' => "ALTER TABLE payments ADD COLUMN billing_scope VARCHAR(30) NOT NULL DEFAULT 'unit'",
         'billing_period_start' => "ALTER TABLE payments ADD COLUMN billing_period_start DATE DEFAULT NULL",
         'billing_period_end'   => "ALTER TABLE payments ADD COLUMN billing_period_end DATE DEFAULT NULL",
     ];
@@ -80,9 +81,10 @@ function addBillItem(int $paymentId, string $category, string $description, floa
     ensurePaymongoColumns($connection);
     $connection->begin_transaction();
     try {
-        $bill=$connection->prepare("SELECT id FROM payments WHERE id=? AND status IN ('pending','overdue') AND paymongo_checkout_id IS NULL FOR UPDATE");
+        $bill=$connection->prepare("SELECT id,billing_scope FROM payments WHERE id=? AND status IN ('pending','overdue') AND paymongo_checkout_id IS NULL FOR UPDATE");
         $bill->bind_param('i',$paymentId); $bill->execute();
-        if (!$bill->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
+        $billRow=$bill->get_result()->fetch_assoc();
+        if (!$billRow || ($billRow['billing_scope']==='personal_parking' && !in_array(trim($category),['Parking','Parking Sticker'],true))) { $connection->rollback(); return false; }
         $stmt=$connection->prepare('INSERT INTO bill_items (payment_id,category,description,amount) VALUES (?,?,?,?)');
         $amount=round($amount,2); $stmt->bind_param('issd',$paymentId,$category,$description,$amount);
         if (!$stmt->execute()) throw new RuntimeException('Bill item insert failed.');
@@ -121,24 +123,26 @@ function createBill(int $userId, array $items, ?string $periodStart, ?string $pe
         $requested=$connection->prepare('SELECT id FROM users WHERE id=? FOR UPDATE');
         $requested->bind_param('i',$userId); $requested->execute();
         if (!$requested->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
-        // New charges belong to the current approved unit owner. Historical
+        // Unit charges belong to the owner; tenant-only parking stays personal. Historical
         // invoices retain their original account and amount.
         $context=residentContext($connection,$userId);
         if (!$context || !$context['approved'] || empty($context['billing_user_id'])) { $connection->rollback(); return false; }
-        $userId=(int)$context['billing_user_id'];
+        $tenantParking=$context['account_kind']==='tenant' && !array_filter($charges,static fn(array $charge):bool=>!in_array($charge['category'],['Parking','Parking Sticker'],true));
+        $billingScope=$tenantParking ? 'personal_parking' : 'unit';
+        $userId=$tenantParking ? (int)$context['id'] : (int)$context['billing_user_id'];
         $resident=$connection->prepare("SELECT id FROM users WHERE id=? AND role='resident' AND is_verified=1 AND is_active=1 AND status='approved' FOR UPDATE");
         $resident->bind_param('i',$userId); $resident->execute();
         if (!$resident->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
         $owner=residentContext($connection,$userId);
-        if (!$owner || !$owner['approved'] || $owner['account_kind']!=='owner') { $connection->rollback(); return false; }
+        if (!$owner || !$owner['approved'] || (!$tenantParking && $owner['account_kind']!=='owner')) { $connection->rollback(); return false; }
         if ($periodStart!==null) {
             $existing=$connection->prepare("SELECT id FROM payments WHERE user_id=? AND billing_period_start=? AND status<>'rolled_forward' LIMIT 1 FOR UPDATE");
             $existing->bind_param('is',$userId,$periodStart); $existing->execute();
             if ($existing->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
         }
         $total=$totalCents/100;
-        $insert=$connection->prepare("INSERT INTO payments (user_id,amount,payment_method,status,due_date,billing_period_start,billing_period_end) VALUES (?,?,?,'pending',?,?,?)");
-        $insert->bind_param('idssss',$userId,$total,$paymentMethod,$dueDate,$periodStart,$periodEnd);
+        $insert=$connection->prepare("INSERT INTO payments (user_id,amount,payment_method,status,due_date,billing_period_start,billing_period_end,billing_scope) VALUES (?,?,?,'pending',?,?,?,?)");
+        $insert->bind_param('idsssss',$userId,$total,$paymentMethod,$dueDate,$periodStart,$periodEnd,$billingScope);
         if (!$insert->execute()) throw new RuntimeException('Could not create bill.');
         $paymentId=(int)$connection->insert_id;
         foreach ($charges as $charge) {
@@ -227,20 +231,22 @@ function getBillHistoryForUser(int $userId, int $limit = 12): array {
     return $bills;
 }
 
-/** Statements visible to this resident, with gateway details restricted to owners. */
+/** Statements visible to this resident, with gateway details restricted to the bill's payer. */
 function getResidentVisibleBills(mysqli $connection, int $actorId, bool $paid = false, int $limit = 12): array {
     ensureBillingTables($connection);
     $context=residentContext($connection,$actorId);
     $ids=array_values(array_unique(array_map('intval',residentBillingUserIds($connection,$actorId))));
     if (!$context || !$context['approved'] || !$ids) return [];
-    $owner=$context['account_kind']==='owner';
-    $columns=$owner ? '*' : 'id,user_id,amount,status,due_date,billing_period_start,billing_period_end,paid_at,created_at';
+    $columns='*';
     $status=$paid ? "status='paid'" : "status IN ('pending','overdue')";
     $order=$paid ? 'paid_at DESC,id DESC' : 'due_date ASC,created_at ASC,id ASC';
     $query='SELECT '.$columns.' FROM payments WHERE user_id IN ('.implode(',',$ids).') AND '.$status.' ORDER BY '.$order;
     if ($paid) $query.=' LIMIT '.max(1,min(100,$limit));
     $bills=$connection->query($query)->fetch_all(MYSQLI_ASSOC);
     foreach ($bills as &$bill) {
+        if (!residentCanPayBill($connection,$actorId,(int)$bill['user_id'],(int)$bill['id'])) {
+            $bill=array_intersect_key($bill,array_flip(['id','user_id','amount','status','due_date','billing_period_start','billing_period_end','paid_at','created_at','billing_scope']));
+        }
         $bill['items']=getBillItems($connection,(int)$bill['id']);
         if (!$bill['items']) $bill['items']=[['category'=>'Payment','description'=>null,'amount'=>$bill['amount']]];
     }

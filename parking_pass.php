@@ -8,15 +8,15 @@ if (!isLoggedIn()) {
 $requestId = (int)($_GET['request_id'] ?? 0);
 $signature = trim($_GET['signature'] ?? '');
 $pass = $requestId > 0 ? getParkingPass($requestId, $signature) : null;
-$isSecurityViewer = isSecurity();
+$isGateViewer = canAccess('security.gate');
 $isOwner = $pass && (int)$pass['user_id'] === (int)($_SESSION['user_id'] ?? 0);
 
-if (!$pass || (!$isSecurityViewer && !$isOwner)) {
+if (!$pass || (!$isGateViewer && !$isOwner)) {
     http_response_code(404);
     exit('Parking pass not found or access denied.');
 }
 
-if ($isOwner && !$isSecurityViewer) requireResidentPermission('resident.parking.request');
+if ($isOwner && !$isGateViewer) requireResidentPermission('resident.parking.request');
 
 $today = date('Y-m-d');
 $isValid = $today >= $pass['start_date'] && $today <= ($pass['end_date'] ?: $pass['start_date']);
@@ -67,7 +67,7 @@ $passUrl = parkingPassUrl($requestId);
             <p class="pass-note">Security can scan this QR code to verify the visitor, vehicle, assigned slot, and validity dates. This pass is valid only for an approved visitor parking request.</p>
             <div class="pass-actions">
                 <button type="button" id="downloadPass">Download QR Pass</button>
-                <?php if ($isSecurityViewer): ?><a href="security/scanner.php" class="btn-neutral">Back to Scanner</a><?php else: ?><a href="resident/parking.php" class="btn-neutral">Back to Parking</a><?php endif; ?>
+                <?php if ($isGateViewer): ?><a href="<?php echo isSuperAdmin() ? 'superadmin/scanner.php' : 'security/scanner.php'; ?>" class="btn-neutral">Back to Scanner</a><?php else: ?><a href="resident/parking.php" class="btn-neutral">Back to Parking</a><?php endif; ?>
             </div>
         </section>
     </main>

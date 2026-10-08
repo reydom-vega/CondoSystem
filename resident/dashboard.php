@@ -176,7 +176,7 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
             <?php if (residentHasPermission('resident.billing.view') && !residentHasPermission('resident.billing.pay')): ?>
                 <section class="notice-banner" style="background: #1f293d; border: 1px solid #4b5563; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;">
                     <strong>Unit billing is read-only for tenants.</strong>
-                    <p style="color: #9ca3af; margin: 4px 0 0;">You can review bills for your approved unit. The unit owner handles payments, receipts, and paid sticker orders.</p>
+                    <p style="color: #9ca3af; margin: 4px 0 0;">You can review bills for your approved unit. The unit owner handles shared unit payments. Tenants request and pay for their own parking through Parking &amp; Stickers.</p>
                 </section>
             <?php endif; ?>
 

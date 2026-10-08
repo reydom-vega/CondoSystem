@@ -87,11 +87,26 @@ try {
     workflowTestActor(4,'superadmin');
     checkWorkflow(!markParkingStickerIssued((int)$order['id'],4), 'unpaid sticker cannot be issued');
     $db->query('UPDATE payments SET status = \'paid\' WHERE id = ' . (int)$billId);
+    checkWorkflow(!markParkingStickerIssued((int)$order['id'],4), 'issuance waits for resident slot inventory');
+    $db->query("INSERT INTO parking_slots (id,slot_code,slot_type) VALUES (10,'AUTO-R10','resident')");
+    checkWorkflow(!markParkingStickerIssued((int)$order['id'],4), 'insufficient slots roll back the whole sticker order');
+    checkWorkflow($db->query('SELECT status FROM parking_slots WHERE id=10')->fetch_assoc()['status']==='available', 'partial resident allocation rolls back');
+    checkWorkflow((int)$db->query('SELECT COUNT(*) AS n FROM vehicles WHERE parking_slot_id IS NOT NULL')->fetch_assoc()['n']===0, 'partial vehicle links roll back');
+    checkWorkflow((int)$db->query('SELECT COUNT(*) AS n FROM parking_sticker_vehicles WHERE sticker_number IS NOT NULL')->fetch_assoc()['n']===0, 'partial sticker numbers roll back');
+    $db->query("INSERT INTO parking_slots (id,slot_code,slot_type) VALUES (11,'AUTO-R11','resident'),(12,'AUTO-R12','resident'),(13,'AUTO-R13','resident')");
     checkWorkflow(markParkingStickerIssued((int)$order['id'],4), 'paid sticker issued');
     checkWorkflow(!markParkingStickerIssued((int)$order['id'],4), 'sticker cannot be issued twice');
     $issuedVehicles=getStickerVehicles($db,(int)$order['id']);
     checkWorkflow(count($issuedVehicles)===2 && str_starts_with($issuedVehicles[0]['sticker_number'],'CS-'), 'issuance records a sticker number per selected vehicle');
     checkWorkflow($issuedVehicles[0]['sticker_number']!==$issuedVehicles[1]['sticker_number'], 'sticker numbers are unique');
+    checkWorkflow($issuedVehicles[0]['parking_slot_id'] && $issuedVehicles[1]['parking_slot_id'] && $issuedVehicles[0]['parking_slot_id']!==$issuedVehicles[1]['parking_slot_id'], 'each issued vehicle gets a different inventory slot');
+    $oldVehicleSlot=(int)$issuedVehicles[0]['parking_slot_id'];
+    checkWorkflow(!reassignStickerVehicleSlot(1,(int)$issuedVehicles[1]['parking_slot_id']), 'cannot move resident into occupied slot');
+    $db->query("UPDATE parking_slots SET status='maintenance' WHERE id=12");
+    checkWorkflow(!reassignStickerVehicleSlot(1,12), 'cannot move resident into maintenance slot');
+    checkWorkflow(reassignStickerVehicleSlot(1,13), 'issued sticker slot can be edited');
+    checkWorkflow($db->query('SELECT status FROM parking_slots WHERE id='.$oldVehicleSlot)->fetch_assoc()['status']==='available', 'resident reassignment frees previous inventory slot');
+    checkWorkflow((int)$db->query('SELECT parking_slot_id FROM vehicles WHERE id=1')->fetch_assoc()['parking_slot_id']===13, 'resident reassignment updates vehicle');
     workflowTestActor(1,'resident');
     checkWorkflow(purchaseParkingStickers($db,1,1,[3])===false,'cannot buy sticker for another resident vehicle');
     checkWorkflow(purchaseParkingStickers($db,1,1,[1])===false,'issued vehicle cannot get duplicate sticker');
@@ -115,15 +130,45 @@ try {
     $request1 = (int)$db->query('SELECT MAX(id) AS id FROM parking_requests')->fetch_assoc()['id'];
     createParkingRequest(2,'visitor','XYZ456','Sedan',$today,$tomorrow);
     $request2 = (int)$db->query('SELECT MAX(id) AS id FROM parking_requests')->fetch_assoc()['id'];
-    checkWorkflow(!decideParkingRequest($request1,'approved',null,''), 'parking approval requires slot');
     checkWorkflow(!decideParkingRequest($request1,'approved',2,''), 'visitor cannot receive resident slot');
-    checkWorkflow(decideParkingRequest($request1,'approved',1,''), 'parking reservation approved');
+    checkWorkflow(decideParkingRequest($request1,'approved',null,''), 'parking pass automatically receives an inventory slot');
     checkWorkflow(!decideParkingRequest($request2,'approved',1,''), 'overlapping parking reservation rejected');
+    checkWorkflow(!decideParkingRequest($request2,'approved',null,''), 'auto allocation refuses when visitor inventory is fully reserved');
     checkWorkflow(getParkingPass($request1,'forged') === null, 'forged parking signature rejected');
     checkWorkflow(verifyAccessScan($db,parkingPassUrl($request1))['valid'], 'parking QR verifies');
     $db->query("UPDATE parking_slots SET status = 'maintenance' WHERE id = 1");
     checkWorkflow(!verifyAccessScan($db,parkingPassUrl($request1))['valid'], 'maintenance slot cannot authorize parking');
     $db->query("UPDATE parking_slots SET status = 'available' WHERE id = 1");
+    $db->query("INSERT INTO parking_slots (id,slot_code,slot_type) VALUES (15,'V-15','visitor'),(16,'V-16','visitor')");
+    checkWorkflow(decideParkingRequest($request2,'approved',15,''), 'second visitor gets separate slot');
+    checkWorkflow(!reassignParkingRequestSlot($request1,15), 'visitor reassignment rejects overlapping reservation');
+    checkWorkflow(!reassignParkingRequestSlot($request1,2), 'visitor reassignment rejects resident slot');
+    checkWorkflow(reassignParkingRequestSlot($request1,16), 'visitor designated slot can be edited');
+    checkWorkflow(getParkingPass($request1,parkingPassSignature($request1))['slot_code']==='V-16', 'existing pass URL shows changed visitor slot');
+    $later=date('Y-m-d',strtotime('+3 days'));
+    createParkingRequest(1,'visitor','LATER1','Sedan',$later,$later);
+    $laterRequest=(int)$db->query('SELECT MAX(id) AS id FROM parking_requests')->fetch_assoc()['id'];
+    checkWorkflow(decideParkingRequest($laterRequest,'approved',15,''), 'visitor slot reused for non-overlapping dates');
+    $db->query("INSERT INTO parking_slots (id,slot_code,slot_type) VALUES (17,'AUTO-R17','resident'),(18,'AUTO-R18','resident')");
+    $db->query("INSERT INTO parking_requests(user_id,request_type,vehicle_plate,start_date,end_date,slot_id,status) VALUES (1,'visitor','FUTURE', '$later', '$later', 17, 'approved')");
+    checkWorkflow(!reassignStickerVehicleSlot(1,17), 'standing allocation avoids future reservations');
+    $db->query("INSERT INTO parking_requests(user_id,request_type,vehicle_plate,start_date,status) VALUES (2,'resident_assignment','TEST3','$today','pending')");
+    $residentRequest=(int)$db->insert_id;
+    checkWorkflow(decideParkingRequest($residentRequest,'approved',null,''), 'standing resident request automatically receives inventory slot');
+    $residentOld=(int)$db->query('SELECT slot_id FROM parking_requests WHERE id='.$residentRequest)->fetch_assoc()['slot_id'];
+    checkWorkflow((int)$db->query('SELECT parking_slot_id FROM vehicles WHERE id=3')->fetch_assoc()['parking_slot_id']===$residentOld, 'standing approval links registered resident vehicle');
+    checkWorkflow(reassignParkingRequestSlot($residentRequest,18), 'standing resident request slot can be edited');
+    checkWorkflow((int)$db->query('SELECT parking_slot_id FROM vehicles WHERE id=3')->fetch_assoc()['parking_slot_id']===18 && $db->query('SELECT status FROM parking_slots WHERE id='.$residentOld)->fetch_assoc()['status']==='available', 'standing edit updates vehicle and frees inventory');
+    workflowTestActor(1,'resident');
+    checkWorkflow(!reassignParkingRequestSlot($request1,1) && !reassignStickerVehicleSlot(1,10), 'resident cannot edit designated slots');
+    workflowTestActor(4,'superadmin');
+    $reassignHtml=postWorkflowFixture('superadmin/parking.php',['action'=>'reassign_vehicle_slot','vehicle_id'=>1,'slot_id'=>10],false);
+    checkWorkflow(str_contains($reassignHtml,'session token is invalid') && (int)$db->query('SELECT parking_slot_id FROM vehicles WHERE id=1')->fetch_assoc()['parking_slot_id']===13, 'resident slot editing requires valid CSRF');
+    $reassignHtml=postWorkflowFixture('superadmin/parking.php',['action'=>'reassign_vehicle_slot','vehicle_id'=>1,'slot_id'=>10]);
+    checkWorkflow(str_contains($reassignHtml,'Resident vehicle parking slot updated.') && (int)$db->query('SELECT parking_slot_id FROM vehicles WHERE id=1')->fetch_assoc()['parking_slot_id']===10, 'resident slot edit form updates assigned inventory');
+    checkWorkflow(getStickerVehicles($db,(int)$order['id'])[0]['slot_code']==='AUTO-R10', 'issued sticker details reflect the edited inventory slot');
+    $reassignHtml=postWorkflowFixture('superadmin/parking.php',['action'=>'reassign_request_slot','request_id'=>$request1,'slot_id'=>1]);
+    checkWorkflow(str_contains($reassignHtml,'Designated parking slot updated.') && getParkingPass($request1,parkingPassSignature($request1))['slot_code']==='V-01', 'visitor slot edit form updates existing pass');
     $db->query('UPDATE users SET is_active = 0 WHERE id = 1');
     checkWorkflow(!verifyAccessScan($db,parkingPassUrl($request1))['valid'], 'disabled resident cannot authorize parking');
     checkWorkflow(getResidentServicePass($db,$permitId,getResidentServiceRequests($db,'permit',1)[0]['access_token']) === null, 'disabled resident service pass rejected');
@@ -145,7 +190,9 @@ try {
     $db->query("UPDATE parking_sticker_orders SET claim_status='issued',issued_by=4,issued_at='2026-01-01 12:00:00' WHERE id=".(int)$legacyOrder);
     workflowTestActor(4,'superadmin');
     checkWorkflow(!markParkingStickerIssued((int)$legacyOrder,4),'historical order requires vehicle selection');
+    checkWorkflow(assignParkingSlot(2,1,'101','TEST4'), 'historical sticker vehicle already has standing slot');
     checkWorkflow(markParkingStickerIssued((int)$legacyOrder,4,[4]),'historical issued order linked to approved vehicle');
+    checkWorkflow((int)$db->query('SELECT parking_slot_id FROM vehicles WHERE id=4')->fetch_assoc()['parking_slot_id']===2, 'sticker issuance reuses existing resident slot');
     checkWorkflow($db->query('SELECT issued_at FROM parking_sticker_orders WHERE id='.(int)$legacyOrder)->fetch_assoc()['issued_at']==='2026-01-01 12:00:00','historical issuance timestamp preserved');
     checkWorkflow(!markParkingStickerIssued((int)$legacyOrder,4,[4]),'historical order cannot be linked twice');
     workflowTestActor(1,'resident');
@@ -228,6 +275,12 @@ try {
         if ($page === 'resident/parking.php') {
             checkWorkflow($xpath->query('//select[@name="visitor_registration_id"]')->length === 1, 'parking registration selector renders');
             checkWorkflow(str_contains($html,'Dropdown Guest') && str_contains($html,'Eligible Guest'), 'parking options and request history show visitors');
+        }
+        if ($page === 'superadmin/parking.php') {
+            checkWorkflow(str_contains($html,'Automatically assign from inventory') && str_contains($html,'name="action" value="reassign_vehicle_slot"') && str_contains($html,'name="action" value="reassign_request_slot"'), 'parking page offers automatic allocation and designated slot editing');
+        }
+        if ($page === 'resident/vehicles.php') {
+            checkWorkflow(str_contains($html,'Parking slot:') && str_contains($html,'AUTO-R10'), 'vehicle registry shows resident slot');
         }
         foreach ($xpath->query('//form[translate(@method,"POST","post")="post"]') as $form) {
             checkWorkflow($xpath->query('.//input[@name="csrf_token"]',$form)->length === 1, 'CSRF field in ' . $page);

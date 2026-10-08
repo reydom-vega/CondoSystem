@@ -41,9 +41,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $vehicleIds = is_array($_POST['vehicle_ids'] ?? null) ? $_POST['vehicle_ids'] : [];
         if ($stickerOrderId > 0 && markParkingStickerIssued($stickerOrderId, (int)$_SESSION['user_id'], $vehicleIds)) {
             logAudit('issue', 'parking_sticker', $stickerOrderId, 'Physical parking sticker handed to resident after verified payment');
-            $success = 'Sticker issuance and vehicle links saved.';
+            $success = 'Stickers issued and resident parking slots assigned from inventory.';
         } else {
-            $errors[] = 'Issuance failed. Management must verify payment and link exactly one approved resident vehicle per sticker. Each vehicle can have only one sticker order.';
+            $errors[] = 'Issuance failed. Verify payment, approved vehicle links, and enough available resident slots in Parking Slot Inventory. No partial issuance or slot assignment was saved.';
+        }
+    } elseif ($action === 'reassign_request_slot') {
+        if (reassignParkingRequestSlot((int)($_POST['request_id'] ?? 0), (int)($_POST['slot_id'] ?? 0))) {
+            $success = 'Designated parking slot updated.';
+        } else {
+            $errors[] = 'Could not change the slot. Choose an available slot of the correct type with no conflicting reservation.';
+        }
+    } elseif ($action === 'reassign_vehicle_slot') {
+        if (reassignStickerVehicleSlot((int)($_POST['vehicle_id'] ?? 0), (int)($_POST['slot_id'] ?? 0))) {
+            $success = 'Resident vehicle parking slot updated.';
+        } else {
+            $errors[] = 'Could not change the resident slot. Verify the issued sticker and choose an available resident slot without reservations.';
         }
     }
 }
@@ -100,7 +112,7 @@ foreach ($parkingSlots as $slot) {
             <?php if (!empty($errors)): ?><div class="alert error"><ul><?php foreach ($errors as $error): ?><li><?php echo htmlspecialchars($error); ?></li><?php endforeach; ?></ul></div><?php endif; ?>
 
             <section class="unit-page-head">
-                <div><h2>Parking Requests</h2><p>Review and respond to resident and visitor parking requests.</p></div>
+                <div><h2>Parking Requests</h2><p>Slots are assigned from parking inventory when passes are approved or stickers are issued. You can change the designated slot below.</p></div>
                 <div class="unit-summary">
                     <span><?php echo count($pendingRequests); ?> Pending Requests</span>
                     <a class="service-btn service-btn-secondary" href="registeredvehicles.php">Registered Vehicles</a>
@@ -141,7 +153,7 @@ foreach ($parkingSlots as $slot) {
                                     <input type="hidden" name="action" value="decide_request">
                                     <input type="hidden" name="request_id" value="<?php echo (int)$req['id']; ?>">
                                     <select name="slot_id" aria-label="Assign parking slot">
-                                        <option value="">Select slot for approval</option>
+                                        <option value="">Automatically assign from inventory</option>
                                         <?php foreach ($parkingSlots as $slot): ?>
                                             <?php if ($slot['status'] === 'available' && $slot['slot_type'] === ($req['request_type'] === 'visitor' ? 'visitor' : 'resident')): ?>
                                                 <option value="<?php echo (int)$slot['id']; ?>"><?php echo htmlspecialchars($slot['slot_code'] . ' · ' . $slot['level']); ?></option>
@@ -151,6 +163,20 @@ foreach ($parkingSlots as $slot) {
                                     <input type="text" name="admin_notes" placeholder="Note (optional)">
                                     <button type="submit" name="decision" value="approved" class="service-btn service-btn-approve" <?php echo !empty($req['visitor_registration_id']) && !in_array($req['visitor_status'], ['approved','checked_in'], true) ? 'disabled title="Approve the visitor registration first"' : ''; ?>>Approve</button>
                                     <button type="submit" name="decision" value="rejected" class="service-btn service-btn-danger">Reject</button>
+                                </form>
+                            <?php elseif ($req['status'] === 'approved' && ($req['request_type'] === 'resident_assignment' || ($req['end_date'] ?: $req['start_date']) >= date('Y-m-d'))): ?>
+                                <form method="post" class="parking-request-decide"><?php echo workflowCsrfField(); ?>
+                                    <input type="hidden" name="action" value="reassign_request_slot">
+                                    <input type="hidden" name="request_id" value="<?php echo (int)$req['id']; ?>">
+                                    <select name="slot_id" required aria-label="Change designated parking slot">
+                                        <option value="">Change designated slot</option>
+                                        <?php foreach ($parkingSlots as $slot): ?>
+                                            <?php if ($slot['status'] === 'available' && empty($slot['assigned_user_id']) && $slot['slot_type'] === ($req['request_type'] === 'visitor' ? 'visitor' : 'resident')): ?>
+                                                <option value="<?php echo (int)$slot['id']; ?>"><?php echo htmlspecialchars($slot['slot_code'] . ' - ' . $slot['level']); ?></option>
+                                            <?php endif; ?>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="submit" class="service-btn">Save slot</button>
                                 </form>
                             <?php endif; ?>
                         </div>
@@ -170,7 +196,27 @@ foreach ($parkingSlots as $slot) {
                                     <strong><?php echo htmlspecialchars($claim['full_name']); ?></strong>
                                     <small> · Unit <?php echo htmlspecialchars($claim['unit_number'] ?? '—'); ?> · @<?php echo htmlspecialchars($claim['username']); ?></small><br>
                                     <span><?php echo (int)$claim['quantity']; ?> sticker(s) · ₱<?php echo number_format((float)$claim['amount'], 2); ?></span><br>
-                                    <?php foreach ($claim['vehicles'] as $vehicle): ?><p>Vehicle: <a class="service-btn service-btn-secondary" href="registeredvehicles.php#vehicle-<?php echo (int)$vehicle['id']; ?>"><?php echo htmlspecialchars($vehicle['plate_number']); ?></a><?php if ($vehicle['sticker_number']): ?> · Sticker <strong><?php echo htmlspecialchars($vehicle['sticker_number']); ?></strong><?php endif; ?></p><?php endforeach; ?>
+                                    <?php foreach ($claim['vehicles'] as $vehicle): ?>
+                                        <p>Vehicle: <a class="service-btn service-btn-secondary" href="registeredvehicles.php#vehicle-<?php echo (int)$vehicle['id']; ?>"><?php echo htmlspecialchars($vehicle['plate_number']); ?></a>
+                                            <?php if ($vehicle['sticker_number']): ?> - Sticker <strong><?php echo htmlspecialchars($vehicle['sticker_number']); ?></strong><?php endif; ?>
+                                            - Slot: <strong><?php echo htmlspecialchars($vehicle['slot_code'] ?? 'Not assigned'); ?></strong>
+                                        </p>
+                                        <?php if ($claim['claim_status'] === 'issued' && $claim['payment_status'] === 'paid' && canAccess('stickers.issue')): ?>
+                                            <form method="post" class="parking-request-decide"><?php echo workflowCsrfField(); ?>
+                                                <input type="hidden" name="action" value="reassign_vehicle_slot">
+                                                <input type="hidden" name="vehicle_id" value="<?php echo (int)$vehicle['id']; ?>">
+                                                <select name="slot_id" required aria-label="Change resident vehicle parking slot">
+                                                    <option value="">Choose a resident slot</option>
+                                                    <?php foreach ($parkingSlots as $slot): ?>
+                                                        <?php if ($slot['slot_type'] === 'resident' && $slot['status'] === 'available' && empty($slot['assigned_user_id'])): ?>
+                                                            <option value="<?php echo (int)$slot['id']; ?>"><?php echo htmlspecialchars($slot['slot_code'] . ' - ' . $slot['level']); ?></option>
+                                                        <?php endif; ?>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <button type="submit" class="service-btn">Save slot</button>
+                                            </form>
+                                        <?php endif; ?>
+                                    <?php endforeach; ?>
                                     <?php if (!$claim['vehicles']): ?><p>Historical order: vehicle link required. <a class="service-btn service-btn-secondary" href="registeredvehicles.php">Review registered vehicles</a></p><?php endif; ?>
                                     <?php $paymentLabel = !empty($claim['paymongo_payment_id']) || strpos((string)$claim['gateway_status'], 'payment.paid') !== false ? 'Verified by PayMongo' : 'Confirmed'; ?>
                                     <small>Payment: <?php echo $claim['payment_status'] === 'paid' ? $paymentLabel : htmlspecialchars(ucfirst($claim['payment_status'])); ?><?php if ($claim['payment_status'] === 'paid' && $claim['paid_at']): ?> · <?php echo htmlspecialchars(date('M j, Y g:i A', strtotime($claim['paid_at']))); ?><?php endif; ?></small>

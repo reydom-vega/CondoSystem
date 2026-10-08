@@ -7,7 +7,7 @@ function reconcilePaymongoCheckoutPayment(mysqli $connection, int $paymentId, in
     $find = $connection->prepare("SELECT user_id,paymongo_checkout_id FROM payments WHERE id=? AND status IN ('pending','overdue')");
     $find->bind_param('i', $paymentId); $find->execute();
     $bill = $find->get_result()->fetch_assoc();
-    if (!$bill || !residentCanPayBill($connection,$userId,(int)$bill['user_id']) || empty($bill['paymongo_checkout_id'])) return false;
+    if (!$bill || !residentCanPayBill($connection,$userId,(int)$bill['user_id'],$paymentId) || empty($bill['paymongo_checkout_id'])) return false;
     $checkoutId = (string)$bill['paymongo_checkout_id'];
     $ch = curl_init('https://api.paymongo.com/v1/checkout_sessions/' . rawurlencode($checkoutId));
     curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>12,
@@ -151,7 +151,7 @@ function startResidentBillPayment(mysqli $db, int $paymentId, int $userId, strin
             $billAccount->bind_param('i',$bill['user_id']); $billAccount->execute();
             if (!$billAccount->get_result()->fetch_assoc()) $bill=null;
         }
-        if (!$bill || !residentCanPayBill($db,$userId,(int)$bill['user_id'])) { $db->rollback(); return ['success'=>false,'error'=>'Only the approved unit owner can pay an open bill for this unit.']; }
+        if (!$bill || !residentCanPayBill($db,$userId,(int)$bill['user_id'],$paymentId)) { $db->rollback(); return ['success'=>false,'error'=>'Only the approved unit owner can pay an open bill for this unit.']; }
         if (!empty($bill['paymongo_checkout_id'])) {
             $db->rollback();
             if ($method==='cash') return ['success'=>false,'error'=>'This bill already has an online checkout. Complete that checkout or ask billing staff to resolve it before paying cash.'];

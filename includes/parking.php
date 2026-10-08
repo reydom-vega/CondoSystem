@@ -315,7 +315,7 @@ function releaseParkingSlot(int $slotId): bool {
         foreach ([
             "UPDATE parking_slots SET status = IF(status='maintenance','maintenance','available'), assigned_user_id=NULL, assigned_unit=NULL, vehicle_plate=NULL WHERE id=?",
             'UPDATE vehicles SET parking_slot_id=NULL WHERE parking_slot_id=?',
-            "UPDATE parking_requests SET status='cancelled' WHERE slot_id=? AND request_type='resident' AND status='approved'"
+            "UPDATE parking_requests SET status='cancelled' WHERE slot_id=? AND request_type='resident_assignment' AND status='approved'"
         ] as $sql) {
             $update = $connection->prepare($sql); $update->bind_param('i',$slotId);
             if (!$update->execute()) throw new RuntimeException('Standing assignment could not be released.');
@@ -420,16 +420,17 @@ function createParkingRequest(int $userId, string $requestType, string $vehicleP
 }
 
 /**
- * Approves a pending request only with a compatible slot and no overlap.
+ * Assigns a compatible inventory slot automatically unless one is selected.
  * Visitor reservations are dated; standing resident assignments occupy
- * the inventory row. Decisions are audited after the transaction commits.
+ * the inventory row. Decisions and assignments commit with their audit.
  */
 function decideParkingRequest(int $requestId, string $decision, ?int $slotId, string $adminNotes): bool {
     if (!canAccess('parking.review') || !in_array($decision, ['approved', 'rejected'], true) || strlen($adminNotes) > 255) return false;
-    if ($decision === 'approved' && (!$slotId || $slotId < 1)) return false;
     $connection = connectDb();
     ensureParkingTables($connection);
     ensureResidentServicesTables($connection);
+    ensureVehiclesTable($connection);
+    ensureAuditLogTable($connection);
     $connection->begin_transaction();
     try {
         $requestStmt = $connection->prepare("SELECT pr.*, u.unit_number, u.status AS owner_status, u.is_active AS owner_active, u.is_verified AS owner_verified, u.role AS owner_role FROM parking_requests pr JOIN users u ON u.id = pr.user_id WHERE pr.id = ? AND pr.status = 'pending' FOR UPDATE");
@@ -445,28 +446,31 @@ function decideParkingRequest(int $requestId, string $decision, ?int $slotId, st
             if (!$visitorStmt->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
         }
         if ($decision === 'approved') {
-            // Lock the inventory row to serialize approvals for this slot.
-            $slotStmt = $connection->prepare("SELECT * FROM parking_slots WHERE id = ? AND status = 'available' FOR UPDATE");
-            $slotStmt->bind_param('i', $slotId); $slotStmt->execute();
-            $slot = $slotStmt->get_result()->fetch_assoc();
             $type = $request['request_type'] === 'visitor' ? 'visitor' : 'resident';
-            if (!$slot || $slot['slot_type'] !== $type) { $connection->rollback(); return false; }
-            $overlap = $connection->prepare("SELECT id FROM parking_requests WHERE slot_id = ? AND status = 'approved' AND start_date <= ? AND COALESCE(end_date, start_date) >= ? LIMIT 1 FOR UPDATE");
             $endDate = $request['end_date'] ?: $request['start_date'];
-            $overlap->bind_param('iss', $slotId, $endDate, $request['start_date']); $overlap->execute();
-            if ($overlap->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
+            $slot = selectParkingSlotForAllocation($connection, $type, $request['start_date'], $endDate, $slotId, $requestId);
+            if (!$slot) throw new RuntimeException('No compatible parking slot is available for this request.');
+            $slotId = (int)$slot['id'];
             if ($type === 'resident') {
                 $assign = $connection->prepare("UPDATE parking_slots SET status = 'occupied', assigned_user_id = ?, assigned_unit = ?, vehicle_plate = ? WHERE id = ?");
                 $assign->bind_param('issi', $request['user_id'], $request['unit_number'], $request['vehicle_plate'], $slotId);
                 if (!$assign->execute()) throw new RuntimeException('Slot assignment failed.');
+                $plate = normalizePlateNumber($request['vehicle_plate']);
+                $vehicle = $connection->prepare("SELECT v.*, u.unit_number FROM vehicles v JOIN users u ON u.id = v.user_id WHERE v.user_id = ? AND v.normalized_plate = ? AND v.status = 'approved' FOR UPDATE");
+                $vehicle->bind_param('is', $request['user_id'], $plate); $vehicle->execute();
+                $registered = $vehicle->get_result()->fetch_assoc();
+                if ($registered) {
+                    if (!empty($registered['parking_slot_id'])) throw new RuntimeException('This vehicle already has a resident slot.');
+                    occupyParkingSlotForVehicle($connection, $registered, $slot);
+                }
             }
         } else { $slotId = null; }
         $adminId = (int)$_SESSION['user_id'];
         $update = $connection->prepare("UPDATE parking_requests SET status = ?, slot_id = ?, admin_notes = ?, decided_by = ?, decided_at = NOW() WHERE id = ? AND status = 'pending'");
         $update->bind_param('sisii', $decision, $slotId, $adminNotes, $adminId, $requestId);
         if (!$update->execute() || $update->affected_rows !== 1) throw new RuntimeException('Request changed before approval.');
+        if (!logAudit($decision === 'approved' ? 'approve' : 'reject', 'parking_request', $requestId, 'Slot #' . ($slotId ?? 0) . ' ' . $adminNotes, $connection)) throw new RuntimeException('Parking decision audit failed.');
         $connection->commit();
-        logAudit($decision === 'approved' ? 'approve' : 'reject', 'parking_request', $requestId, 'Slot #' . ($slotId ?? 0) . ' ' . $adminNotes);
         return true;
     } catch (Throwable $error) { $connection->rollback(); error_log($error->getMessage()); return false; }
 }

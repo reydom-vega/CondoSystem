@@ -21,17 +21,23 @@ $isStickerPayment = false;
 $connection = connectDb();
 $actorId=(int)$_SESSION['user_id'];
 $actorContext=residentContext($connection,$actorId);
-if (!$actorContext || !$actorContext['approved'] || $actorContext['account_kind']!=='owner') {
+if (!$actorContext || !$actorContext['approved'] || !in_array($actorContext['account_kind'],['owner','tenant'],true)) {
     http_response_code(403); exit('Only the approved unit owner can access checkout status. View your statements in Billing.');
 }
 ensurePaymongoColumns($connection);
+ensureBillingTables($connection);
+if ($actorContext['account_kind']==='tenant') {
+    $check=$connection->prepare('SELECT user_id FROM payments WHERE id=?');
+    $check->bind_param('i',$paymentId); $check->execute(); $tenantBill=$check->get_result()->fetch_assoc();
+    if (!$tenantBill || !residentCanPayBill($connection,$actorId,(int)$tenantBill['user_id'],$paymentId)) { http_response_code(403); exit('You can access checkout status only for your own parking bills.'); }
+}
 $payment = null;
 if ($paymentId > 0) {
     $stmt = $connection->prepare('SELECT id, user_id, amount, status, payment_method, paymongo_checkout_id, paymongo_payment_id, gateway_status, paid_at FROM payments WHERE id = ? LIMIT 1');
     $stmt->bind_param('i', $paymentId);
     $stmt->execute();
     $payment = $stmt->get_result()->fetch_assoc();
-    if ($payment && !residentCanPayBill($connection,$actorId,(int)$payment['user_id'])) $payment=null;
+    if ($payment && !residentCanPayBill($connection,$actorId,(int)$payment['user_id'],$paymentId)) $payment=null;
     if ($payment && $payment['status'] !== 'paid' && $returnStatus === 'success') {
         $lastCheck = (int)($_SESSION['payment_reconcile_at'][$paymentId] ?? 0);
         if (time() - $lastCheck >= 15) {
@@ -43,7 +49,7 @@ if ($paymentId > 0) {
         $refreshStmt->bind_param('i', $paymentId);
         $refreshStmt->execute();
         $payment = $refreshStmt->get_result()->fetch_assoc();
-        if ($payment && !residentCanPayBill($connection,$actorId,(int)$payment['user_id'])) $payment=null;
+        if ($payment && !residentCanPayBill($connection,$actorId,(int)$payment['user_id'],$paymentId)) $payment=null;
     }
     if ($payment && ensureParkingStickerOrdersTable($connection)) {
         $stickerStmt = $connection->prepare('SELECT id FROM parking_sticker_orders WHERE bill_payment_id = ? AND user_id = ? LIMIT 1');

@@ -125,6 +125,7 @@ function submitParkingStickerProof(int $orderId, int $userId, string $proofFile)
 }
 
 function getParkingStickerClaims(mysqli $connection): array {
+    ensureParkingTables($connection);
     if (!ensureParkingStickerOrdersTable($connection)) {
         return [];
     }
@@ -135,7 +136,7 @@ function getParkingStickerClaims(mysqli $connection): array {
     foreach ($claims as &$claim) {
         $claim['vehicles'] = getStickerVehicles($connection,(int)$claim['id']);
         $context=residentContext($connection,(int)$claim['user_id']);
-        $sponsorId=$context && $context['approved'] ? (int)$context['billing_user_id'] : 0;
+        $sponsorId=(int)(stickerOrderSponsorUserId($connection,(int)$claim['user_id']) ?? 0);
         $claim['eligible_vehicles'] = !$claim['vehicles'] && $sponsorId>0 ? getEligibleStickerVehicles($connection,$sponsorId) : [];
     }
     unset($claim);
@@ -145,7 +146,7 @@ function getParkingStickerClaims(mysqli $connection): array {
 function markParkingStickerIssued(int $orderId, int $adminId, array $vehicleIds = []): bool {
     if (!canReviewPermits() || $adminId !== (int)$_SESSION['user_id']) return false;
     $db = connectDb();
-    if (!ensureStickerVehicleLinks($db)) return false;
+    if (!ensureStickerVehicleLinks($db) || !ensureParkingTables($db)) return false;
     ensureAuditLogTable($db);
     $db->begin_transaction();
     try {
@@ -154,7 +155,7 @@ function markParkingStickerIssued(int $orderId, int $adminId, array $vehicleIds 
         if (!$order || $order['payment_status']!=='paid' || $order['status']==='cancelled'
             || (int)round((float)$order['amount']*100)!==(int)round((float)$order['payment_amount']*100)) { $db->rollback(); return false; }
         $context=residentContext($db,(int)$order['user_id']);
-        $sponsorId=$context && $context['approved'] ? (int)$context['billing_user_id'] : 0;
+        $sponsorId=(int)(stickerOrderSponsorUserId($db,(int)$order['user_id']) ?? 0);
         if ($sponsorId<1 || !stickerVehicleBelongsToSponsor($db,$sponsorId,(int)$order['user_id'],true)) { $db->rollback(); return false; }
         $vehicles=getStickerVehicles($db,$orderId);
         if ($order['claim_status']==='issued' && $vehicles) { $db->rollback(); return false; }
@@ -168,6 +169,7 @@ function markParkingStickerIssued(int $orderId, int $adminId, array $vehicleIds 
             $check->bind_param('i',$vehicle['id']); $check->execute();
             $registered=$check->get_result()->fetch_assoc();
             if (!$registered || !stickerVehicleBelongsToSponsor($db,$sponsorId,(int)$registered['user_id'],true)) { $db->rollback(); return false; }
+            allocateStickerVehicleSlot($db, (int)$vehicle['id']);
             $number='CS-' . str_pad((string)$orderId,6,'0',STR_PAD_LEFT) . '-' . str_pad((string)($index+1),2,'0',STR_PAD_LEFT);
             $update=$db->prepare('UPDATE parking_sticker_vehicles SET sticker_number=? WHERE order_id=? AND vehicle_id=?');
             $update->bind_param('sii',$number,$orderId,$vehicle['id']);
@@ -282,14 +284,14 @@ function paymongoPaymentMethodsForSelection(string $selection): array {
 function createPaymongoCheckoutSession(int $paymentId, array $items, string $description, string $residentName, string $residentEmail, string $successUrl, string $cancelUrl, array $extraMetadata = [], ?array $paymentMethodTypes = null): array {
     // The provider adapter also enforces payer authorization so a forged direct
     // call cannot bypass the resident payment workflow.
-    $denied=['success'=>false,'checkout_url'=>null,'checkout_id'=>null,'error'=>'Only the approved unit owner can start a payment.'];
+    $denied=['success'=>false,'checkout_url'=>null,'checkout_id'=>null,'error'=>'Only the approved unit owner or the tenant billed for their own parking can start a payment.'];
     if (!isLoggedIn()) return $denied;
     $authorizationDb=connectDb();
     $billOwner=$authorizationDb->prepare('SELECT user_id,status,amount,paymongo_checkout_id FROM payments WHERE id=? LIMIT 1');
     $billOwner->bind_param('i',$paymentId); $billOwner->execute();
     $billAccount=$billOwner->get_result()->fetch_assoc();
     if (!$billAccount || !in_array($billAccount['status'],['pending','overdue'],true) || (float)$billAccount['amount']<=0
-        || !empty($billAccount['paymongo_checkout_id']) || !residentCanPayBill($authorizationDb,(int)$_SESSION['user_id'],(int)$billAccount['user_id'])) return $denied;
+        || !empty($billAccount['paymongo_checkout_id']) || !residentCanPayBill($authorizationDb,(int)$_SESSION['user_id'],(int)$billAccount['user_id'],$paymentId)) return $denied;
     $secretKey = paymongoSecretKey();
     if ($secretKey === '') {
         return ['success' => false, 'checkout_url' => null, 'checkout_id' => null, 'error' => 'PayMongo is not configured. Set CONDO_PAYMONGO_SECRET_KEY for your PayMongo account.'];

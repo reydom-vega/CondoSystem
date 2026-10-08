@@ -4,7 +4,7 @@ if (PHP_SAPI !== 'cli' || !preg_match('/^condo_role_test_[a-f0-9]{12}$/D', geten
     http_response_code(404); exit;
 }
 $page = $argv[1] ?? '';
-$allowed = ['superadmin/residents.php', 'superadmin/units.php', 'superadmin/pending_accounts.php', 'superadmin/staff.php', 'superadmin/announcements.php', 'superadmin/admin_messages.php', 'superadmin/maintenancerequests.php', 'superadmin/parking.php', 'superadmin/parkinginventory.php', 'superadmin/violations.php', 'superadmin/registeredvehicles.php', 'superadmin/notification_delivery.php', 'security/scanner.php', 'maintenance/maintenancerequests.php', 'api/admin_messages.php', 'api/admin_dashboard.php', 'api/dashboard.php', 'api/messages.php', 'api/notifications.php'];
+$allowed = ['superadmin/residents.php', 'superadmin/units.php', 'superadmin/pending_accounts.php', 'superadmin/staff.php', 'superadmin/announcements.php', 'superadmin/admin_messages.php', 'superadmin/maintenancerequests.php', 'superadmin/parking.php', 'superadmin/parkinginventory.php', 'superadmin/violations.php', 'superadmin/registeredvehicles.php', 'superadmin/notification_delivery.php', 'security/scanner.php', 'superadmin/scanner.php', 'api/scan_history.php', 'maintenance/maintenancerequests.php', 'api/admin_messages.php', 'api/admin_dashboard.php', 'api/dashboard.php', 'api/messages.php', 'api/notifications.php'];
 if (!in_array($page, $allowed, true)) exit(1);
 $request = json_decode($argv[2] ?? '{}', true, 512, JSON_THROW_ON_ERROR);
 $_SERVER['PHP_SELF'] = $_SERVER['SCRIPT_NAME'] = '/CondoSystem3/' . $page;

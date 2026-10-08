@@ -134,7 +134,8 @@ try {
     foreach (['resident.billing.view', 'resident.amenities.book', 'resident.visitors.register', 'resident.parking.request', 'resident.vehicles.register', 'resident.maintenance.request', 'resident.messages.use', 'resident.announcements.view', 'resident.violations.view', 'resident.profile.edit'] as $permission) {
         tenantCheck(residentHasPermission($permission), 'default tenant has daily resident permission ' . $permission);
     }
-    foreach (['resident.billing.pay', 'resident.stickers.order', 'resident.permits.request', 'resident.unknown'] as $permission) tenantCheck(!residentHasPermission($permission), 'default tenant denied ' . $permission);
+    foreach (['resident.billing.pay', 'resident.permits.request', 'resident.unknown'] as $permission) tenantCheck(!residentHasPermission($permission), 'default tenant denied ' . $permission);
+    tenantCheck(residentHasPermission('resident.stickers.order'), 'approved tenant may request personal parking stickers');
     $_SESSION['account_type'] = 'Resident Owner'; $_SESSION['unit_owner_id'] = 3;
     tenantCheck(!residentHasPermission('resident.billing.pay') && (int)residentContext($db,2)['billing_user_id'] === 1, 'session metadata cannot elevate tenant or switch their unit statement');
     foreach (['AMENITIES'=>'resident.amenities.book', 'VISITORS'=>'resident.visitors.register', 'PARKING'=>'resident.parking.request', 'VEHICLES'=>'resident.vehicles.register', 'MAINTENANCE'=>'resident.maintenance.request', 'MESSAGES'=>'resident.messages.use'] as $setting => $permission) {
@@ -145,7 +146,7 @@ try {
     }
     putenv('CONDO_TENANT_PERMITS=1');
     tenantCheck(residentHasPermission('resident.permits.request'), 'management may enable tenant permit requests');
-    tenantCheck(!residentHasPermission('resident.billing.pay') && !residentHasPermission('resident.stickers.order'), 'tenant permit configuration cannot enable payments or stickers');
+    tenantCheck(!residentHasPermission('resident.billing.pay') && residentHasPermission('resident.stickers.order'), 'tenant parking access does not grant shared unit payment authority');
     putenv('CONDO_TENANT_PERMITS=0');
     tenantActor($db,7); tenantCheck(!residentHasPermission('resident.billing.view'), 'staff cannot assume tenant resident permissions');
 
@@ -159,7 +160,7 @@ try {
         tenantCheck($approved['status']==='approved' && $approved['unit_number']==='0101' && (int)$approved['unit_owner_id']===1 && (int)$approved['session_version']===1, 'approval links occupant to unique unit owner and revokes old session ' . $applicant);
     }
     tenantCheck(residentContext($db,11)['account_kind']==='occupant' && !residentCanPayBill($db,11,1), 'family account remains an occupant without owner payment rights');
-    tenantCheck(tenantRequest('parking_sticker_proof.php',2,null,['get'=>['order_id'=>999999]])['status']===403, 'tenant cannot access legacy sticker receipt endpoint with a positive order ID');
+    tenantCheck(tenantRequest('parking_sticker_proof.php',2,null,['get'=>['order_id'=>999999]])['status']===404, 'tenant receives no receipt contents for nonexistent parking order');
     tenantCheck(tenantRequest('parking_sticker_proof.php',11,null,['get'=>['order_id'=>999999]])['status']===403, 'authorized family occupant cannot access legacy sticker receipt endpoint');
     tenantCheck(tenantRequest('parking_sticker_proof.php',1,null,['get'=>['order_id'=>999999]])['status']===404, 'unit owner receives no receipt contents for a nonexistent sticker order');
     tenantActor($db,1);
@@ -197,7 +198,9 @@ try {
     tenantCheck(tenantRequest('resident/payments.php',2,['form_action'=>'pay_bill','bill_id'=>$ownerBill,'payment_method'=>'cash'])['status']===403, 'forged tenant payment POST is forbidden');
     $parking=tenantRequest('resident/parking.php',2);
     tenantCheck($parking['status']===200 && tenantXPath($parking['body'])->query('//input[@name="form_action" and @value="buy_sticker"]')->length===0, 'tenant parking page exposes no sticker order form');
-    tenantCheck(tenantRequest('resident/parking.php',2,['form_action'=>'buy_sticker','vehicle_ids'=>[1]])['status']===403, 'forged tenant sticker POST is forbidden');
+    putenv('CONDO_TENANT_PARKING=0');
+    tenantCheck(tenantRequest('resident/parking.php',2,['form_action'=>'buy_sticker','vehicle_ids'=>[1]])['status']===403, 'disabled tenant parking denies direct sticker ordering');
+    putenv('CONDO_TENANT_PARKING=1');
     tenantCheck(tenantRequest('resident/permits.php',2)['status']===403, 'tenant cannot open owner-only permit request page');
     $dashboard=tenantRequest('resident/dashboard.php',2);
     tenantCheck($dashboard['status']===200 && !str_contains($dashboard['body'],'href="permits.php"') && str_contains($dashboard['body'],'href="payments.php"'), 'tenant dashboard retains bills and hides permit navigation');
@@ -210,7 +213,7 @@ try {
     $tenantVehicle=createVehicle($db,2,'Toyota','Vios','Silver',2025,'TENANT CAR','private_uploads/vehicle_documents/fixture.pdf','application/pdf');
     tenantActor($db,7); tenantCheck(decideVehicle($db,$tenantVehicle,'approved',''), 'management can approve tenant vehicle registration');
     $vehiclePage=tenantRequest('resident/vehicles.php',2);
-    tenantCheck($vehiclePage['status']===200 && str_contains($vehiclePage['body'],'TENANT CAR') && tenantXPath($vehiclePage['body'])->query('//a[contains(normalize-space(.),"Request sticker")]')->length===0, 'approved tenant vehicle shows registration without sticker request controls');
+    tenantCheck($vehiclePage['status']===200 && str_contains($vehiclePage['body'],'TENANT CAR') && tenantXPath($vehiclePage['body'])->query('//a[contains(normalize-space(.),"Request sticker")]')->length===1, 'approved tenant vehicle offers a personal sticker request');
     foreach (['AMENITIES'=>'resident/book_amenity.php', 'VISITORS'=>'resident/visitors.php', 'VEHICLES'=>'resident/vehicles.php', 'MAINTENANCE'=>'resident/maintenance.php', 'MESSAGES'=>'resident/messages.php'] as $setting=>$page) {
         putenv('CONDO_TENANT_'.$setting.'=0');
         tenantCheck(tenantRequest($page,2)['status']===403, 'disabled tenant feature rejects direct route '.$page);

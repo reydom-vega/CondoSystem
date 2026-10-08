@@ -1,0 +1,18 @@
+{
+  "homepage_file": "/mnt/data/celandine_homepage_package/homepage.php",
+  "assets_folder": "/mnt/data/celandine_homepage_package/assets/homepage",
+  "images": [
+    "main-building.jpg",
+    "amenity-basketball-court.jpg",
+    "amenity-playground.jpg",
+    "amenity-gym.jpg",
+    "amenity-grill-garden.jpg",
+    "amenity-gazebo.jpg",
+    "interior-function-hall.jpg",
+    "interior-lobby.jpg",
+    "interior-sky-patio.jpg",
+    "interior-reception.jpg",
+    "interior-hallway.jpg",
+    "interior-elevator.jpg"
+  ]
+}

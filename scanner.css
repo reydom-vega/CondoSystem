@@ -1,0 +1,26 @@
+/* Shared QR scanner layout for security and superadmin. */
+.scanner-layout { display: grid; grid-template-columns: minmax(280px, 560px) minmax(240px, 1fr); gap: 20px; align-items: start; }
+        .scanner-panel { padding: 18px; }
+        #reader { width: 100%; overflow: hidden; border: 1px solid var(--dash-card-border); border-radius: 10px; background: #080b12; }
+        #reader video { display: block; width: 100% !important; height: auto !important; }
+        .scanner-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+        .scanner-actions button { width: auto; margin: 0; }
+        .scanner-result { min-height: 120px; padding: 14px; border: 1px solid var(--dash-card-border); border-radius: 8px; background: var(--input-bg); word-break: break-word; }
+        .scanner-result strong { display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 11px; text-transform: uppercase; }
+        .scanner-status { margin-top: 12px; color: var(--text-muted); font-size: 12px; }
+        .scanner-link { display: none; margin-top: 12px; color: var(--link-orange); word-break: break-all; }
+        .scanner-history-panel { margin-top: 20px; }
+        .scanner-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+        .scanner-history-heading h2 { margin: 0; }
+        .scanner-history-heading p { margin: 5px 0 0; color: var(--text-muted); font-size: 12px; }
+        .scanner-history-heading button { width: auto; margin: 0; }
+        .scanner-history-wrap { overflow-x: auto; }
+        .scanner-history-table { width: 100%; border-collapse: collapse; text-align: left; }
+        .scanner-history-table th, .scanner-history-table td { padding: 11px 12px; border-bottom: 1px solid var(--dash-card-border); vertical-align: top; font-size: 12px; }
+        .scanner-history-table th { color: var(--text-muted); font-size: 10px; text-transform: uppercase; white-space: nowrap; }
+        .scanner-history-content { min-width: 240px; max-width: 560px; overflow-wrap: anywhere; }
+        @media (max-width: 760px) { .scanner-layout { grid-template-columns: 1fr; } }
+        @media (max-width: 600px) {
+          .scanner-history-heading { align-items: flex-start; }
+          .scanner-history-table { min-width: 640px; }
+        }

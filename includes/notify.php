@@ -11,12 +11,13 @@ function emailLayout(string $eyebrow, string $heading, string $bodyHtml): string
         . $bodyHtml . '<p style="color:#9ca3af;font-size:11px;margin-top:28px;">The Celandine Residences &middot; Automated resident portal message.</p></div></body></html>';
 }
 
-/** Financial notices belong to the owner, including vetted legacy tenant bills. */
-function billingNoticeContact(mysqli $db,int $billUserId): ?array {
+/** Financial notices go to the unit owner or the tenant billed for personal parking. */
+function billingNoticeContact(mysqli $db,int $billUserId,?int $paymentId=null): ?array {
     $context=residentContext($db,$billUserId);
     if (!$context || !$context['billing_user_id']) return null;
     if ($context['account_kind']!=='owner' && !$context['approved']) return null;
     $ownerId=(int)$context['billing_user_id'];
+    if ($paymentId!==null && $context['account_kind']==='tenant' && residentCanPayBill($db,$billUserId,$billUserId,$paymentId)) $ownerId=$billUserId;
     $find=$db->prepare('SELECT id,full_name,email,contact_number FROM users WHERE id=?');
     $find->bind_param('i',$ownerId); $find->execute();
     return $find->get_result()->fetch_assoc() ?: null;
@@ -75,7 +76,7 @@ function ensureReminderColumn(mysqli $db): void {
 function notifyResidentOfNewBill(int $paymentId): bool {
     $db=connectDb(); if (!ensureNotificationOutboxTable($db)) return false;
     $bill=getBillWithItems($db,$paymentId); if (!$bill) return false;
-    $resident=billingNoticeContact($db,(int)$bill['user_id']);
+    $resident=billingNoticeContact($db,(int)$bill['user_id'],$paymentId);
     if (!$resident) return false;
     $amount=number_format((float)$bill['amount'],2); $due=date('F j, Y',strtotime($bill['due_date']));
     $rows=''; foreach ($bill['items'] as $item) $rows.='<tr><td>' . htmlspecialchars($item['category'],ENT_QUOTES,'UTF-8') . '</td><td>PHP ' . number_format((float)$item['amount'],2) . '</td></tr>';
@@ -91,7 +92,7 @@ function notifyResidentOfPayment(int $paymentId, ?mysqli $db = null): bool {
     $find=$db->prepare("SELECT p.amount,u.id,u.full_name,u.email,u.contact_number FROM payments p JOIN users u ON u.id=p.user_id WHERE p.id=? AND p.status='paid'");
     $find->bind_param('i',$paymentId); $find->execute(); $row=$find->get_result()->fetch_assoc();
     if (!$row) return false;
-    $contact=billingNoticeContact($db,(int)$row['id']);
+    $contact=billingNoticeContact($db,(int)$row['id'],$paymentId);
     if (!$contact) return false;
     $row=array_merge($row,$contact);
     $amount=number_format((float)$row['amount'],2);
@@ -113,8 +114,8 @@ function sendDueDateReminders(int $daysAhead = 3): array {
             $find=$db->prepare("SELECT p.amount,p.due_date,u.id,u.full_name,u.email,u.contact_number FROM payments p JOIN users u ON u.id=p.user_id WHERE p.id=? AND p.status IN ('pending','overdue') AND p.amount>0 AND (p.reminder_sent_at IS NULL OR p.reminder_sent_at<DATE_SUB(NOW(),INTERVAL 24 HOUR)) AND u.is_active=1 AND u.is_verified=1 AND u.status='approved' FOR UPDATE");
             $id=(int)$entry['id']; $find->bind_param('i',$id); $find->execute(); $row=$find->get_result()->fetch_assoc();
             if (!$row) { $db->rollback(); continue; }
-            $contact=billingNoticeContact($db,(int)$row['id']);
-            if (!$contact || !residentCanPayBill($db,(int)$contact['id'],(int)$row['id'])) { $db->rollback(); continue; }
+            $contact=billingNoticeContact($db,(int)$row['id'],$id);
+            if (!$contact || !residentCanPayBill($db,(int)$contact['id'],(int)$row['id'],$id)) { $db->rollback(); continue; }
             $row=array_merge($row,$contact);
             $amount=number_format((float)$row['amount'],2); $due=date('F j, Y',strtotime($row['due_date']));
             $overdue=$row['due_date']<date('Y-m-d'); $label=$overdue ? 'overdue' : 'due soon';

@@ -55,6 +55,18 @@ try {
         $result = authorizationRequest($page, $actor);
         checkAuthorization($result['status'] === 200, 'authorized route responds ' . $page);
     }
+    foreach ([3, 4] as $scannerActor) {
+        $scannerPath = $scannerActor === 4 ? 'superadmin/scanner.php' : 'security/scanner.php';
+        $scannerPage = authorizationRequest($scannerPath, $scannerActor);
+        checkAuthorization($scannerPage['status'] === 200 && str_contains($scannerPage['body'], 'id="startScanner"') && str_contains($scannerPage['body'], 'id="manualScanForm"'), 'authorized scanner supports camera and manual verification');
+        checkAuthorization(str_contains($scannerPage['body'], '/' . $scannerPath . '" class="sidebar-link active"'), 'scanner sidebar uses the role route and marks it active');
+        $scanHistory = authorizationRequest('api/scan_history.php', $scannerActor);
+        checkAuthorization($scanHistory['status'] === 200 && (json_decode($scanHistory['body'], true)['success'] ?? false), 'authorized scanner can read history');
+    }
+    foreach ([1, 5, 6, 7] as $scannerActor) {
+        checkAuthorization(authorizationRequest('superadmin/scanner.php', $scannerActor)['status'] === 403, 'other roles cannot access scanner');
+        checkAuthorization(authorizationRequest('api/scan_history.php', $scannerActor)['status'] === 403, 'other roles cannot read scan history');
+    }
     checkAuthorization(authorizationRequest('api/dashboard.php',2)['status'] === 403, 'pending resident API denied');
     checkAuthorization(authorizationRequest('api/dashboard.php',8)['status'] === 401, 'unverified account cannot authenticate');
     checkAuthorization(authorizationRequest('api/admin_dashboard.php',3,null,['role'=>'superadmin'])['status'] === 403, 'stored session role cannot elevate DB security role');

@@ -87,18 +87,20 @@ function ensureStickerVehicleLinks(mysqli $db): bool {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4") === true;
 }
 function getStickerVehicles(mysqli $db, int $orderId): array {
-    $stmt=$db->prepare('SELECT v.id,v.user_id,v.make,v.model,v.color,v.year,v.plate_number,v.status,sv.sticker_number FROM parking_sticker_vehicles sv JOIN vehicles v ON v.id=sv.vehicle_id WHERE sv.order_id=? ORDER BY v.id');
+    $stmt=$db->prepare('SELECT v.id,v.user_id,v.make,v.model,v.color,v.year,v.plate_number,v.status,v.parking_slot_id,ps.slot_code,ps.level,sv.sticker_number FROM parking_sticker_vehicles sv JOIN vehicles v ON v.id=sv.vehicle_id LEFT JOIN parking_slots ps ON ps.id=v.parking_slot_id WHERE sv.order_id=? ORDER BY v.id');
     $stmt->bind_param('i',$orderId); $stmt->execute(); return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 
 function stickerOrderSponsorUserId(mysqli $db, int $orderUserId): ?int {
     $context=residentContext($db,$orderUserId);
-    return $context && $context['approved'] && $context['billing_user_id'] ? (int)$context['billing_user_id'] : null;
+    return $context && $context['approved'] && $context['billing_user_id'] ? ($context['account_kind']==='tenant' ? $orderUserId : (int)$context['billing_user_id']) : null;
 }
 
 function stickerSponsorUserIds(mysqli $db, int $sponsorId): array {
     $context=residentContext($db,$sponsorId);
-    if (!$context || !$context['approved'] || $context['account_kind']!=='owner') return [];
+    if (!$context || !$context['approved']) return [];
+    if ($context['account_kind']==='tenant') return [$sponsorId];
+    if ($context['account_kind']!=='owner') return [];
     return residentBillingUserIds($db,$sponsorId);
 }
 
@@ -111,7 +113,14 @@ function stickerVehicleBelongsToSponsor(mysqli $db, int $sponsorId, int $vehicle
     $accounts=[]; foreach ($rows as $row) $accounts[(int)$row['id']]=$row;
     $owner=$accounts[$sponsorId] ?? null; $vehicleOwner=$accounts[$vehicleUserId] ?? null;
     $approved=static fn(?array $account): bool => $account && $account['role']==='resident' && $account['status']==='approved' && (int)$account['is_active']===1 && (int)$account['is_verified']===1 && normalizeUnitNumber($account['unit_number'])!=='';
-    if (!$approved($owner) || residentAccountKind($owner['account_type'])!=='owner' || !$approved($vehicleOwner)) return false;
+    if (!$approved($owner) || !$approved($vehicleOwner)) return false;
+    if (residentAccountKind($owner['account_type'])==='tenant') {
+        if ($sponsorId!==$vehicleUserId) return false;
+        $linked=$db->prepare('SELECT id,role,account_type,unit_number,unit_owner_id,status,is_active,is_verified FROM users WHERE id=? FOR UPDATE');
+        $linked->bind_param('i',$owner['unit_owner_id']); $linked->execute(); $unitOwner=$linked->get_result()->fetch_assoc();
+        return $approved($unitOwner) && residentAccountKind($unitOwner['account_type'])==='owner' && normalizeUnitNumber($unitOwner['unit_number'])===normalizeUnitNumber($owner['unit_number']);
+    }
+    if (residentAccountKind($owner['account_type'])!=='owner') return false;
     if ($sponsorId===$vehicleUserId) return true;
     return in_array(residentAccountKind($vehicleOwner['account_type']),['tenant','occupant'],true)
         && (int)$vehicleOwner['unit_owner_id']===$sponsorId

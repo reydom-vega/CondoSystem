@@ -34,7 +34,7 @@ function roleHasCapability(string $role, string $capability): bool {
         'violations.manage' => ['admin', 'superadmin', 'security'],
         'violations.issue' => ['admin', 'superadmin', 'security'],
         'violations.review' => ['admin', 'superadmin'],
-        'security.gate' => ['security'],
+        'security.gate' => ['security', 'superadmin'],
         'audit.read' => ['superadmin'],
         'analytics.read' => ['superadmin'],
         'notifications.manage' => ['superadmin'],

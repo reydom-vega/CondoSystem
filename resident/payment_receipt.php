@@ -18,16 +18,21 @@ if ($paymentId <= 0) {
 
 $connection = connectDb();
 $actorContext=residentContext($connection,$userId);
-if (!$actorContext || !$actorContext['approved'] || $actorContext['account_kind']!=='owner') {
+if (!$actorContext || !$actorContext['approved'] || !in_array($actorContext['account_kind'],['owner','tenant'],true)) {
     http_response_code(403); exit('Only the approved unit owner can download payment receipts.');
 }
 ensurePaymongoColumns($connection);
 ensureBillingTables($connection);
+if ($actorContext['account_kind']==='tenant') {
+    $check=$connection->prepare('SELECT user_id FROM payments WHERE id=?');
+    $check->bind_param('i',$paymentId); $check->execute(); $tenantBill=$check->get_result()->fetch_assoc();
+    if (!$tenantBill || !residentCanPayBill($connection,$userId,(int)$tenantBill['user_id'],$paymentId)) { http_response_code(403); exit('You can download receipts only for your own parking bills.'); }
+}
 $stmt = $connection->prepare("SELECT p.*, u.full_name, u.email, u.unit_number FROM payments p INNER JOIN users u ON u.id = p.user_id WHERE p.id = ? AND p.status = 'paid' LIMIT 1");
 $stmt->bind_param('i', $paymentId);
 $stmt->execute();
 $receipt = $stmt->get_result()->fetch_assoc();
-if (!$receipt || !residentCanPayBill($connection,$userId,(int)$receipt['user_id'])) {
+if (!$receipt || !residentCanPayBill($connection,$userId,(int)$receipt['user_id'],$paymentId)) {
     http_response_code(404);
     exit('Receipt not found.');
 }

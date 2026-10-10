@@ -93,8 +93,9 @@ if ($tableReady && $selectedUserId > 0) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celandine Residences</title>
     <link rel="stylesheet" href="../styles.css?v=<?php echo (int)filemtime(__DIR__ . '/../styles.css'); ?>">
+<?php renderPortalUiHead(); ?>
 </head>
-<body class="dashboard-page admin-page">
+<body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
             <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
@@ -205,8 +206,8 @@ if ($tableReady && $selectedUserId > 0) {
         const menuToggle = document.getElementById('menuToggle');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebarOverlay');
-        menuToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); overlay.classList.toggle('open'); });
-        overlay.addEventListener('click', () => { sidebar.classList.remove('open'); overlay.classList.remove('open'); });
+        /* Navigation is handled by the shared UI module. */
+        /* Navigation is handled by the shared UI module. */
 
         const profileMenu = document.getElementById('profileMenu');
         const profileToggle = document.getElementById('profileToggle');
@@ -264,7 +265,7 @@ if ($tableReady && $selectedUserId > 0) {
 
                     const existingMessages = messagesContainer.querySelectorAll('[data-message-id]');
                     const existingIds = new Set(Array.from(existingMessages).map(m => parseInt(m.dataset.messageId)));
-                    
+
                     let hasNewMessages = false;
                     let newMessageCount = 0;
                     let lastMessageElement = null;

@@ -40,7 +40,7 @@ function backupFixtureDump(string $database,string $dump): void {
 }
 function backupFixtureBase(mysqli $server,string $database): void {
     if (!preg_match('/^condo_backup_(?:target|legacy)_test_[a-f0-9]{12}$/D',$database)) throw new RuntimeException('Unsafe fixture schema target.');
-    $server->select_db($database); $server->multi_query(file_get_contents(dirname(__DIR__).'/database'));
+    $server->select_db($database); $server->multi_query(file_get_contents(dirname(__DIR__).'/database.sql'));
     do { $result=$server->store_result(); if ($result) $result->free(); } while ($server->more_results() && $server->next_result());
     $result=backupFixtureMigration($database);
     backupCheck($result['status']===0,'fixture migration creates prerequisite schema: '.$result['error']);

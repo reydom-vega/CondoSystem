@@ -51,8 +51,9 @@ $statusLabels = [
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celandine Residences - Maintenance Dashboard</title>
     <link rel="stylesheet" href="../styles.css">
+<?php renderPortalUiHead(); ?>
 </head>
-<body class="dashboard-page admin-page">
+<body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
             <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">

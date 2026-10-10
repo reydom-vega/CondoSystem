@@ -1094,6 +1094,7 @@ function deleteAnnouncement(int $announcementId): bool {
  * newer, self-contained feature logic.
  */
 require_once __DIR__ . '/includes/audit.php';
+require_once __DIR__ . '/includes/portal_ui.php';
 require_once __DIR__ . '/includes/authorization.php';
 require_once __DIR__ . '/includes/resident_policy.php';
 require_once __DIR__ . '/includes/resident_navigation.php';
@@ -1111,9 +1112,11 @@ require_once __DIR__ . '/includes/visitors.php';
 require_once __DIR__ . '/includes/maintenance.php';
 require_once __DIR__ . '/includes/workflows.php';
 require_once __DIR__ . '/includes/resident_services.php';
+require_once __DIR__ . '/includes/property_gate_pass.php';
 require_once __DIR__ . '/includes/parking_policy.php';
 require_once __DIR__ . '/includes/amenities.php';
 require_once __DIR__ . '/includes/access_scanner.php';
+require_once __DIR__ . '/includes/qr_scan_history.php';
 require_once __DIR__ . '/includes/visitor_parking.php';
 require_once __DIR__ . '/includes/vehicles.php';
 require_once __DIR__ . '/includes/authentication.php';

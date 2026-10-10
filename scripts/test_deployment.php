@@ -27,15 +27,16 @@ function deploymentTestCli(array $arguments, string $input = ''): array {
 }
 try {
     $server->select_db($database);
-    $server->multi_query(file_get_contents(dirname(__DIR__) . '/database'));
+    $server->multi_query(file_get_contents(dirname(__DIR__) . '/database.sql'));
     do { $result = $server->store_result(); if ($result) $result->free(); } while ($server->more_results() && $server->next_result());
     $before = deploymentTestCli(['scripts/preflight.php']);
     deploymentTestCheck($before['status'] === 1, 'base-only install fails readiness without changes');
-    $marker = $server->query("SHOW TABLES LIKE 'app_schema_versions'");
-    deploymentTestCheck($marker->num_rows === 0, 'preflight does not create schema marker');
+    deploymentTestCheck(deploymentSchemaProblems($server) === [], 'consolidated schema includes every required table and column');
+    $marker = $server->query('SELECT COUNT(*) AS n FROM app_schema_versions')->fetch_assoc();
+    deploymentTestCheck((int)$marker['n'] === 0, 'preflight does not record migration readiness');
     $noApply = deploymentTestCli(['scripts/migrate.php']);
     deploymentTestCheck($noApply['status'] === 0 && str_contains($noApply['output'], '--apply'), 'migration requires explicit apply');
-    deploymentTestCheck($server->query("SHOW TABLES LIKE 'app_schema_versions'")->num_rows === 0, 'migration help makes no database changes');
+    deploymentTestCheck((int)$server->query('SELECT COUNT(*) AS n FROM app_schema_versions')->fetch_assoc()['n'] === 0, 'migration help makes no database changes');
 
     $migration = deploymentTestCli(['scripts/migrate.php','--apply']);
     deploymentTestCheck($migration['status'] === 0, 'fresh base migration completes: ' . trim($migration['error']));

@@ -1,0 +1,4 @@
+# The original supplied WebP filenames intentionally have no extension.
+<FilesMatch "^amenity-(swimming-pool|function-hall|sky-lounge|landscape-garden)$">
+    ForceType image/webp
+</FilesMatch>

@@ -25,8 +25,9 @@ $announcements = getAnnouncements(100, true);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Announcements - Celandine Residences</title>
     <link rel="stylesheet" href="../resident.css">
+<?php renderPortalUiHead(); ?>
 </head>
-<body class="dashboard-page">
+<body class="portal-ui dashboard-page">
 
     <div class="dash-layout">
 
@@ -109,7 +110,7 @@ $announcements = getAnnouncements(100, true);
                             <div class="empty-description">Check back later for important updates from management</div>
                         </div>
                     <?php else: ?>
-                        <?php foreach ($announcements as $announcement): 
+                        <?php foreach ($announcements as $announcement):
                             $priorityClass = 'priority-low';
                             if ($announcement['priority'] === 'high') $priorityClass = 'priority-high';
                             elseif ($announcement['priority'] === 'medium') $priorityClass = 'priority-medium';
@@ -159,15 +160,9 @@ $announcements = getAnnouncements(100, true);
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebarOverlay');
 
-        menuToggle.addEventListener('click', () => {
-            sidebar.classList.toggle('open');
-            overlay.classList.toggle('open');
-        });
+        /* Navigation is handled by the shared UI module. */
 
-        overlay.addEventListener('click', () => {
-            sidebar.classList.remove('open');
-            overlay.classList.remove('open');
-        });
+        /* Navigation is handled by the shared UI module. */
 
         const profileMenu = document.getElementById('profileMenu');
         const profileToggle = document.getElementById('profileToggle');
@@ -196,7 +191,7 @@ $announcements = getAnnouncements(100, true);
         function filterAnnouncements(priority, clickedBtn) {
             const cards = document.querySelectorAll('.announcement-card');
             const buttons = document.querySelectorAll('.ann-filter-btn');
-            
+
             buttons.forEach(btn => btn.classList.remove('active'));
             clickedBtn.classList.add('active');
 

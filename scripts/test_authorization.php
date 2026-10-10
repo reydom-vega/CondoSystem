@@ -55,7 +55,7 @@ try {
         $result = authorizationRequest($page, $actor);
         checkAuthorization($result['status'] === 200, 'authorized route responds ' . $page);
     }
-    foreach ([3, 4] as $scannerActor) {
+    foreach ([3, 4, 5] as $scannerActor) {
         $scannerPath = $scannerActor === 4 ? 'superadmin/scanner.php' : 'security/scanner.php';
         $scannerPage = authorizationRequest($scannerPath, $scannerActor);
         checkAuthorization($scannerPage['status'] === 200 && str_contains($scannerPage['body'], 'id="startScanner"') && str_contains($scannerPage['body'], 'id="manualScanForm"'), 'authorized scanner supports camera and manual verification');
@@ -63,7 +63,7 @@ try {
         $scanHistory = authorizationRequest('api/scan_history.php', $scannerActor);
         checkAuthorization($scanHistory['status'] === 200 && (json_decode($scanHistory['body'], true)['success'] ?? false), 'authorized scanner can read history');
     }
-    foreach ([1, 5, 6, 7] as $scannerActor) {
+    foreach ([1, 6, 7] as $scannerActor) {
         checkAuthorization(authorizationRequest('superadmin/scanner.php', $scannerActor)['status'] === 403, 'other roles cannot access scanner');
         checkAuthorization(authorizationRequest('api/scan_history.php', $scannerActor)['status'] === 403, 'other roles cannot read scan history');
     }

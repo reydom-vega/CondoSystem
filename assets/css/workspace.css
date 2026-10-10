@@ -1,0 +1,239 @@
+/* Loaded only for the routes in portalWorkspaceModule(). */
+body.portal-ui { font-size:15px; }
+.portal-ui .dashboard-main { max-width:1680px; padding-top:32px; }
+.portal-ui .dash-title { font-size:clamp(24px,2.2vw,30px); font-weight:700; letter-spacing:-.035em; }
+.portal-ui .dash-header { margin-bottom:28px; }
+.portal-ui .sidebar-link { min-height:44px; font-size:14px; }
+.portal-ui .portal-breadcrumb { font-size:13px; margin-bottom:26px; }
+.portal-ui :is(.admin-panel,.unit-management-panel,.service-panel,.maintenance-form-card,.maintenance-history-card,.payment-methods-card,.maintenance-detail-card,.maintenance-list-card,.maintenance-admin-detail,.violation-history-panel,.resident-violation-list-panel,.resident-violation-detail) { padding:26px; border:1px solid var(--border-color); border-radius:var(--radius-card); background:var(--surface-card); box-shadow:var(--shadow-card); }
+.portal-ui .dashboard-main .unit-management-panel { height:auto; min-height:0; max-height:none; overflow:visible; }
+.portal-ui .dashboard-main :is(.unit-table-wrap,.pending-table-wrap,.bill-history-table-wrap) { flex:initial; max-height:72dvh; overflow:auto; }
+.portal-ui :is(.section-title,.admin-panel>h2,.service-panel>h2,.unit-management-panel>h3,.maintenance-list-heading h3,.maintenance-detail-heading h3) { font-size:21px; line-height:1.4; margin:0 0 18px; font-weight:650; }
+.portal-ui .dashboard-main .unit-management-panel .section-title { font-size:21px; margin-bottom:18px; }
+.portal-ui .dashboard-main>.unit-management-panel+.unit-management-panel { padding:26px !important; margin-bottom:22px !important; }
+.portal-ui :is(.unit-page-head h2,.welcome-banner h2) { font-size:25px; line-height:1.4; margin:0 0 6px; }
+.portal-ui :is(.panel-subtext,.unit-page-head p,.amenity-desc,.billing-muted,.bookings-empty,.service-empty-state,.empty-description) { font-size:14px; line-height:1.75; color:var(--text-secondary); }
+.portal-ui :is(.unit-page-head,.service-button-row,.service-button-row,.action-row) { gap:14px; margin-bottom:24px; flex-wrap:wrap; }
+.portal-ui .unit-summary { gap:8px; }
+.portal-ui .unit-summary>span { font-size:13px; padding:8px 12px; }
+.portal-ui :is(.admin-stats-grid,.stats-grid,.payment-overview-grid,.resident-violation-summary) { gap:18px; margin-bottom:26px; }
+.portal-ui .admin-stats-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); }
+.portal-ui .stats-grid[aria-label="Resident services"] { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.portal-ui :is(.admin-stat-card,.stat-card,.payment-overview-card,.resident-violation-stat,.violation-history-stat) { padding:22px; min-width:0; border:1px solid var(--border-color); border-radius:12px; background:var(--surface-card); }
+.portal-ui :is(.admin-stat-card strong,.stat-value,.payment-overview-amount,.resident-violation-stat strong) { font-size:32px; line-height:1.25; letter-spacing:-.035em; overflow-wrap:anywhere; }
+.portal-ui :is(.stat-label,.admin-stat-card>span:not(.admin-stat-icon),.payment-overview-label,.resident-violation-stat small) { font-size:13px; line-height:1.5; color:var(--text-secondary); }
+.portal-ui .stat-card p { margin:10px 0 0; font-size:14px; line-height:1.7; color:var(--text-secondary); }
+.portal-ui .admin-stat-card em { font-size:12px; }
+.portal-ui .welcome-banner { padding:26px; margin-bottom:24px; }
+.portal-ui .welcome-banner p { font-size:15px; line-height:1.7; }
+.portal-ui :is(.admin-overview-grid,.recent-grid) { gap:22px; align-items:start; }
+.portal-ui :is(.admin-list-row,.recent-item) { padding:17px 0; }
+.portal-ui :is(.admin-list-row strong,.recent-item-title,.notice-content strong) { font-size:15px; line-height:1.5; }
+.portal-ui :is(.admin-list-row small,.recent-item-sub,.notice-content p) { font-size:13px; line-height:1.7; }
+.portal-ui .announcements-section { padding:24px; border:1px solid var(--border-color); border-radius:var(--radius-card); background:var(--surface-card); }
+.portal-ui .dashboard-main label:not(.message-attachment-button):not(.payment-method-item) { color:#d5ddeb; font-size:14px; line-height:1.5; font-weight:500; }
+.portal-ui .dashboard-main :is(.field-label,.field>label,.form-group>label,.violation-field>label,.staff-create-form>label,.visitor-form>label) { display:block; margin-bottom:8px; }
+.portal-ui .dashboard-main :is(.staff-create-form,.service-form) > label:has(>input),.portal-ui .dashboard-main .service-form>label:has(>select),.portal-ui .dashboard-main .service-form>label:has(>textarea) { display:flex; flex-direction:column; gap:8px; margin:0; }
+.portal-ui .dashboard-main :is(input,select,textarea):where(:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=submit]):not([type=button])) { min-height:46px; font-size:15px; line-height:1.5; padding:11px 13px; min-width:0; }
+.portal-ui .dashboard-main textarea { min-height:120px; }
+.portal-ui .dashboard-main :is(input,select,textarea):not([type=checkbox]):not([type=radio]) { max-width:100%; }
+.portal-ui :is(.service-form,.form-grid,.maintenance-form-grid,.bill-form-grid,.violation-form-grid,.staff-create-form,.visitor-parking-form) { gap:20px; }
+.portal-ui :is(.staff-create-form,.visitor-parking-form) { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.portal-ui .visitor-parking-form { display:grid; }
+.portal-ui .maintenance-form-grid>.form-group { margin-bottom:0; }
+.portal-ui :is(.notify-check,.checkbox,.amenity-pmo-checkbox) { display:flex; align-items:flex-start; gap:10px; font-size:14px; line-height:1.6; }
+.portal-ui :is(.notify-check,.checkbox) input { margin-top:3px; }
+.portal-ui .notify-check { margin:20px 0; }
+.portal-ui :is(.service-form,.maintenance-form-grid,.violation-form-grid) :is(input,select,textarea) { width:100%; }
+.portal-ui :is(.service-form,.maintenance-form-grid,.violation-form-grid) :is(input[type=checkbox],input[type=radio]) { width:18px; }
+.portal-ui .dashboard-main :is(.service-btn,.btn-primary,.btn-secondary,.btn-neutral,button[type=submit],.maintenance-submit-btn,.maintenance-nav-button,.maintenance-action-btn) { font-size:14px; min-height:46px; line-height:1.5; }
+.portal-ui .dashboard-main .service-btn { min-width:0; max-width:100%; white-space:normal; text-align:center; }
+.portal-ui .dashboard-main :is(.btn-small,.unit-table button,.unit-table .service-btn,.unit-table .btn,.pending-actions button,.visitor-checkout-btn) { min-height:38px; font-size:13px; padding:8px 12px; }
+.portal-ui .dashboard-main :is(.btn-approve,.btn-reject,.btn-edit,.btn-delete,.visitor-checkout-btn) { border:1px solid var(--border-color); border-radius:8px; cursor:pointer; }
+.portal-ui .dashboard-main :is(.btn-approve,.visitor-checkout-btn) { background:#065f46; color:#d1fae5; border-color:#159571; }
+.portal-ui .dashboard-main :is(.btn-reject,.btn-delete) { background:#7f1d1d; color:#fee2e2; border-color:#c44141; }
+.portal-ui .dashboard-main .btn-edit { background:var(--surface-elevated); color:var(--text-primary); }
+.portal-ui :is(.unit-filters,.bill-history-filters,.staff-search-row,.parking-search-form,.violation-search,.ann-toolbar) { padding:18px; border:1px solid var(--border-color); border-radius:10px; background:var(--bg-sidebar); gap:14px; margin-bottom:22px; align-items:end; }
+.portal-ui .workspace-filter-field { display:flex; flex-direction:column; gap:8px; min-width:0; flex:1 1 180px; }
+.portal-ui .workspace-filter-field>label { display:block; position:static; width:auto; height:auto; margin:0; overflow:visible; clip:auto; white-space:normal; font-size:13px; }
+.portal-ui .dashboard-main .workspace-filter-field>:is(input,select) { flex:none; width:100%; height:46px; margin:0; }
+.portal-ui :is(.unit-filters,.staff-search-row,.bill-history-filters,.parking-search-form)>button { flex:0 0 auto; margin:0; }
+.portal-ui .dashboard-main table { font-size:14px; }
+.portal-ui .dashboard-main table :is(th,td) { padding:16px; line-height:1.65; }
+.portal-ui .dashboard-main table th { font-size:12px; letter-spacing:.035em; }
+.portal-ui .dashboard-main table td { font-size:14px; }
+.portal-ui .dashboard-main table td :is(small,p) { font-size:13px; line-height:1.65; }
+.portal-ui :is(.unit-status,.admin-pill,.badge,.maintenance-status-badge,.recent-badge,.status-badge,.service-status,.priority-badge,.visitor-badge,.status-pill,.violation-status,.penalty-badge,.audit-badge) { display:inline-flex; align-items:center; width:fit-content; max-width:100%; padding:5px 9px; font-size:12px; line-height:1.4; font-weight:600; border:1px solid currentColor; border-radius:6px; }
+.portal-ui :is(.service-status-approved,.service-status-checked_in,.service-status-checked_out,.service-status-completed) { background:#10b98112; border-color:#34d39977; color:#a7f3d0; }
+.portal-ui :is(.service-status-pending,.service-status-changes_requested) { background:#f59e0b12; border-color:#fbbf2477; color:#fde68a; }
+.portal-ui :is(.service-status-cancelled,.service-status-rejected,.service-status-expired) { background:#ef444412; border-color:#f8717177; color:#fecaca; }
+/* Billing statements and charge entry. */
+.portal-ui .billing-overview-grid { grid-template-columns:minmax(0,1.3fr) minmax(300px,1fr); gap:24px; }
+.portal-ui .billing-overview-column .soa-card { padding:24px; margin-bottom:20px; }
+.portal-ui .soa-head { gap:12px; flex-wrap:wrap; }
+.portal-ui :is(.billing-period,.billing-due,.payment-method-desc,.billing-side-empty) { font-size:14px; line-height:1.7; }
+.portal-ui .payment-method-item { padding:16px; min-height:76px; gap:14px; border-radius:10px; }
+.portal-ui .payment-method-title { font-size:15px; line-height:1.5; }
+.portal-ui .billing-history-column .history-item { border:1px solid var(--border-color); border-radius:10px; margin-bottom:14px; padding:18px; background:var(--surface-card); }
+.portal-ui .billing-history-column .history-item summary { font-size:14px; line-height:1.6; flex-wrap:wrap; }
+.portal-ui .billing-history-column .history-item summary small,.portal-ui .history-payment-meta span { font-size:12px; }
+.portal-ui .history-payment-meta strong { font-size:14px; }
+.portal-ui .dashboard-main :is(.soa-items,.history-items) { min-width:0; }
+.portal-ui .dashboard-main :is(.soa-items,.history-items) :is(th,td) { padding:13px 10px; white-space:normal; }
+.portal-ui .dashboard-main :is(.soa-items,.history-items) td:last-child { white-space:nowrap; }
+.portal-ui .history-receipt-link { min-height:42px; font-size:13px; }
+.portal-ui .dashboard-main :is(#customBillForm,#bulkGenerateForm) .workspace-charge-row { display:grid; grid-template-columns:minmax(0,2fr) minmax(120px,1fr) auto; gap:14px; align-items:end; padding:16px; margin:0 0 14px; background:var(--bg-sidebar); border:1px solid var(--border-color); border-radius:10px; }
+.portal-ui .workspace-charge-field { display:flex; flex-direction:column; gap:7px; min-width:0; }
+.portal-ui .workspace-charge-field>label { display:block; margin:0; font-size:13px; }
+.portal-ui .dashboard-main .workspace-charge-row :is(input,select) { width:100%; min-width:0; margin:0; }
+.portal-ui .workspace-charge-row button { margin:0; min-height:46px; }
+.portal-ui .dashboard-main :is(#customBillForm,#bulkGenerateForm) .bill-form-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.portal-ui .dashboard-main :is(#customBillForm,#bulkGenerateForm) .notify-check { display:flex; margin:20px 0; font-size:14px; }
+.portal-ui .dashboard-main :is(#addItemRow,#addBulkChargeRow) { margin-bottom:18px; min-height:44px; }
+.portal-ui .staff-table :is(.staff-status,.staff-last-login),.portal-ui .staff-table td strong { font-size:13px; }
+/* Violations: readable detail, clear selection, and consistent status filters. */
+.portal-ui .resident-violation-workspace { grid-template-columns:minmax(0,1.15fr) minmax(320px,1fr); gap:24px; }
+.portal-ui .resident-violation-card { padding:18px; margin-bottom:14px; border-color:var(--border-color); background:var(--bg-sidebar); }
+.portal-ui .resident-violation-card:is(.selected,:hover) { border-color:#d9770680; background:#d977060c; }
+.portal-ui .resident-violation-filters { gap:8px; padding:8px; margin-bottom:18px; background:var(--bg-sidebar); }
+.portal-ui .resident-violation-filter { min-height:40px; font-size:13px; font-weight:600; }
+.portal-ui .resident-violation-filter.active { background:#d9770626; color:#ffca83; }
+.portal-ui :is(.resident-violation-card-copy strong,.resident-violation-detail-head h2) { font-size:17px; line-height:1.5; }
+.portal-ui :is(.resident-violation-description,.resident-violation-location,.resident-violation-detail-section p,.resident-violation-detail-grid strong,.resident-violation-dispute-note) { font-size:14px; line-height:1.7; }
+.portal-ui :is(.resident-violation-detail-grid span,.resident-violation-card-copy small) { font-size:12px; }
+.portal-ui .resident-violation-detail-amount strong { font-size:30px; }
+.portal-ui .resident-violation-detail-grid { gap:18px; }
+.portal-ui :is(.violation-history-summary,.maintenance-status-overview) { gap:16px; }
+.portal-ui .violation-rate-wrap { min-width:0; overflow-x:auto; }
+.portal-ui .dashboard-main .violation-rate-table { width:100%; min-width:0; }
+/* Parking, visitors, and maintenance cards. */
+.portal-ui .parking-request-columns { gap:24px; align-items:start; }
+.portal-ui :is(.parking-request-row,.booking-item,.maintenance-request-item,.service-request) { padding:20px; margin-bottom:16px; background:var(--bg-sidebar); border:1px solid var(--border-color); border-radius:10px; }
+.portal-ui .booking-item { flex-wrap:wrap; align-items:flex-start; }
+.portal-ui .booking-item>form { min-width:0; max-width:100%; }
+.portal-ui :is(.parking-request-head,.service-request-heading,.maintenance-request-head,.booking-content) { gap:12px; flex-wrap:wrap; }
+.portal-ui :is(.parking-request-row p,.booking-content p,.service-request-description,.maintenance-request-item p,.maintenance-detail-grid p,.maintenance-admin-detail-grid p) { font-size:14px; line-height:1.75; color:var(--text-secondary); }
+.portal-ui :is(.parking-request-head strong,.booking-content h4,.service-request-heading h3,.maintenance-request-head h4) { font-size:16px; line-height:1.5; }
+.portal-ui :is(.service-request-meta,.service-request-count,.maintenance-request-code,.parking-request-row small) { font-size:13px; line-height:1.65; }
+.portal-ui :is(.parking-request-decide,.service-request-actions,.maintenance-detail-actions,.maintenance-admin-actions,.maintenance-list-actions,.parking-slot-actions) { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.portal-ui .service-request-actions>p { margin:0; }
+.portal-ui .service-request-actions :is(form,p) { max-width:100%; }
+.portal-ui .service-request-heading { margin-bottom:12px; }
+.portal-ui .service-request-description { margin:12px 0 18px; }
+.portal-ui :is(.service-parking-fields,.permit-fieldset) { border:1px solid var(--border-color); border-radius:10px; padding:20px; }
+.portal-ui .service-parking-choice { padding:16px; border:1px solid var(--border-color); border-radius:10px; background:var(--bg-sidebar); }
+.portal-ui .service-parking-choice p { margin:8px 0 0; font-size:13px; }
+.portal-ui .service-submit { display:flex; gap:12px; flex-wrap:wrap; padding-top:8px; }
+.portal-ui .parking-policy-panel { max-width:1050px; }
+.portal-ui .notification-status-filters [aria-current=page] { border-color:var(--accent-link); background:#d9770626; color:#ffca83; }
+.portal-ui .maintenance-detail-grid,.portal-ui .maintenance-admin-detail-grid { gap:20px; }
+.portal-ui :is(.maintenance-detail-grid dt,.maintenance-admin-detail-grid dt) { font-size:13px; }
+.portal-ui :is(.maintenance-detail-grid dd,.maintenance-admin-detail-grid dd) { font-size:15px; line-height:1.65; }
+.portal-ui .maintenance-status-summary { font-size:14px; }
+.portal-ui .maintenance-view-link { display:inline-flex; align-items:center; justify-content:center; min-height:40px; padding:8px 12px; border:1px solid #4b5870; border-radius:8px; background:var(--surface-elevated); color:var(--text-primary); font-size:14px; line-height:1.5; }
+/* Messages use the same layout for management and residents. */
+.portal-ui :is(.messages-shell,.admin-chat-shell) { height:clamp(600px,calc(100dvh - 210px),850px); min-height:600px; grid-template-columns:minmax(240px,.75fr) minmax(0,2fr); border:1px solid var(--border-color); border-radius:var(--radius-card); background:var(--surface-card); }
+.portal-ui :is(.conversation-list,.admin-chat-residents) { min-width:0; overflow-y:auto; background:var(--bg-sidebar); }
+.portal-ui :is(.admin-chat-resident strong,.conversation-copy strong) { font-size:15px; line-height:1.5; }
+.portal-ui :is(.admin-chat-resident small,.conversation-copy>span,.admin-chat-header>span) { font-size:13px; line-height:1.6; }
+.portal-ui .admin-chat-residents h2 { padding:20px; font-size:19px; }
+.portal-ui :is(.admin-chat-header,.thread-header) { gap:12px; flex-wrap:wrap; padding:20px 24px; }
+.portal-ui :is(.thread-messages,.admin-chat-messages) { padding:24px; gap:18px; }
+.portal-ui .thread-message { max-width:85%; font-size:15px; line-height:1.75; padding:16px 18px; }
+.portal-ui .thread-message p { font-size:15px; line-height:1.75; margin:6px 0 10px; }
+.portal-ui .thread-message .message-author { font-size:13px; font-weight:600; }
+.portal-ui .thread-message time { font-size:12px; }
+.portal-ui .reply-form { padding:20px; }
+.portal-ui .reply-controls { gap:12px; align-items:end; }
+.portal-ui .reply-controls textarea { min-height:72px; max-height:180px; }
+.portal-ui .message-attachment-button { max-width:100%; min-height:44px; font-size:13px; padding:10px; }
+.portal-ui .message-attachment-help { margin-top:10px; display:block; font-size:12px; }
+.portal-ui .message-announcements { max-height:210px; overflow-y:auto; flex-shrink:0; }
+/* Announcement reading and authoring. */
+.portal-ui .ann-toolbar { align-items:center; flex-wrap:wrap; }
+.portal-ui .ann-filters { gap:8px; flex-wrap:wrap; }
+.portal-ui .ann-filter-btn { min-height:42px; padding:9px 14px; font-size:14px; border-radius:8px; }
+.portal-ui .ann-filter-btn.active { background:#d9770626; border-color:#d9770680; color:#ffca83; }
+.portal-ui .announcement-card { padding:26px; margin-bottom:20px; }
+.portal-ui :is(.announcement-header,.announcement-info) { gap:14px; flex-wrap:wrap; }
+.portal-ui .announcement-title { font-size:20px; font-weight:650; line-height:1.5; }
+.portal-ui .announcement-meta { font-size:13px; line-height:1.65; gap:14px; flex-wrap:wrap; }
+.portal-ui .announcement-content { font-size:15px; line-height:1.85; margin-top:18px; }
+.portal-ui .announcement-footer { font-size:13px; gap:12px; flex-wrap:wrap; }
+.portal-ui .announcement-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.portal-ui .announcement-item { gap:20px; padding:20px 0; }
+.portal-ui .template-name { font-size:15px; }
+.portal-ui :is(.modal-content,.confirm-dialog) { font-size:14px; }
+.portal-ui .modal-content :is(input,select,textarea) { font-size:15px; }
+@media(max-width:1200px) {
+ .portal-ui :is(.billing-overview-grid,.resident-violation-workspace,.parking-request-columns) { grid-template-columns:minmax(0,1fr); }
+ .portal-ui :is(.admin-stats-grid,.stats-grid) { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:767px) {
+ .portal-ui .dashboard-main { padding:20px 16px 32px; }
+ .portal-ui .dash-title { font-size:23px; }
+ .portal-ui .portal-breadcrumb { font-size:12px; margin-bottom:22px; flex-wrap:wrap; }
+ .portal-ui :is(.admin-panel,.unit-management-panel,.service-panel,.maintenance-form-card,.maintenance-history-card,.payment-methods-card,.maintenance-detail-card,.maintenance-list-card,.maintenance-admin-detail,.violation-history-panel,.resident-violation-list-panel,.resident-violation-detail,.announcement-card,.announcements-section) { padding:18px; }
+ .portal-ui .dashboard-main>.unit-management-panel+.unit-management-panel { padding:18px !important; }
+ .portal-ui :is(.admin-stat-card,.stat-card,.payment-overview-card,.resident-violation-stat,.violation-history-stat) { padding:16px; }
+ .portal-ui :is(.admin-stat-card strong,.stat-value,.payment-overview-amount,.resident-violation-stat strong) { font-size:26px; }
+ .portal-ui :is(.section-title,.admin-panel>h2,.service-panel>h2,.unit-management-panel>h3,.announcement-title) { font-size:20px; }
+ .portal-ui .dashboard-main :is(input,select,textarea):where(:not([type=hidden]):not([type=checkbox]):not([type=radio])) { font-size:16px; }
+ .portal-ui :is(.staff-create-form,.visitor-parking-form,.visitor-layout,.bill-history-filters,.staff-search-row,.workspace-charge-row) { grid-template-columns:minmax(0,1fr); }
+ .portal-ui .stats-grid[aria-label="Resident services"],.portal-ui .dashboard-main :is(#customBillForm,#bulkGenerateForm) .bill-form-grid { grid-template-columns:minmax(0,1fr); }
+ .portal-ui .workspace-filter-field { width:100%; flex-basis:100%; }
+ .portal-ui .workspace-filter-field>label { white-space:normal; }
+ .portal-ui :is(.unit-filters,.staff-search-row,.bill-history-filters,.parking-search-form,.violation-search) { display:flex; flex-direction:row; flex-wrap:wrap; padding:16px; }
+ .portal-ui :is(.unit-filters,.staff-search-row,.bill-history-filters,.parking-search-form,.violation-search)>:is(label,.field,.violation-search-field) { width:100%; min-width:0; }
+ .portal-ui .dashboard-main :is(#customBillForm,#bulkGenerateForm) .workspace-charge-row { grid-template-columns:minmax(0,1fr); padding:14px; }
+ .portal-ui .workspace-charge-row button { justify-self:start; }
+ .portal-ui .billing-overview-column .soa-card { padding:16px; }
+ .portal-ui .dashboard-main .proceed-payment-btn { width:100%; }
+ .portal-ui .dashboard-main :is(.soa-items,.history-items) :is(th,td) { padding:12px 6px; font-size:13px; }
+ .portal-ui .dashboard-main .soa-items .soa-total-row td { font-size:22px; }
+ .portal-ui :is(.service-submit,.service-request-actions,.maintenance-detail-actions,.maintenance-admin-actions) { align-items:stretch; }
+ .portal-ui :is(.service-submit,.service-request-actions,.maintenance-detail-actions,.maintenance-admin-actions)>:is(a,button,form) { width:100%; }
+ .portal-ui .service-request-actions form>button { width:100%; }
+ .portal-ui .booking-item { display:grid; grid-template-columns:minmax(0,1fr); }
+ .portal-ui .booking-item>:is(a,form),.portal-ui .booking-item>form>button { width:100%; }
+ .portal-ui :is(.messages-shell,.admin-chat-shell) { height:auto; min-height:0; grid-template-columns:minmax(0,1fr); grid-template-rows:auto auto; }
+ .portal-ui :is(.conversation-list,.admin-chat-residents) { max-height:230px; border-right:0; border-bottom:1px solid var(--border-color); }
+ .portal-ui :is(.message-thread,.admin-chat-thread) { min-height:560px; }
+ .portal-ui :is(.thread-messages,.admin-chat-messages) { max-height:480px; min-height:180px; padding:16px; }
+ .portal-ui .thread-message { max-width:94%; }
+ .portal-ui :is(.admin-chat-header,.thread-header) { padding:18px; }
+ .portal-ui .reply-form { padding:16px; }
+ .portal-ui .reply-controls { flex-direction:row; flex-wrap:wrap; align-items:center; }
+ .portal-ui .reply-controls textarea { flex-basis:100%; width:100%; }
+ .portal-ui .reply-send { flex:1; }
+ .portal-ui .announcement-header { align-items:flex-start; }
+ .portal-ui .announcement-item { flex-direction:column; align-items:stretch; }
+ .portal-ui .ann-toolbar .sort-select { width:100%; }
+ /* Retain the real table and headers for assistive technology. */
+ .portal-ui .dashboard-main table.workspace-records { display:block; width:100%; min-width:0; background:transparent; }
+ .portal-ui .workspace-records>thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+ .portal-ui .workspace-records>tbody { display:block; }
+ .portal-ui .workspace-records>tbody>tr { display:block; padding:16px; margin-bottom:14px; border:1px solid var(--border-color); border-radius:10px; background:var(--bg-sidebar); }
+ .portal-ui .dashboard-main .workspace-records>tbody>tr>td { display:block; width:100%; min-width:0; max-width:none; padding:12px 0; white-space:normal; text-align:left; border-bottom:1px solid #343d5077; overflow-wrap:anywhere; }
+ .portal-ui .workspace-records td[data-column-label]::before { content:attr(data-column-label); display:block; margin-bottom:6px; color:var(--text-muted); font-size:12px; font-weight:500; }
+ .portal-ui .dashboard-main .workspace-records>tbody>tr>td:first-child { padding-top:0; }
+ .portal-ui .dashboard-main .workspace-records>tbody>tr>td:last-child { padding-bottom:0; border-bottom:0; }
+ .portal-ui .workspace-records td :is(input,select,textarea) { min-width:0; max-width:100%; }
+ .portal-ui .workspace-records :is(.pending-actions,.staff-actions,.violation-actions,.parking-slot-actions) { display:flex; gap:10px; flex-wrap:wrap; }
+ .portal-ui .workspace-records :is(.unit-status,.badge,.visitor-badge,.status-pill) { white-space:normal; }
+ .portal-ui :is(.unit-table-wrap,.pending-table-wrap,.bill-history-table-wrap,.visitor-panel>.portal-table-scroll):has(>.workspace-records) { border:0; border-radius:0; background:transparent; }
+}
+@media(max-width:380px) {
+ .portal-ui .dash-title { font-size:20px; }
+ .portal-ui :is(.admin-stats-grid,.stats-grid,.payment-overview-grid,.resident-violation-summary,.violation-history-summary) { grid-template-columns:minmax(0,1fr); }
+ .portal-ui :is(.maintenance-detail-grid,.maintenance-admin-detail-grid,.resident-violation-detail-grid) { grid-template-columns:minmax(0,1fr); }
+}
+@media print {
+ .portal-ui .dashboard-main { max-width:none; padding:0; }
+ .portal-ui .workspace-records { display:table !important; }
+ .portal-ui .workspace-records>thead { position:static; display:table-header-group; clip-path:none; width:auto; height:auto; }
+ .portal-ui .workspace-records>tbody { display:table-row-group; }
+ .portal-ui .workspace-records>tbody>tr { display:table-row; }
+ .portal-ui .dashboard-main .workspace-records>tbody>tr>td { display:table-cell; padding:10px; }
+ .portal-ui .workspace-records td[data-column-label]::before { display:none; }
+}

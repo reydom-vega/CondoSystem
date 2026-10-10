@@ -1,0 +1,57 @@
+/* Checkout return presentation. Shared portal tokens supply all theme colors. */
+.portal-ui .payment-return-card {
+  --return-color:var(--status-danger);
+  width:100%; max-width:620px; margin:32px auto; padding:32px;
+  text-align:left; box-shadow:var(--shadow-card);
+}
+.portal-ui .payment-return-card--success { --return-color:var(--status-success); }
+.portal-ui .payment-return-card--warning { --return-color:var(--status-warning); }
+.portal-ui .payment-return-card--info { --return-color:var(--status-info); }
+.payment-return-card :is(p,h2,h3,dl,dd) { margin:0; }
+.payment-return-header { text-align:center; }
+.payment-return-card .payment-return-icon {
+  display:grid; place-items:center; width:64px; height:64px; margin:0 auto 16px;
+  border:1px solid var(--border-color); border-radius:18px;
+  background:var(--surface-elevated); color:var(--return-color);
+}
+.payment-return-icon > svg { width:32px; height:32px; }
+.payment-return-badge {
+  display:inline-flex; justify-content:center; padding:5px 12px;
+  border:1px solid currentColor; border-radius:999px;
+  color:var(--return-color); font-size:12px; line-height:1.4; font-weight:600;
+}
+.portal-ui .payment-return-card h2 { margin:14px 0 10px; font-size:28px; line-height:1.25; font-weight:700; }
+.portal-ui .payment-return-card .payment-return-description { margin:0 auto; max-width:480px; font-size:15px; line-height:1.7; color:var(--text-secondary); }
+.payment-return-amount {
+  display:flex; flex-direction:column; align-items:center; gap:4px; margin-top:26px; padding:20px 16px;
+  border:1px solid var(--border-color); border-radius:var(--radius-card); background:var(--bg-sidebar); text-align:center;
+}
+.payment-return-amount > span { font-size:13px; color:var(--text-secondary); }
+.payment-return-amount > strong { max-width:100%; color:var(--text-primary); font-size:36px; line-height:1.3; font-weight:700; letter-spacing:-.025em; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.payment-return-card .payment-return-details { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 20px; margin-top:22px; }
+.payment-return-details > div { min-width:0; }
+.payment-return-details dt { font-size:12px; line-height:1.5; color:var(--text-muted); }
+.payment-return-details dd { margin-top:4px; font-size:14px; line-height:1.6; font-weight:600; color:var(--text-primary); overflow-wrap:anywhere; }
+.payment-return-note { display:flex; align-items:flex-start; gap:12px; margin-top:24px; padding:16px; border:1px solid var(--border-color); border-radius:var(--radius-control); background:var(--surface-elevated); }
+.payment-return-note > .system-icon { display:inline-flex; flex-shrink:0; margin-top:2px; color:var(--return-color); }
+.payment-return-note svg { width:20px; height:20px; }
+.portal-ui .payment-return-note h3 { margin:0 0 4px; font-size:14px; font-weight:600; }
+.portal-ui .payment-return-note p { margin:0; color:var(--text-secondary); font-size:13px; line-height:1.65; }
+.payment-return-actions { margin-top:26px; padding-top:24px; border-top:1px solid var(--border-color); }
+.portal-ui.payment-return-page .payment-return-card .payment-return-action { display:flex; width:100%; min-width:0; min-height:46px; margin:0; font-size:14px; text-align:center; transition:background .18s,transform .18s; }
+.payment-return-action > .system-icon { display:inline-flex; flex-shrink:0; }
+.payment-return-action svg { width:18px; height:18px; }
+.payment-return-action:hover { transform:translateY(-1px); }
+.portal-ui .payment-return-card .payment-return-help { margin:16px 0 0; color:var(--text-muted); font-size:12px; line-height:1.6; text-align:center; }
+@media(max-width:600px) {
+  .portal-ui .payment-return-card { margin:20px auto; padding:24px 20px; }
+  .portal-ui .payment-return-card h2 { font-size:26px; }
+  .payment-return-amount > strong { font-size:32px; }
+  .payment-return-card .payment-return-details { gap:16px; }
+}
+@media(max-width:380px) {
+  .payment-return-card .payment-return-details { grid-template-columns:1fr; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .payment-return-action:hover { transform:none; }
+}

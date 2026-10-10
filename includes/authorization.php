@@ -34,7 +34,8 @@ function roleHasCapability(string $role, string $capability): bool {
         'violations.manage' => ['admin', 'superadmin', 'security'],
         'violations.issue' => ['admin', 'superadmin', 'security'],
         'violations.review' => ['admin', 'superadmin'],
-        'security.gate' => ['security', 'superadmin'],
+        'security.gate' => ['security', 'admin', 'superadmin'],
+        'scan_history.export' => ['admin', 'superadmin'],
         'audit.read' => ['superadmin'],
         'analytics.read' => ['superadmin'],
         'notifications.manage' => ['superadmin'],
@@ -65,7 +66,8 @@ function requireCapability(string $capability, bool $api = false): void {
         echo json_encode(['error' => $loggedIn ? 'Access denied' : 'Unauthorized']);
         exit;
     }
-    exit('Access denied.');
+    renderPortalError('Access denied. Your account does not have permission to open this page.');
+    exit;
 }
 
 /** Return an application-relative canonical dashboard route for a role. */

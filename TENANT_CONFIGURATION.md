@@ -13,7 +13,7 @@ This release distinguishes a **unit owner** from a **tenant or authorized occupa
 | Temporary visitor parking | Available | Available by default; own visitors and requests only |
 | Vehicle registration | Register own vehicle | Register own vehicle by default |
 | Paid parking stickers | Order for approved own or linked occupants' vehicles; owner receives the bill | Tenant orders for own approved vehicles and pays own parking bill |
-| Permit requests | Available | Disabled by default |
+| Permit requests | Available | Enabled in the recommended configuration; management review required |
 | Violations | Own records and disputes | Own records and disputes |
 
 **Family/Relative of the Owner** and **Friend of Owner** use the same restricted policy as tenants. They are displayed as authorized occupants. Staff roles retain their separate capability rules.
@@ -33,12 +33,12 @@ CONDO_TENANT_PARKING=1
 CONDO_TENANT_VEHICLES=1
 CONDO_TENANT_MAINTENANCE=1
 CONDO_TENANT_MESSAGES=1
-CONDO_TENANT_PERMITS=0
+CONDO_TENANT_PERMITS=1
 ```
 
 Use `1` to enable a listed tenant service and `0` to disable it. These settings apply to tenants and authorized occupants, and do not remove owner permissions. Change the deployment's private environment configuration; process environment values take precedence over `.env`. Restart persistent PHP workers when needed for environment changes to take effect.
 
-Keep permits disabled unless management permits tenants to submit these requests. Even when enabled, permits require management review. Shared unit payment authority remains owner-only. CONDO_TENANT_PARKING also controls whether an approved tenant can place personal sticker orders; tenants can still settle their existing personal parking bills if new parking requests are disabled. Authorized occupants retain the owner-managed sticker policy. Disabling a daily service removes its navigation/actions and denies direct page/API/workflow access; hiding buttons alone is not the permission boundary.
+The recommended configuration enables tenant permit requests. Set CONDO_TENANT_PERMITS=0 to disable them. Permits require management review. Shared unit payment authority remains owner-only. CONDO_TENANT_PARKING also controls whether an approved tenant can place personal sticker orders; tenants can still settle their existing personal parking bills if new parking requests are disabled. Authorized occupants retain the owner-managed sticker policy. Disabling a daily service removes its navigation/actions and denies direct page/API/workflow access; hiding buttons alone is not the permission boundary.
 
 ## Signup and approval
 
@@ -47,7 +47,7 @@ Keep permits disabled unless management permits tenants to submit these requests
 3. Approval links the tenant using `users.unit_owner_id` to the one active, verified, approved owner of the selected unit. Both unit numbers must match after normalization. A unit can have one owner and multiple approved occupants.
 4. Resident permissions read the current stored relationship. A tenant loses service and billing access when the account, owner, link or unit is no longer valid. An account cannot obtain access merely by copying another resident's unit number.
 
-Tenants use the resident dashboard, which displays **Tenant**, **Unit Bills** and the read-only billing explanation. Their default menu excludes permits and allows personal parking sticker orders when parking is enabled. Their visitors, vehicle documents, maintenance requests and conversations remain scoped to their own account.
+Tenants use the resident dashboard, which displays **Tenant**, **Unit Bills** and the read-only billing explanation. With the recommended configuration, their menu includes permits and allows personal parking sticker orders when parking is enabled. Their permits, visitors, vehicle documents, maintenance requests and conversations remain scoped to their own account.
 
 ## Vehicle and sticker flow
 

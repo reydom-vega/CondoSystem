@@ -74,8 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Resend Verification Email</title>
     <link rel="stylesheet" href="styles.css">
+<?php renderPortalUiHead(); ?>
 </head>
-<body>
+<body class="portal-ui portal-account-page">
     <div class="card glass-card">
         <div class="form-panel">
             <h1>Resend Verification Email</h1>
@@ -99,6 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php echo workflowCsrfField(); ?>
                 <div class="input-wrap">
                     <?php echo systemIconFromGlyph('✉️', 'icon'); ?>
+                    <label class="field-label" for="email">Email address</label>
                     <input type="email" id="email" name="email" placeholder="Email address" value="<?php echo htmlspecialchars($email); ?>" required>
                 </div>
                 <button type="submit">Resend Email</button>

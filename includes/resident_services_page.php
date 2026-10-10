@@ -19,7 +19,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$ready) throw new RuntimeException('Request storage is unavailable.');
         $action = $_POST['action'] ?? 'create';
         $id = (int)($_POST['request_id'] ?? 0);
-        if ($staffServices) {
+        if ($serviceKind === 'permit' && str_starts_with((string)$action, 'gate_')) {
+            if ($action === 'gate_save') {
+                if ($staffServices) throw new InvalidArgumentException('Only residents can submit permits.');
+                $id = savePropertyGateRequest($db, $_POST, $_FILES, $id);
+            } else {
+                gateTransition($db, $id, substr($action, 5), $_POST);
+            }
+            logAudit('update', 'resident_service_request', $id, $action);
+        } elseif ($staffServices) {
             if (!decideResidentServiceRequest($db, $id, (string)($_POST['decision'] ?? ''), trim((string)($_POST['admin_notes'] ?? '')))) throw new InvalidArgumentException('The request cannot be updated. It may already be processed or expired.');
             logAudit($_POST['decision'] === 'approved' ? 'approve' : 'reject', 'resident_service_request', $id);
         } elseif ($action === 'cancel') {
@@ -55,10 +63,17 @@ function serviceEscape($value): string { return htmlspecialchars((string)$value,
 function serviceValue(string $name, string $default = ''): string { return serviceEscape(is_string($_POST[$name] ?? null) ? $_POST[$name] : $default); }
 $canRequestParking = $staffServices || residentHasPermission('resident.parking.request');
 $needsParking = $canRequestParking && ($_SERVER['REQUEST_METHOD'] === 'POST' ? ($_POST['needs_parking'] ?? '') : ($_GET['needs_parking'] ?? '')) === '1';
+$permitDetail = null;
+if ($serviceKind === 'permit' && isset($_GET['request_id'])) {
+    $permitDetail = gateRequest($db, (int)$_GET['request_id']);
+    if (!$permitDetail || $permitDetail['request_kind'] !== 'permit' || !gateCanView($db, $permitDetail)) { http_response_code(404); exit('Permit not found.'); }
+}
 ?>
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title><?= serviceEscape($title) ?> - Celandine Residences</title><link rel="stylesheet" href="../<?= $staffServices ? 'styles' : 'resident' ?>.css"><link rel="stylesheet" href="../services.css?v=<?= filemtime(__DIR__ . '/../services.css') ?>"></head>
-<body class="dashboard-page"><div class="dash-layout">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title><?= serviceEscape($title) ?> - Celandine Residences</title><link rel="stylesheet" href="../<?= $staffServices ? 'styles' : 'resident' ?>.css"><link rel="stylesheet" href="../services.css?v=<?= filemtime(__DIR__ . '/../services.css') ?>"><?php renderPortalUiHead(); ?>
+<?php if ($serviceKind === 'permit' && !$staffServices): ?><link rel="stylesheet" href="../assets/css/permit-requests.css?v=<?= filemtime(__DIR__ . '/../assets/css/permit-requests.css') ?>"><?php endif; ?>
+</head>
+<body class="portal-ui dashboard-page<?= $serviceKind === 'permit' && !$staffServices ? ' permit-request-page' : '' ?>"><div class="dash-layout">
 <aside class="sidebar" id="sidebar"><a href="<?= $staffServices ? buildUrl(dashboardPathForRole()) : 'dashboard.php' ?>" class="sidebar-brand"><?php include __DIR__ . '/../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a><nav class="sidebar-nav">
 <?php if ($staffServices): ?><?php renderStaffSidebarNavigation(); ?><?php else: ?>
 <?php renderResidentSidebarNavigation($serviceKind === 'visitor' ? 'visitors.php' : 'permits.php'); ?>
@@ -67,11 +82,15 @@ $needsParking = $canRequestParking && ($_SERVER['REQUEST_METHOD'] === 'POST' ? (
 <?php if ($error): ?><div class="alert error" role="alert"><?= serviceEscape($error) ?></div><?php endif; ?>
 <?php if ($flash): ?><div class="alert success" role="status"><?= serviceEscape($flash['message']) ?></div><?php endif; ?>
 <?php if (!$ready): ?><div class="alert error">Request storage is unavailable.</div><?php endif; ?>
+<?php if ($serviceKind === 'permit'): ?>
+<?php include __DIR__ . '/permit_requests_content.php'; ?>
+<?php else: ?>
 <?php if (!$staffServices && $ready): ?>
 <section class="service-panel"><h2><?= $serviceKind === 'visitor' ? 'Register an expected visitor' : 'Request a permit' ?></h2><p><?= $serviceKind === 'visitor' ? ('Tell security who is visiting your unit and when.' . ($canRequestParking ? ' If your guest brings a vehicle, submit their parking request here too.' : ' Visitor parking is disabled for your account type.')) : 'Management reviews your request. An approved permit authorizes only the activity and dates shown.' ?></p>
 <form method="post" class="service-form"><?= workflowCsrfField() ?>
 <?php if ($serviceKind === 'visitor'): ?>
-<label class="field-label" for="visitor_name">Visitor name<input id="visitor_name" name="visitor_name" maxlength="120" value="<?= serviceValue('visitor_name') ?>" placeholder="Guest's full name" autocomplete="off" required></label><label class="field-label" for="visitor_contact">Contact number (optional)<input id="visitor_contact" name="visitor_contact" maxlength="30" type="tel" value="<?= serviceValue('visitor_contact') ?>" placeholder="e.g. 0917 123 4567" autocomplete="off"></label>
+<label class="field-label" for="visitor_name">Visitor / group representative name<input id="visitor_name" name="visitor_name" maxlength="120" value="<?= serviceValue('visitor_name') ?>" placeholder="Guest's full name" autocomplete="off" required></label><label class="field-label" for="visitor_contact">Contact number (optional)<input id="visitor_contact" name="visitor_contact" maxlength="30" type="tel" value="<?= serviceValue('visitor_contact') ?>" placeholder="e.g. 0917 123 4567" autocomplete="off"></label>
+<label class="field-label" for="visitor_count">Number of visitors<input id="visitor_count" name="visitor_count" type="number" min="1" max="65535" step="1" value="<?= serviceValue('visitor_count', '1') ?>" aria-describedby="visitorCountHelp" required><small id="visitorCountHelp">Total people visiting, including the named visitor.</small></label>
 <?php else: ?><label class="field-label" for="permit_type">Permit type<select id="permit_type" name="permit_type" required><?php foreach (RESIDENT_PERMIT_TYPES as $type): ?><option <?= ($_POST['permit_type'] ?? '') === $type ? 'selected' : '' ?>><?= serviceEscape($type) ?></option><?php endforeach; ?></select></label><?php endif; ?>
 <label class="field-label" for="service_start_date"><?= $serviceKind === 'visitor' ? 'Visit date' : 'Start date' ?><input id="service_start_date" name="start_date" type="date" min="<?= date('Y-m-d') ?>" value="<?= serviceValue('start_date') ?>" required></label>
 <?php if ($serviceKind === 'permit'): ?><label class="field-label" for="service_end_date">End date<input id="service_end_date" name="end_date" type="date" min="<?= date('Y-m-d') ?>" value="<?= serviceValue('end_date') ?>" required></label><?php endif; ?>
@@ -79,14 +98,16 @@ $needsParking = $canRequestParking && ($_SERVER['REQUEST_METHOD'] === 'POST' ? (
 <?php if ($serviceKind === 'visitor' && $canRequestParking): ?><div class="service-wide service-parking-choice"><label class="checkbox" for="needs_parking"><input type="checkbox" id="needs_parking" name="needs_parking" value="1" aria-controls="visitorParkingFields" <?= $needsParking ? 'checked' : '' ?>> My visitor needs parking</label><p>A parking request for the visit date will be submitted with this registration. Security reviews access and parking slot availability.</p></div><fieldset id="visitorParkingFields" class="service-wide service-parking-fields" <?= $needsParking ? '' : 'hidden disabled' ?>><legend>Visitor vehicle</legend><div class="service-form"><label class="field-label" for="visitor_vehicle_plate">Plate number<input id="visitor_vehicle_plate" name="vehicle_plate" maxlength="20" value="<?= serviceValue('vehicle_plate') ?>" placeholder="e.g. ABC 1234" required></label><label class="field-label" for="visitor_vehicle_description">Vehicle (optional)<input id="visitor_vehicle_description" name="vehicle_description" maxlength="120" value="<?= serviceValue('vehicle_description') ?>" placeholder="e.g. Silver Toyota Vios"></label></div></fieldset><?php endif; ?>
 <div class="service-wide service-submit"><button type="submit"><?= $serviceKind === 'visitor' ? 'Register visitor' : 'Submit for review' ?></button><?php if ($serviceKind === 'visitor' && $canRequestParking): ?><a class="service-btn service-btn-secondary" href="parking.php#visitorParking">Request parking for an existing visitor</a><?php endif; ?></div></form></section>
 <?php endif; ?>
-<section class="service-panel"><h2><?= $staffServices ? 'Review requests' : 'Your requests' ?></h2>
+<section class="service-panel service-request-list"><h2><?= $staffServices ? 'Review requests' : 'Your requests' ?></h2>
 <?php if (!$requests): ?><p>No requests yet.</p><?php endif; ?>
-<?php foreach ($requests as $request): ?><article class="service-request"><div class="service-request-heading"><h3>#<?= (int)$request['id'] ?> · <?= serviceEscape($request['request_kind'] === 'visitor' ? $request['visitor_name'] : $request['permit_type']) ?></h3><span class="badge"><?= serviceEscape($request['status']) ?><?= $request['end_date'] < date('Y-m-d') ? ' · expired' : '' ?></span></div>
-<p><?= serviceEscape($request['start_date']) ?><?= $request['start_date'] !== $request['end_date'] ? ' to ' . serviceEscape($request['end_date']) : '' ?> · Unit <?= serviceEscape($request['unit_number']) ?><?php if ($staffServices): ?> · <?= serviceEscape($request['full_name']) ?><?php endif; ?></p>
-<p><?= serviceEscape($request['details']) ?></p><?php if ($request['admin_notes']): ?><p>Review note: <?= serviceEscape($request['admin_notes']) ?></p><?php endif; ?>
-<?php if ($serviceKind === 'visitor' && $canRequestParking): ?><?php $visitorParking = $linkedParking[(int)$request['id']] ?? null; ?><?php if ($visitorParking): ?><p class="service-parking-status">Parking: <strong><?= serviceEscape(ucfirst($visitorParking['status'])) ?></strong> · <?= serviceEscape($visitorParking['vehicle_plate']) ?> <a class="service-btn service-btn-secondary" href="parking.php#parking-request-<?= (int)$visitorParking['id'] ?>">View parking request</a></p><?php endif; ?><?php if (!$staffServices && (!$visitorParking || in_array($visitorParking['status'], ['cancelled','rejected'], true)) && in_array($request['status'], ['pending','approved','checked_in'], true) && $request['end_date'] >= date('Y-m-d')): ?><p><a class="service-btn service-btn-secondary" href="parking.php?visitor_id=<?= (int)$request['id'] ?>#visitorParking">Request parking for this visitor</a></p><?php endif; ?><?php endif; ?>
+<?php foreach ($requests as $request): ?><article class="service-request"><div class="service-request-heading"><h3>#<?= (int)$request['id'] ?> · <?= serviceEscape($request['request_kind'] === 'visitor' ? $request['visitor_name'] : $request['permit_type']) ?></h3><span class="service-status service-status-<?= serviceEscape($request['status']) ?>"><?= serviceEscape(ucfirst(str_replace('_', ' ', $request['status']))) ?><?= $request['end_date'] < date('Y-m-d') ? ' · expired' : '' ?></span></div>
+<p class="service-request-meta"><?= serviceEscape($request['start_date']) ?><?= $request['start_date'] !== $request['end_date'] ? ' to ' . serviceEscape($request['end_date']) : '' ?> · Unit <?= serviceEscape($request['unit_number']) ?><?php if ($staffServices): ?> · <?= serviceEscape($request['full_name']) ?><?php endif; ?></p>
+<?php if ($request['request_kind'] === 'visitor'): ?><p class="service-request-count">Number of visitors: <strong><?= (int)$request['visitor_count'] ?></strong></p><?php endif; ?>
+<p class="service-request-description"><?= serviceEscape($request['details']) ?></p><?php if ($request['admin_notes']): ?><p>Review note: <?= serviceEscape($request['admin_notes']) ?></p><?php endif; ?>
+<div class="service-request-actions"><?php if ($serviceKind === 'visitor' && $canRequestParking): ?><?php $visitorParking = $linkedParking[(int)$request['id']] ?? null; ?><?php if ($visitorParking): ?><p class="service-parking-status">Parking: <strong><?= serviceEscape(ucfirst($visitorParking['status'])) ?></strong> · <?= serviceEscape($visitorParking['vehicle_plate']) ?> <a class="service-btn service-btn-secondary" href="parking.php#parking-request-<?= (int)$visitorParking['id'] ?>">View parking request</a></p><?php endif; ?><?php if (!$staffServices && (!$visitorParking || in_array($visitorParking['status'], ['cancelled','rejected'], true)) && in_array($request['status'], ['pending','approved','checked_in'], true) && $request['end_date'] >= date('Y-m-d')): ?><p><a class="service-btn service-btn-secondary" href="parking.php?visitor_id=<?= (int)$request['id'] ?>#visitorParking">Request parking for this visitor</a></p><?php endif; ?><?php endif; ?>
 <?php if (in_array($request['status'], ['approved','checked_in','checked_out'], true)): ?><a class="service-btn service-btn-secondary" href="<?= serviceEscape(residentServicePassUrl($request)) ?>">View access pass</a><?php endif; ?>
 <?php if ($staffServices && $request['status'] === 'pending' && $request['end_date'] >= date('Y-m-d')): ?><form method="post" class="service-actions"><?= workflowCsrfField() ?><input type="hidden" name="request_id" value="<?= (int)$request['id'] ?>"><input name="admin_notes" maxlength="500" placeholder="Review note"><button name="decision" value="approved">Approve</button><button name="decision" value="rejected">Reject</button></form>
 <?php elseif (!$staffServices && in_array($request['status'], ['pending','approved'], true)): ?><form method="post" class="service-actions"><?= workflowCsrfField() ?><input type="hidden" name="action" value="cancel"><input type="hidden" name="request_id" value="<?= (int)$request['id'] ?>"><button type="submit" class="service-btn service-btn-danger">Cancel request</button></form><?php endif; ?>
-</article><?php endforeach; ?></section></main></div>
+</div></article><?php endforeach; ?></section>
+<?php endif; ?></main></div>
 <script src="../js/services-menu.js"></script><script src="../js/profile-menu.js"></script><script src="../js/notification-menu.js"></script></body></html>

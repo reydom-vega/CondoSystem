@@ -25,7 +25,7 @@ function authActor(int $id, int $version = 0): void {
 }
 try {
     $server->select_db($database);
-    $server->multi_query(file_get_contents(dirname(__DIR__) . '/database'));
+    $server->multi_query(file_get_contents(dirname(__DIR__) . '/database.sql'));
     do { $result = $server->store_result(); if ($result) $result->free(); } while ($server->more_results() && $server->next_result());
     [$status, $out, $err] = authProcess(['scripts/migrate.php','--apply']);
     authCheck($status === 0, 'authentication schema migrated: ' . $err);
@@ -128,12 +128,44 @@ try {
         $db->query('DROP TRIGGER reject_fixture_password');
         curl_setopt_array($curl,[CURLOPT_HTTPGET=>true,CURLOPT_URL=>$base.'/logout.php']); $html=curl_exec($curl);
         authCheck(curl_getinfo($curl,CURLINFO_HTTP_CODE)===200 && preg_match('/name="csrf_token" value="([a-f0-9]+)"/',$html,$match)===1, 'logout GET offers protected confirmation');
+        authCheck(str_contains($html,'href="resident/dashboard.php"') && str_contains($html,'Return to dashboard'), 'approved resident can return to their dashboard from sign out');
+        foreach (['pending','rejected'] as $applicationStatus) {
+            $db->query("UPDATE users SET status='$applicationStatus' WHERE id=1");
+            $html=curl_exec($curl);
+            authCheck(curl_getinfo($curl,CURLINFO_HTTP_CODE)===200 && str_contains($html,'href="signuppending.php"') && str_contains($html,'Return to application status') && !str_contains($html,'Return to dashboard'), $applicationStatus.' resident returns to application status from sign out');
+        }
+        $db->query("UPDATE users SET role='security',status='approved' WHERE id=1");
+        $html=curl_exec($curl);
+        authCheck(str_contains($html,'href="security/security_dashboard.php"'), 'staff sign-out return keeps its role dashboard');
+        $db->query("UPDATE users SET role='resident' WHERE id=1");
         curl_setopt($curl,CURLOPT_URL,$base.'/login.php'); curl_exec($curl);
         authCheck(curl_getinfo($curl,CURLINFO_HTTP_CODE)===302, 'GET logout does not mutate session');
         curl_setopt_array($curl,[CURLOPT_URL=>$base.'/logout.php',CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>http_build_query(['csrf_token'=>$match[1]])]); curl_exec($curl);
         authCheck(curl_getinfo($curl,CURLINFO_HTTP_CODE)===302, 'logout POST clears session');
         curl_setopt_array($curl,[CURLOPT_HTTPGET=>true,CURLOPT_URL=>$base.'/login.php']); curl_exec($curl);
         authCheck(curl_getinfo($curl,CURLINFO_HTTP_CODE)===200, 'logged out user returns to sign in');
+        // Browser-managed password saving uses the same protected login handler.
+        $html=curl_exec($curl); preg_match('/name="csrf_token" value="([a-f0-9]+)"/',$html,$match);
+        curl_setopt_array($curl,[CURLOPT_HTTPHEADER=>['Accept: application/json'],CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>http_build_query(['identifier'=>'fixture','password'=>'NewPassword@123','remember_me'=>'1'])]);
+        curl_exec($curl);
+        authCheck(curl_getinfo($curl,CURLINFO_HTTP_CODE)===403, 'password-manager login cannot bypass CSRF');
+        $login=['csrf_token'=>$match[1],'identifier'=>'fixture','password'=>'WrongFixture!123','remember_me'=>'1'];
+        curl_setopt($curl,CURLOPT_POSTFIELDS,http_build_query($login)); $body=curl_exec($curl);$result=json_decode($body,true);
+        authCheck(curl_getinfo($curl,CURLINFO_HTTP_CODE)===422 && !empty($result['errors']) && empty($result['save_credentials']), 'incorrect password never requests browser credential storage');
+        authCheck(!str_contains($body,$login['password']), 'authentication response never echoes a password');
+        $login['password']='NewPassword@123'; curl_setopt($curl,CURLOPT_POSTFIELDS,http_build_query($login));$body=curl_exec($curl);$result=json_decode($body,true);
+        authCheck(curl_getinfo($curl,CURLINFO_HTTP_CODE)===200 && $result['save_credentials']===true && $result['redirect']==='resident/dashboard.php', 'verified remembered login can ask the browser to save credentials');
+        authCheck(!str_contains($body,$login['password']) && str_contains(curl_getinfo($curl,CURLINFO_CONTENT_TYPE),'application/json'), 'successful credential response contains no password');
+        authCheck((int)$db->query('SELECT COUNT(*) AS n FROM remember_tokens WHERE user_id=1')->fetch_assoc()['n']===1, 'remembered browser login still issues a persistent token');
+        curl_setopt($curl,CURLOPT_POSTFIELDS,http_build_query($login));$result=json_decode(curl_exec($curl),true);
+        authCheck($result['save_credentials']===false, 'existing session does not claim an unverified password was authenticated');
+        curl_setopt_array($curl,[CURLOPT_HTTPHEADER=>[],CURLOPT_HTTPGET=>true,CURLOPT_URL=>$base.'/logout.php']);$html=curl_exec($curl);preg_match('/name="csrf_token" value="([a-f0-9]+)"/',$html,$match);
+        curl_setopt_array($curl,[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>http_build_query(['csrf_token'=>$match[1]])]);curl_exec($curl);
+        authCheck(curl_getinfo($curl,CURLINFO_HTTP_CODE)===302 && (int)$db->query('SELECT COUNT(*) AS n FROM remember_tokens WHERE user_id=1')->fetch_assoc()['n']===0, 'logout still revokes the server token independently of browser saved passwords');
+        curl_setopt_array($curl,[CURLOPT_HTTPGET=>true,CURLOPT_URL=>$base.'/login.php']);$html=curl_exec($curl);preg_match('/name="csrf_token" value="([a-f0-9]+)"/',$html,$match);
+        $login['csrf_token']=$match[1];unset($login['remember_me']);
+        curl_setopt_array($curl,[CURLOPT_HTTPHEADER=>['Accept: application/json'],CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>http_build_query($login)]);$result=json_decode(curl_exec($curl),true);
+        authCheck(curl_getinfo($curl,CURLINFO_HTTP_CODE)===200 && $result['save_credentials']===false, 'unchecked Remember Me does not request browser credential storage');
     } finally {
         curl_close($curl); proc_terminate($http); fclose($pipes[0]); proc_close($http);
         foreach ([$router,$cookie,$log] as $file) if (is_file($file)) unlink($file);

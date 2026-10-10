@@ -9,10 +9,11 @@
 
 function ensureVisitorLogsTable(mysqli $connection): bool {
     if (!schemaMutationAllowed()) return true;
-    return $connection->query("CREATE TABLE IF NOT EXISTS visitor_logs (
+    if (!$connection->query("CREATE TABLE IF NOT EXISTS visitor_logs (
         id INT AUTO_INCREMENT PRIMARY KEY,
         visitor_name VARCHAR(120) NOT NULL,
         visitor_contact VARCHAR(30) DEFAULT NULL,
+        visitor_count SMALLINT UNSIGNED NOT NULL DEFAULT 1,
         unit_number VARCHAR(20) NOT NULL,
         purpose VARCHAR(150) DEFAULT NULL,
         logged_by INT NOT NULL,
@@ -23,7 +24,9 @@ function ensureVisitorLogsTable(mysqli $connection): bool {
         INDEX (logged_by),
         INDEX (status),
         CONSTRAINT fk_visitor_logs_user FOREIGN KEY (logged_by) REFERENCES users(id) ON DELETE CASCADE
-    )") === true;
+    )")) return false;
+    $countColumn = $connection->query("SHOW COLUMNS FROM visitor_logs LIKE 'visitor_count'");
+    return $countColumn && ($countColumn->num_rows > 0 || $connection->query("ALTER TABLE visitor_logs ADD visitor_count SMALLINT UNSIGNED NOT NULL DEFAULT 1 AFTER visitor_contact") === true);
 }
 
 /**
@@ -44,10 +47,11 @@ function ensureVisitorLogColumns(mysqli $connection): bool {
 /**
  * Logs a new visitor in. Returns the new row's id, or false on failure.
  */
-function logVisitorIn(mysqli $connection, string $visitorName, string $visitorContact, string $unitNumber, string $purpose, int $loggedBy): int|false {
-    $stmt = $connection->prepare("INSERT INTO visitor_logs (visitor_name, visitor_contact, unit_number, purpose, logged_by) VALUES (?, ?, ?, ?, ?)");
+function logVisitorIn(mysqli $connection, string $visitorName, string $visitorContact, string $unitNumber, string $purpose, int $loggedBy, int $visitorCount = 1): int|false {
+    if ($visitorCount < 1 || $visitorCount > 65535) return false;
+    $stmt = $connection->prepare("INSERT INTO visitor_logs (visitor_name, visitor_contact, unit_number, purpose, logged_by, visitor_count) VALUES (?, ?, ?, ?, ?, ?)");
     if (!$stmt) return false;
-    $stmt->bind_param('ssssi', $visitorName, $visitorContact, $unitNumber, $purpose, $loggedBy);
+    $stmt->bind_param('ssssii', $visitorName, $visitorContact, $unitNumber, $purpose, $loggedBy, $visitorCount);
     if (!$stmt->execute()) return false;
     return $connection->insert_id;
 }
@@ -57,7 +61,9 @@ function logVisitorIn(mysqli $connection, string $visitorName, string $visitorCo
  * staff account performed the checkout.
  */
 function logVisitorOut(mysqli $connection, int $visitorLogId, int $checkedOutBy): bool {
+    if (!canAccess('security.gate') || $checkedOutBy !== (int)$_SESSION['user_id']) return false;
     if (!ensureResidentServicesTables($connection)) return false;
+    ensureQrScanHistorySchema($connection);
     $connection->begin_transaction();
     try {
     $stmt = $connection->prepare("UPDATE visitor_logs SET status = 'checked_out', time_out = NOW(), checked_out_by = ? WHERE id = ? AND status = 'checked_in'");
@@ -67,6 +73,8 @@ function logVisitorOut(mysqli $connection, int $visitorLogId, int $checkedOutBy)
     $update = $connection->prepare("UPDATE resident_service_requests SET status = 'checked_out' WHERE visitor_log_id = ? AND status = 'checked_in'");
     $update->bind_param('i', $visitorLogId);
     if (!$update->execute()) throw new RuntimeException('Registration checkout could not be saved.');
+    $find=$connection->prepare('SELECT id FROM resident_service_requests WHERE visitor_log_id=?'); $find->bind_param('i',$visitorLogId); $find->execute(); $registration=$find->get_result()->fetch_assoc();
+    if ($registration) qrActionEvent($connection,gateRequest($connection,(int)$registration['id']),'check_out','Visitor exit confirmed.');
     $connection->commit(); return true;
     } catch (Throwable $error) { $connection->rollback(); error_log($error->getMessage()); return false; }
 }
@@ -103,6 +111,6 @@ function getRecentVisitors(mysqli $connection, int $limit = 5): array {
  * Count of visitors currently checked in (for stat cards).
  */
 function countActiveVisitors(mysqli $connection): int {
-    $result = $connection->query("SELECT COUNT(*) AS total FROM visitor_logs WHERE status = 'checked_in'");
+    $result = $connection->query("SELECT COALESCE(SUM(visitor_count), 0) AS total FROM visitor_logs WHERE status = 'checked_in'");
     return $result ? (int)$result->fetch_assoc()['total'] : 0;
 }

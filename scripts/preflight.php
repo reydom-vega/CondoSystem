@@ -87,7 +87,7 @@ if ($httpUrl !== null) {
     $allowed = is_array($parts) && in_array($parts['scheme'] ?? '', ['http','https'], true) && !empty($parts['host']) && !isset($parts['user']) && !isset($parts['pass']) && !isset($parts['query']) && !isset($parts['fragment']);
     preflightCheck($allowed && (!$production || ($parts['scheme'] ?? '') === 'https'), 'HTTP check target is a valid app URL');
     if ($allowed && extension_loaded('curl')) {
-        $forbidden = ['/.env','/.git/HEAD','/config.php','/database','/composer.json','/condo_units.csv','/parking-inventory.csv','/scripts/preflight.php','/vendor/autoload.php','/includes/workflows.php','/private_uploads/.htaccess','/INFINITYFREE_SETUP.zip','/debug_live_updates.html'];
+        $forbidden = ['/.env','/.git/HEAD','/config.php','/database.sql','/composer.json','/condo_units.csv','/parking-inventory.csv','/scripts/preflight.php','/vendor/autoload.php','/includes/workflows.php','/private_uploads/.htaccess','/INFINITYFREE_SETUP.zip','/debug_live_updates.html'];
         $public = ['/index.php', '/styles.css'];
         $curl = curl_init();
         curl_setopt_array($curl, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => false, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 10]);

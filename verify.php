@@ -67,8 +67,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verify Account</title>
     <link rel="stylesheet" href="styles.css">
+<?php renderPortalUiHead(); ?>
 </head>
-<body>
+<body class="portal-ui portal-account-page">
     <div class="card">
         <div class="form-panel">
             <h1>Verify Account</h1>
@@ -88,11 +89,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php echo workflowCsrfField(); ?>
                 <div class="input-wrap">
                     <?php echo systemIconFromGlyph('✉️', 'icon'); ?>
-                    <input type="email" name="email" placeholder="Email address" value="<?php echo htmlspecialchars($email); ?>" required>
+                    <label class="field-label" for="email">Email address</label>
+                    <input id="email" type="email" name="email" placeholder="Email address" value="<?php echo htmlspecialchars($email); ?>" required>
                 </div>
                 <div class="input-wrap">
                     <?php echo systemIconFromGlyph('🔑', 'icon'); ?>
-                    <input type="text" name="code" placeholder="Verification code" required>
+                    <label class="field-label" for="code">Verification code</label>
+                    <input id="code" type="text" name="code" placeholder="Verification code" required>
                 </div>
                 <button type="submit">Verify</button>
             </form>

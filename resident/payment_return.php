@@ -63,6 +63,44 @@ if ($paymentId > 0) {
 // signed webhook or an authenticated PayMongo checkout-session lookup.
 $isPaid = $payment && $payment['status'] === 'paid';
 $isPending = $payment && in_array($payment['status'], ['pending','overdue'], true);
+
+// Presentation follows the verified record; a checkout redirect is not payment proof.
+$returnTone = 'danger';
+$returnIcon = 'help';
+$returnBadge = 'Record unavailable';
+$returnTitle = 'Payment not found';
+$returnDescription = "We couldn't find that payment record on your account. Return to Billing & Payments to view your bills.";
+if ($isPaid) {
+    $returnTone = 'success';
+    $returnIcon = 'check-circle';
+    $returnBadge = 'Paid';
+    $returnTitle = 'Payment confirmed';
+    $returnDescription = 'Your payment has been received and recorded. Thank you!';
+    if ($isStickerPayment) {
+        $gatewayVerified = !empty($payment['paymongo_payment_id']) || strpos((string)$payment['gateway_status'], 'payment.paid') !== false || strpos((string)$payment['gateway_status'], 'checkout_session.paid') !== false;
+        $returnDescription = 'Your parking sticker payment has been ' . ($gatewayVerified ? 'verified by PayMongo.' : 'confirmed.');
+    }
+} elseif ($payment && $returnStatus === 'cancelled') {
+    $returnTone = 'warning';
+    $returnIcon = 'undo';
+    $returnBadge = 'Checkout cancelled';
+    $returnTitle = 'You returned from checkout';
+    $returnDescription = 'This does not cancel a payment already submitted. Check the recorded status in Billing & Payments before trying again.';
+} elseif ($isPending) {
+    $returnTone = 'warning';
+    $returnIcon = 'clock';
+    $returnBadge = 'Awaiting confirmation';
+    $returnTitle = $returnStatus === 'success' ? 'Confirming your payment' : 'Payment not yet confirmed';
+    $returnDescription = $returnStatus === 'success'
+        ? 'We are waiting for payment confirmation from PayMongo. Your bill will be marked paid once the payment is verified.'
+        : 'No confirmed payment has been recorded for this bill. Review the latest status in Billing & Payments before trying again.';
+} elseif ($payment) {
+    if ($payment['status'] === 'rolled_forward') $returnTone = 'info';
+    $returnIcon = 'info';
+    $returnBadge = ucwords(str_replace('_', ' ', $payment['status']));
+    $returnTitle = $payment['status'] === 'rolled_forward' ? 'Bill carried forward' : 'Payment not confirmed';
+    $returnDescription = 'Review this bill in Billing & Payments for its recorded status, or contact the management office for assistance.';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -74,8 +112,10 @@ $isPending = $payment && in_array($payment['status'], ['pending','overdue'], tru
     <?php if ($isPending && $returnStatus === 'success'): ?>
     <meta http-equiv="refresh" content="5">
     <?php endif; ?>
+    <?php renderPortalUiHead(); ?>
+    <link rel="stylesheet" href="../assets/css/payment-return.css?v=<?php echo filemtime(__DIR__ . '/../assets/css/payment-return.css'); ?>">
 </head>
-<body class="dashboard-page">
+<body class="portal-ui dashboard-page payment-return-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
             <a href="dashboard.php" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
@@ -97,34 +137,51 @@ $isPending = $payment && in_array($payment['status'], ['pending','overdue'], tru
                 </div>
             </header>
 
-            <section class="payment-summary-card payment-return-card">
-                <?php if (!$payment): ?>
-                    <?php echo systemIconFromGlyph('❓', 'payment-return-icon'); ?>
-                    <h3 class="section-title">Payment Not Found</h3>
-                    <p>We couldn't find that payment record on your account.</p>
-                <?php elseif ($isPaid): ?>
-                    <?php echo systemIconFromGlyph('✅', 'payment-return-icon'); ?>
-                    <h3 class="section-title">Payment Confirmed</h3>
-                    <?php if ($isStickerPayment): ?>
-                        <p>Your parking sticker payment of <strong>₱<?php echo number_format((float)$payment['amount'], 2); ?></strong> has been <?php echo !empty($payment['paymongo_payment_id']) || strpos((string)$payment['gateway_status'], 'payment.paid') !== false || strpos((string)$payment['gateway_status'], 'checkout_session.paid') !== false ? 'verified by PayMongo' : 'confirmed'; ?>.</p>
-                        <p>Please visit the management office to claim your physical parking sticker. No receipt upload is needed.</p>
-                    <?php else: ?>
-                        <p>Your payment of <strong>₱<?php echo number_format((float)$payment['amount'], 2); ?></strong> has been received. Thank you!</p>
+            <section class="payment-summary-card payment-return-card payment-return-card--<?php echo htmlspecialchars($returnTone, ENT_QUOTES, 'UTF-8'); ?>" aria-labelledby="paymentReturnTitle">
+                <header class="payment-return-header">
+                    <?php echo systemIcon($returnIcon, 'payment-return-icon'); ?>
+                    <span class="payment-return-badge"><?php echo htmlspecialchars($returnBadge); ?></span>
+                    <h2 id="paymentReturnTitle"><?php echo htmlspecialchars($returnTitle); ?></h2>
+                    <p class="payment-return-description"><?php echo htmlspecialchars($returnDescription); ?></p>
+                </header>
+
+                <?php if ($payment): ?>
+                <div class="payment-return-amount">
+                    <span><?php echo $isPaid ? 'Amount paid' : 'Bill amount'; ?></span>
+                    <strong>&#8369;<?php echo number_format((float)$payment['amount'], 2); ?></strong>
+                </div>
+                <dl class="payment-return-details">
+                    <div><dt>Bill reference</dt><dd>#<?php echo (int)$payment['id']; ?></dd></div>
+                    <div><dt>Recorded status</dt><dd><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $payment['status']))); ?></dd></div>
+                    <?php if (!empty($payment['payment_method'])): ?>
+                    <div><dt>Payment method</dt><dd><?php echo htmlspecialchars($payment['payment_method'] === 'online' ? 'Online payment' : paymentChannelLabel(null, $payment['payment_method'])); ?></dd></div>
                     <?php endif; ?>
-                <?php elseif ($returnStatus === 'cancelled'): ?>
-                    <?php echo systemIconFromGlyph('↩️', 'payment-return-icon'); ?>
-                    <h3 class="section-title">Checkout Cancelled</h3>
-                    <p>You returned from checkout. This does not cancel a payment already submitted. Check the recorded status before trying again from Billing &amp; Payments.</p>
-                <?php else: ?>
-                    <?php echo systemIconFromGlyph('⏳', 'payment-return-icon'); ?>
-                    <h3 class="section-title">Confirming Your Payment…</h3>
-                    <p>PayMongo is finalizing your payment. This page will refresh automatically — it usually only takes a few seconds. If this doesn't update after a minute, your payment may not have completed; please check Billing &amp; Payments or contact the management office.</p>
+                    <?php if ($isPaid && !empty($payment['paid_at'])): ?>
+                    <div><dt>Payment date</dt><dd><time datetime="<?php echo htmlspecialchars(str_replace(' ', 'T', $payment['paid_at']), ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars(date('M j, Y, g:i A', strtotime($payment['paid_at']))); ?></time></dd></div>
+                    <?php endif; ?>
+                </dl>
                 <?php endif; ?>
+
                 <?php if ($isPaid && $isStickerPayment): ?>
-                    <a href="parking.php" class="proceed-payment-btn payment-return-action">View Sticker Request</a>
-                <?php else: ?>
-                    <a href="payments.php" class="proceed-payment-btn payment-return-action">Back to Billing &amp; Payments</a>
+                <aside class="payment-return-note">
+                    <?php echo systemIcon('pin'); ?>
+                    <div><h3>Collect your parking sticker</h3><p>Please visit the management office to claim your physical parking sticker. No receipt upload is needed.</p></div>
+                </aside>
+                <?php elseif ($isPending && $returnStatus === 'success'): ?>
+                <aside class="payment-return-note" role="status">
+                    <?php echo systemIcon('clock'); ?>
+                    <div><h3>Checking for an update</h3><p>This page refreshes automatically every 5 seconds. If your status has not changed after a minute, check Billing &amp; Payments or contact the management office before trying again.</p></div>
+                </aside>
                 <?php endif; ?>
+
+                <div class="payment-return-actions">
+                    <?php if ($isPaid && $isStickerPayment): ?>
+                    <a href="parking.php" class="service-btn payment-return-action"><?php echo systemIcon('parking'); ?>View Sticker Request</a>
+                    <?php else: ?>
+                    <a href="payments.php" class="service-btn payment-return-action"><?php echo systemIcon('wallet'); ?>Back to Billing &amp; Payments</a>
+                    <?php endif; ?>
+                </div>
+                <p class="payment-return-help">Need help? Contact the management office<?php echo $payment ? ' with your bill reference.' : '.'; ?></p>
             </section>
         </main>
     </div>
@@ -132,8 +189,8 @@ $isPending = $payment && in_array($payment['status'], ['pending','overdue'], tru
         const menuToggle = document.getElementById('menuToggle');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebarOverlay');
-        if (menuToggle) { menuToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); overlay.classList.toggle('open'); }); }
-        if (overlay) { overlay.addEventListener('click', () => { sidebar.classList.remove('open'); overlay.classList.remove('open'); }); }
+        if (menuToggle) { /* Navigation is handled by the shared UI module. */ }
+        if (overlay) { /* Navigation is handled by the shared UI module. */ }
         const profileMenu = document.getElementById('profileMenu');
         const profileToggle = document.getElementById('profileToggle');
         if (profileToggle && profileMenu) {

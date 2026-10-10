@@ -46,6 +46,11 @@ function registerVisitorWithParking(mysqli $db, int $userId, array $input): int 
 }
 
 function cancelResidentServiceRequest(mysqli $db, int $userId, int $id, string $kind): bool {
+    $request = gateRequest($db, $id);
+    if ($request && $request['gate_data']) {
+        if ($userId !== (int)($_SESSION['user_id'] ?? 0)) return false;
+        try { gateTransition($db, $id, 'cancelled'); return true; } catch (InvalidArgumentException $e) { return false; }
+    }
     if (!ensureParkingTables($db)) return false;
     $db->begin_transaction();
     try {

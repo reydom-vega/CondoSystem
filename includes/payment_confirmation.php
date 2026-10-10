@@ -77,7 +77,7 @@ function confirmPaymongoCheckoutPayment(mysqli $db, array $context, ?int $expect
     if (empty($context['checkout_id']) || empty($context['paymongo_payment_id'])
         || ($context['payment_status'] ?? '') !== 'paid' || ($context['currency'] ?? '') !== 'PHP'
         || !is_int($context['amount'] ?? null)) return ['confirmed'=>false,'ignored'=>'incomplete_payment'];
-    ensurePaymongoColumns($db); ensureViolationsTable($db); ensureParkingStickerOrdersTable($db); ensureAuditLogTable($db); ensureNotificationOutboxTable($db);
+    ensurePaymongoColumns($db); ensureViolationsTable($db); ensureParkingStickerOrdersTable($db); ensureAuditLogTable($db); ensureNotificationOutboxTable($db); ensureAmenityBookingSchema($db);
     $db->begin_transaction();
     try {
         $find = $db->prepare('SELECT p.*, u.full_name, u.email, u.contact_number FROM payments p JOIN users u ON u.id=p.user_id WHERE p.paymongo_checkout_id=? FOR UPDATE');
@@ -109,6 +109,8 @@ function confirmPaymongoCheckoutPayment(mysqli $db, array $context, ?int $expect
 }
 
 function settleLinkedBillRecords(mysqli $db, int $paymentId): void {
+    $booking=$db->prepare("UPDATE bookings SET status='confirmed' WHERE payment_id=? AND amenity='Swimming Pool' AND status='approved'");
+    $booking->bind_param('i',$paymentId); if(!$booking->execute()) throw new RuntimeException('Could not confirm pool reservation.');
     $fine = $db->prepare("UPDATE violations SET status='paid' WHERE payment_id=? AND status IN ('unpaid','disputed')");
     $fine->bind_param('i', $paymentId); if (!$fine->execute()) throw new RuntimeException('Could not settle fine.');
     $sticker = $db->prepare("UPDATE parking_sticker_orders SET status='paid', paid_at=COALESCE(paid_at,NOW()) WHERE bill_payment_id=? AND status='pending'");
@@ -117,7 +119,7 @@ function settleLinkedBillRecords(mysqli $db, int $paymentId): void {
 
 function confirmCashBillPayment(mysqli $db, int $paymentId): bool {
     if (!canManageBilling()) return false;
-    ensurePaymongoColumns($db); ensureViolationsTable($db); ensureParkingStickerOrdersTable($db); ensureAuditLogTable($db); ensureNotificationOutboxTable($db);
+    ensurePaymongoColumns($db); ensureViolationsTable($db); ensureParkingStickerOrdersTable($db); ensureAuditLogTable($db); ensureNotificationOutboxTable($db); ensureAmenityBookingSchema($db);
     $db->begin_transaction();
     try {
         $find = $db->prepare("SELECT id FROM payments WHERE id=? AND payment_method='cash' AND status IN ('pending','overdue') AND paymongo_checkout_id IS NULL AND amount>0 FOR UPDATE");

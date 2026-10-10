@@ -6,7 +6,7 @@ Use [DEPLOYMENT.md](DEPLOYMENT.md) for installation, upgrades, private configura
 
 Copy `.env.example` to a private environment file and supply new database and provider credentials. `CONDO_ENV_FILE` can point outside the public directory. Do not store secrets in PHP files or commit environment files. Revoke credentials previously exposed in source or archives.
 
-Back up an existing database and private uploads before running `php scripts/migrate.php --apply`. Production requires the migration marker, `CONDO_AUTO_MIGRATE=0`, a canonical HTTPS URL and restricted runtime database credentials. The `database` baseline is for a fresh installation only. Run the deployment preflight before opening production traffic.
+Back up an existing database and private uploads before running `php scripts/migrate.php --apply`. Production requires the migration marker, `CONDO_AUTO_MIGRATE=0`, a canonical HTTPS URL and restricted runtime database credentials. The `database.sql` baseline is for a fresh installation only. Run the deployment preflight before opening production traffic.
 
 ## Roles and service flows
 

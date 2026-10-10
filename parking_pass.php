@@ -47,8 +47,9 @@ $passUrl = parkingPassUrl($requestId);
         .pass-note { color: var(--text-muted); font-size: 12px; line-height: 1.5; margin-top: 14px; }
         @media (max-width: 520px) { .pass-grid { grid-template-columns: 1fr; } .pass-heading { align-items: flex-start; flex-direction: column; } }
     </style>
+<?php renderPortalUiHead(); ?>
 </head>
-<body>
+<body class="portal-ui portal-account-page">
     <main class="pass-shell">
         <section class="pass-card">
             <div class="pass-heading"><div><span class="dash-subtitle">CELANDINE RESIDENCES</span><h1 class="dash-title">Visitor Parking Pass</h1></div><span class="pass-status"><?php echo $statusLabel; ?></span></div>

@@ -76,8 +76,9 @@ if (empty($selectedConversation['messages'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celandine Residences - Messages</title>
     <link rel="stylesheet" href="../resident.css?v=<?php echo (int)filemtime(__DIR__ . '/../resident.css'); ?>">
+<?php renderPortalUiHead(); ?>
 </head>
-<body class="dashboard-page">
+<body class="portal-ui dashboard-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
             <a href="dashboard.php" class="sidebar-brand">
@@ -242,8 +243,8 @@ if (empty($selectedConversation['messages'])) {
         const menuToggle = document.getElementById('menuToggle');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebarOverlay');
-        menuToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); overlay.classList.toggle('open'); });
-        overlay.addEventListener('click', () => { sidebar.classList.remove('open'); overlay.classList.remove('open'); });
+        /* Navigation is handled by the shared UI module. */
+        /* Navigation is handled by the shared UI module. */
 
         const profileMenu = document.getElementById('profileMenu');
         const profileToggle = document.getElementById('profileToggle');
@@ -298,7 +299,7 @@ if (empty($selectedConversation['messages'])) {
             } else if (date.toDateString() === yesterday.toDateString()) {
                 return 'Yesterday ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
             } else {
-                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined }) + ' ' + 
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined }) + ' ' +
                        date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
             }
         }
@@ -307,7 +308,7 @@ if (empty($selectedConversation['messages'])) {
             if (!isPolling) return;
 
             const url = '../api/messages.php?t=' + Date.now();
-            
+
             fetch(url)
                 .then(response => {
                     if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -336,10 +337,10 @@ if (empty($selectedConversation['messages'])) {
                     // Check for new messages
                     const existingMessages = messagesContainer.querySelectorAll('[data-message-id]');
                     const existingIds = new Set(Array.from(existingMessages).map(m => parseInt(m.dataset.messageId)));
-                    
+
                     let hasNewMessages = false;
                     let newMessageCount = 0;
-                    
+
                     if (data.messages && Array.isArray(data.messages)) {
                         data.messages.forEach((message) => {
                             if (!existingIds.has(message.id) && message.id > 0) {
@@ -411,4 +412,4 @@ if (empty($selectedConversation['messages'])) {
     <script src="../js/message-image-viewer.js"></script>
     <script src="../js/live-updates.js"></script>
 </body>
-</html> w
+</html>

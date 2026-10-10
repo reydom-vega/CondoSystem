@@ -60,7 +60,7 @@ function recalculateBillTotal(mysqli $connection, int $paymentId): void {
     $result->execute();
     $total = (float)$result->get_result()->fetch_assoc()['total'];
 
-    $update = $connection->prepare("UPDATE payments SET amount = ? WHERE id = ? AND status IN ('pending','overdue') AND paymongo_checkout_id IS NULL");
+    $update = $connection->prepare("UPDATE payments SET amount = ? WHERE id = ? AND status IN ('pending','overdue') AND paymongo_checkout_id IS NULL AND billing_scope<>'amenity_reservation'");
     $update->bind_param('di', $total, $paymentId);
     $update->execute();
 }
@@ -84,7 +84,7 @@ function addBillItem(int $paymentId, string $category, string $description, floa
         $bill=$connection->prepare("SELECT id,billing_scope FROM payments WHERE id=? AND status IN ('pending','overdue') AND paymongo_checkout_id IS NULL FOR UPDATE");
         $bill->bind_param('i',$paymentId); $bill->execute();
         $billRow=$bill->get_result()->fetch_assoc();
-        if (!$billRow || ($billRow['billing_scope']==='personal_parking' && !in_array(trim($category),['Parking','Parking Sticker'],true))) { $connection->rollback(); return false; }
+        if (!$billRow || $billRow['billing_scope']==='amenity_reservation' || ($billRow['billing_scope']==='personal_parking' && !in_array(trim($category),['Parking','Parking Sticker'],true))) { $connection->rollback(); return false; }
         $stmt=$connection->prepare('INSERT INTO bill_items (payment_id,category,description,amount) VALUES (?,?,?,?)');
         $amount=round($amount,2); $stmt->bind_param('issd',$paymentId,$category,$description,$amount);
         if (!$stmt->execute()) throw new RuntimeException('Bill item insert failed.');
@@ -166,6 +166,20 @@ function getOpenBillForUser(mysqli $connection, int $userId): ?array {
     $stmt->bind_param('i', $userId);
     $stmt->execute();
     return $stmt->get_result()->fetch_assoc() ?: null;
+}
+
+/** Called only inside the locked approval transaction; reuse payments and bill_items. */
+function createAmenityReservationBill(mysqli $db,array $booking,int $payerId): int {
+    if(!canAccess('bookings.review') || $booking['amenity']!=='Swimming Pool' || $booking['status']!=='pending' || $booking['payment_id']!==null) throw new InvalidArgumentException('A pending pool reservation is required for automatic billing.');
+    $amount=(string)$booking['total_fee'];
+    $due=$booking['booking_date'];
+    $insert=$db->prepare("INSERT INTO payments (user_id,amount,payment_method,status,due_date,billing_scope) VALUES (?,?,'unbilled','pending',?,'amenity_reservation')");
+    $insert->bind_param('iss',$payerId,$amount,$due); $insert->execute(); $paymentId=(int)$db->insert_id;
+    $description='Swimming Pool · Booking #'.$booking['id'].' · Unit '.$booking['unit_number'].' · '.$booking['booking_date'].' '.substr($booking['booking_time'],0,5).'–'.substr($booking['end_time'],0,5).' · '.$booking['duration_hours'].' hour(s) × PHP '.$booking['hourly_rate'];
+    $line=$db->prepare("INSERT INTO bill_items (payment_id,category,description,amount) VALUES (?,'Amenity Reservation',?,?)");
+    $line->bind_param('iss',$paymentId,$description,$amount); $line->execute();
+    if(!logAudit('bill_created','payment',$paymentId,'Automatic pool charge for booking #'.$booking['id'].'; unit payer #'.$payerId,$db)) throw new RuntimeException('Could not audit reservation billing.');
+    return $paymentId;
 }
 
 /**

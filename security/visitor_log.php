@@ -63,8 +63,9 @@ $flash = getFlash();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celandine Residences - Visitor Log</title>
     <link rel="stylesheet" href="../security.css">
+<?php renderPortalUiHead(); ?>
 </head>
-<body class="dashboard-page admin-page">
+<body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
             <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
@@ -110,7 +111,7 @@ $flash = getFlash();
                 </div>
 
                 <div class="admin-panel visitor-panel">
-                    <h2>Currently Inside (<?php echo count($activeVisitors); ?>)</h2>
+                    <h2>Currently Inside (<?php echo countActiveVisitors($connection); ?>)</h2>
                     <?php if (empty($activeVisitors)): ?>
                         <p class="visitor-empty">No visitors currently checked in.</p>
                     <?php else: ?>
@@ -120,7 +121,7 @@ $flash = getFlash();
                                 <?php foreach ($activeVisitors as $visitor): ?>
                                 <tr>
                                     <td>
-                                        <?php echo htmlspecialchars($visitor['visitor_name']); ?>
+                                        <?php echo htmlspecialchars($visitor['visitor_name']); ?> <small>(<?php echo (int)$visitor['visitor_count']; ?> visitors)</small>
                                         <?php if (!empty($visitor['purpose'])): ?><br><span style="color: var(--text-muted); font-size: 11px;"><?php echo htmlspecialchars($visitor['purpose']); ?></span><?php endif; ?>
                                     </td>
                                     <td><?php echo htmlspecialchars($visitor['unit_number']); ?></td>
@@ -148,7 +149,7 @@ $flash = getFlash();
                                 <tbody>
                                     <?php foreach ($recentVisitors as $visitor): ?>
                                     <tr>
-                                        <td><?php echo htmlspecialchars($visitor['visitor_name']); ?></td>
+                                        <td><?php echo htmlspecialchars($visitor['visitor_name']); ?> <small>(<?php echo (int)$visitor['visitor_count']; ?> visitors)</small></td>
                                         <td><?php echo htmlspecialchars($visitor['unit_number']); ?></td>
                                         <td><?php echo htmlspecialchars(date('M j, g:i A', strtotime($visitor['time_in']))); ?></td>
                                         <td>
@@ -172,8 +173,8 @@ $flash = getFlash();
         const menuToggle = document.getElementById('menuToggle');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebarOverlay');
-        menuToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); overlay.classList.toggle('open'); });
-        overlay.addEventListener('click', () => { sidebar.classList.remove('open'); overlay.classList.remove('open'); });
+        /* Navigation is handled by the shared UI module. */
+        /* Navigation is handled by the shared UI module. */
     </script>
 </body>
 </html>

@@ -1,0 +1,86 @@
+@media(min-width:1024px) {
+ .portal-ui.sidebar-collapsed { --sidebar-width:80px; }
+ .portal-ui.sidebar-collapsed .sidebar { padding-left:10px; padding-right:10px; }
+ .portal-ui.sidebar-collapsed :is(.sidebar-brand .brand-title,.sidebar-link-label,.portal-sidebar-account-copy) { display:none; }
+ .portal-ui.sidebar-collapsed .sidebar-brand { justify-content:center; padding:0; }
+ .portal-ui.sidebar-collapsed .sidebar-link { justify-content:center; gap:0; padding:11px; }
+ .portal-ui.sidebar-collapsed .portal-sidebar-account { justify-content:center; padding:0 0 12px; }
+ .portal-ui.sidebar-collapsed .sidebar-nav { gap:5px; }
+ .portal-ui .sidebar, .portal-ui .dashboard-main { transition:width .22s ease,flex-basis .22s ease; }
+}
+@media(max-width:1023px) {
+ body.portal-ui.portal-drawer-open { overflow:hidden; }
+ .portal-ui .sidebar { position:fixed; left:0; top:0; width:260px; max-width:85vw; height:100dvh; transform:translateX(-100%); transition:transform .22s ease; z-index:140; }
+ .portal-ui .sidebar.open { transform:translateX(0); }
+ .portal-ui .sidebar-close { display:flex; align-items:center; justify-content:center; width:32px; min-height:32px; position:absolute; right:10px; top:10px; margin:0; padding:0; border:1px solid #44516a; border-radius:8px; background:#202c40; color:#fff; font-size:20px; }
+ .portal-ui .sidebar-overlay.open { display:block; position:fixed; inset:0; z-index:130; background:#030815b3; backdrop-filter:blur(2px); }
+ .portal-ui .dashboard-main { padding:22px 24px 32px; }
+ .portal-ui .sidebar-link-label { display:inline; }
+ .portal-ui .sidebar .brand-title { display:block; }
+ .portal-ui .portal-sidebar-account-copy { display:flex; }
+ .portal-ui :is(.admin-overview-grid,.overview-grid) { grid-template-columns:1fr; }
+ .portal-ui :is(.unit-filters,.unit-page-head) { flex-wrap:wrap; }
+}
+@media(max-width:767px) {
+ .portal-ui .dashboard-main { padding:20px 16px 28px; }
+ .portal-ui .dash-header { flex-direction:row; gap:10px; margin-bottom:20px; padding-bottom:18px; }
+ .portal-ui .dash-header-left { gap:10px; }
+ .portal-ui .dash-title { font-size:22px; }
+ .portal-ui .dash-header-right { width:auto; gap:8px; }
+ .portal-ui .profile-nav-name, .portal-ui .profile-caret { display:none; }
+ .portal-ui .btn-profile-nav { padding:3px; border-radius:50%; }
+ .portal-ui .portal-role-badge { display:none; }
+ .portal-ui :is(.profile-dropdown,.notification-dropdown) { position:fixed; right:16px; top:82px; max-width:calc(100vw - 32px); max-height:calc(100dvh - 105px); overflow:auto; }
+ .portal-ui .profile-dropdown { width:260px; }
+ .portal-ui :is(.admin-stats-grid,.stats-grid) { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+ .portal-ui :is(.admin-stat-card,.stat-card) { min-height:125px; padding:16px; }
+ .portal-ui .admin-stat-card strong,.portal-ui .stat-value { font-size:24px; overflow-wrap:anywhere; }
+ .portal-ui :is(.admin-panel,.unit-management-panel,.service-panel,.maintenance-form-card,.maintenance-history-card,.profile-card,.profile-section) { padding:18px; margin-bottom:18px; }
+ .portal-ui :is(.service-layout,.service-form,.maintenance-form-grid,.bill-form-grid,.violation-form-grid,.profile-grid,.profile-layout) { grid-template-columns:1fr; }
+ .portal-ui .profile-form .form-grid-2 { grid-template-columns:1fr; }
+ .portal-ui :is(.unit-filters,.unit-page-head,.service-actions,.service-request-actions,.form-actions) { gap:10px; }
+ .portal-ui .unit-filters { display:grid; grid-template-columns:1fr; }
+ .portal-ui .unit-filters > :is(label,input,select) { flex:initial; width:100%; }
+ .portal-ui .unit-filters > button { justify-self:end; }
+ .portal-ui .unit-filters > label { min-width:0; }
+ .portal-ui .dashboard-main table { min-width:640px; }
+ .portal-ui .dashboard-main .soa-items { min-width:0; }
+ .portal-ui .dashboard-main .soa-items td { padding:12px 10px; }
+ .portal-ui .dashboard-main table :is(td,th) { padding:12px; }
+ .portal-ui .dashboard-main table :is(button,.service-btn,.btn) { min-height:40px; }
+ .portal-ui .portal-table-scroll { margin-top:12px; }
+ .portal-ui :is(.messages-shell,.admin-chat-layout) { grid-template-columns:1fr; }
+ .portal-ui :is(.conversation-list,.admin-chat-residents) { max-height:220px; overflow:auto; border-bottom:1px solid var(--border-color); }
+ .portal-ui .thread-message { max-width:94%; }
+ .portal-ui :is(.reply-controls,.message-input-row) { flex-wrap:wrap; }
+ .portal-ui :is(.reply-controls,.message-input-row) textarea { flex:1 1 100%; width:100%; }
+ .portal-ui dialog { max-height:92dvh; max-width:calc(100% - 20px); }
+ .portal-ui :is(.modal-content,.approval-modal,.system-confirm-content) { padding:20px; }
+ .portal-ui :is(.unit-page-head,.service-request-heading,.maintenance-request-header) { flex-wrap:wrap; }
+ .portal-ui .service-request-heading > div { min-width:0; }
+ .portal-ui :is(input,select,textarea) { font-size:16px; }
+ body.portal-ui.portal-account-page { padding:20px 14px; align-items:flex-start; }
+ .portal-ui.portal-account-page :is(.card,.form-panel) { padding:26px 22px; }
+ .portal-ui.portal-account-page .card.split-card { width:100%; }
+ .portal-ui.portal-account-page .form-panel { padding:28px 22px; }
+ .portal-ui.portal-account-page .card:not(.split-card) > .form-panel { padding:0; }
+ .portal-ui.portal-account-page .panel-image { display:none; }
+ .portal-ui.portal-account-page .form-grid { grid-template-columns:1fr; }
+ .portal-ui :is(.service-pass,.property-gate-print,.pass-shell) { padding:20px; margin:20px auto; }
+}
+@media(max-width:380px) {
+ .portal-ui .dash-title { font-size:19px; }
+ .portal-ui .dash-subtitle { font-size:9px; }
+ .portal-ui .dash-header-right { gap:5px; }
+ .portal-ui .btn-icon-menu { flex-basis:36px; width:36px; height:36px; min-height:36px; }
+ .portal-ui :is(.btn-icon-nav,.btn-profile-nav) { width:36px; min-height:36px; height:36px; }
+ .portal-ui .profile-avatar { width:30px; height:30px; }
+ .portal-ui .admin-stats-grid { grid-template-columns:1fr; }
+}
+@media print {
+ body.portal-ui { color:#111827; background:#fff; color-scheme:light; }
+ .portal-ui :is(.sidebar,.sidebar-overlay,.dash-header,.portal-breadcrumb,.portal-skip-link,.service-actions,.gate-pass-controls,.portal-role-badge) { display:none !important; }
+ .portal-ui :is(.service-panel,.property-gate-print,.pass-shell,.service-pass) { color:#111827; background:#fff; box-shadow:none; border-color:#cbd5e1; margin:0 auto; width:100%; }
+ .portal-ui :is(h1,h2,h3,p,dt,dd,td,th,strong,label) { color:inherit; }
+ .portal-ui :is(#serviceQr,.pass-qr) { break-inside:avoid; }
+}

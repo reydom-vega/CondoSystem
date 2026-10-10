@@ -37,16 +37,16 @@ CONDO_TENANT_PARKING=1
 CONDO_TENANT_VEHICLES=1
 CONDO_TENANT_MAINTENANCE=1
 CONDO_TENANT_MESSAGES=1
-CONDO_TENANT_PERMITS=0
+CONDO_TENANT_PERMITS=1
 ```
 
 These flags also apply to family/relative and friend occupants. Tenant billing stays read-only, and payments, receipts and new sticker orders remain owner-only regardless of flags. See [TENANT_CONFIGURATION.md](TENANT_CONFIGURATION.md) for the access matrix, ownership linking and occupancy procedures.
 
 ## First installation
 
-1. Create an empty utf8mb4 database and import the `database` baseline through your database administration tool. This is a fresh-install schema, not an upgrade script; never import it over an existing installation.
+1. Create an empty utf8mb4 database and import the `database.sql` baseline through your database administration tool. This is a fresh-install schema, not an upgrade script; never import it over an existing installation.
 2. Install dependencies from `composer.lock` using `composer install --no-dev --prefer-dist --optimize-autoloader`, or upload the same installed `vendor` tree when Composer is unavailable on the server. Preserve `vendor/.htaccess` if Composer rebuilds that directory.
-3. Configure private credentials and run `php scripts/migrate.php --apply`. This creates/updates all module storage and records `2026.10.08.2` only after table, column, critical unique-index and InnoDB checks pass. The command requires explicit `--apply`, serializes migrations using a database advisory lock, and can be repeated after resolving a failure. MySQL DDL is not rolled back as one transaction: a failed upgrade may have applied earlier steps.
+3. Configure private credentials and run `php scripts/migrate.php --apply`. This creates/updates all module storage and records `2026.10.09.5` only after table, column, critical unique-index and InnoDB checks pass. The command requires explicit `--apply`, serializes migrations using a database advisory lock, and can be repeated after resolving a failure. MySQL DDL is not rolled back as one transaction: a failed upgrade may have applied earlier steps.
 4. Provision the initial superadmin using the CLI-only `create_admin.php` helper, then use Staff Management for subsequent staff accounts. Review `php create_admin.php --help` before supplying credentials. Use its `--password-stdin` input to keep passwords out of command arguments; updating an existing account requires explicit `--update`.
 5. Import/review units and parking inventory, configure sticker price and visitor limits as superadmin, and approve resident accounts and vehicles through the UI. Confirm account types and approve the one unit owner before approving linked tenants/occupants. Default amenity hours/capacity and permit categories must match the property's operating rules.
 6. Make `private_uploads` writable by the PHP worker, with no direct HTTP access. Back up uploads together with the database. Keep server session storage private and writable.

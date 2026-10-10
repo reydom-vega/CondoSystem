@@ -53,7 +53,7 @@ function tenantBillFixture(mysqli $db,int $userId,float $amount,string $status='
     $line->bind_param('id',$id,$amount); $line->execute(); return $id;
 }
 try {
-    $server->select_db($database); $server->multi_query(file_get_contents(dirname(__DIR__).'/database'));
+    $server->select_db($database); $server->multi_query(file_get_contents(dirname(__DIR__).'/database.sql'));
     do { $result=$server->store_result(); if ($result) $result->free(); } while ($server->more_results() && $server->next_result());
     $process=proc_open([PHP_BINARY,__DIR__.'/migrate.php','--apply'],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
     fclose($pipes[0]); stream_get_contents($pipes[1]); $error=stream_get_contents($pipes[2]); fclose($pipes[1]); fclose($pipes[2]);

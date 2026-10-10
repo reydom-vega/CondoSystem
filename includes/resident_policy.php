@@ -93,7 +93,9 @@ function residentHasPermission(string $capability): bool {
 function requireResidentPermission(string $capability): void {
     if (!isLoggedIn()) redirect(buildUrl('login.php'));
     if (residentHasPermission($capability)) return;
-    http_response_code(403); exit('This service is not available for your resident account.');
+    http_response_code(403);
+    renderPortalError('This service is not available for your resident account.');
+    exit;
 }
 
 function residentAccountLabel(): string {

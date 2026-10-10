@@ -5,6 +5,7 @@
 config.local.php
 *.log
 *.sql
+!/database.sql
 *.bak
 *.zip
 

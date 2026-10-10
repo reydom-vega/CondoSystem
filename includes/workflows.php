@@ -10,6 +10,10 @@ function requireWorkflowCsrf(?string $token = null): void {
     $token ??= is_string($_POST['csrf_token'] ?? null) ? $_POST['csrf_token'] : '';
     if ($token === '' || !hash_equals(workflowCsrfToken(), $token)) {
         http_response_code(403);
+        if (!str_contains((string)($_SERVER['SCRIPT_NAME'] ?? ''), '/api/')) {
+            renderPortalError('Your session token is invalid. Refresh the page and try again.', 'Refresh your session');
+            exit;
+        }
         exit('Your session token is invalid. Refresh the page and try again.');
     }
 }

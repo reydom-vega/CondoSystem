@@ -446,61 +446,61 @@ if ($result) {
         font-size: 9px;
     }
 
-.staff-actions {
+.portal-ui .dashboard-main .staff-table .staff-actions {
     display: grid;
-    grid-template-columns: minmax(82px, 90px) minmax(0, 1fr);
-    gap: 5px;
-    align-items: start;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    align-items: stretch;
     width: 100%;
     min-width: 0;
 }
 
-.staff-actions > form:nth-child(1) {
-    grid-column: 1;
-    grid-row: 1;
-}
-
-.staff-actions > form:nth-child(2) {
-    grid-column: 1;
-    grid-row: 2;
-}
-
-.staff-actions > form:nth-child(3) {
-    grid-column: 2;
-    grid-row: 1 / span 2;
+.portal-ui .dashboard-main .staff-table .staff-actions > form {
     display: flex;
+    min-width: 0;
+    margin: 0;
+}
+
+.portal-ui .dashboard-main .staff-table .staff-password-form {
+    grid-column: 1 / -1;
     flex-direction: column;
-    gap: 5px;
-    width: 100%;
-    min-width: 0;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
 }
 
-.staff-actions > form:nth-child(1) button,
-.staff-actions > form:nth-child(2) button {
-    width: 90px;
-    min-width: 90px;
-    padding: 5px 6px;
-    font-size: 9px;
-    white-space: nowrap;
-}
-
-.staff-actions > form:nth-child(3) input {
+.portal-ui .dashboard-main .staff-table .staff-actions button {
     width: 100%;
     min-width: 0;
-    height: 32px;
+    min-height: 44px;
+    height: auto;
+    padding: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: normal;
+    overflow-wrap: normal;
+    word-break: normal;
+}
+
+.portal-ui .dashboard-main .staff-table .staff-password-form label {
+    display: block;
+    margin: 0;
+    font-size: 13px;
+}
+
+.portal-ui .dashboard-main .staff-table .staff-password-form input {
+    width: 100%;
+    min-width: 0;
+    min-height: 46px;
+    height: auto;
     box-sizing: border-box;
-    padding: 7px 9px;
-    font-size: 10px;
+    padding: 11px 12px;
 }
 
-.staff-actions > form:nth-child(3) button {
-    width: 100%;
-    min-width: 0;
-    height: 25px;
-    padding: 4px 6px;
-    font-size: 9px;
-    white-space: nowrap;
-    align-self: stretch;
+@media (max-width: 380px) {
+    .portal-ui .dashboard-main .staff-table .staff-actions {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
     .staff-confirm-overlay {
@@ -649,8 +649,9 @@ if ($result) {
         }
     }
 </style>
+<?php renderPortalUiHead(); ?>
 </head>
-<body class="dashboard-page admin-page">
+<body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
             <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
@@ -706,7 +707,7 @@ if ($result) {
                         <td><div class="staff-actions">
                             <form method="post"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="toggle_status"><input type="hidden" name="staff_id" value="<?php echo (int)$member['id']; ?>"><input type="hidden" name="is_active" value="<?php echo (int)$member['is_active'] === 1 ? '0' : '1'; ?>"><button type="submit"><?php echo (int)$member['is_active'] === 1 ? 'Deactivate' : 'Reactivate'; ?></button></form>
                             <form method="post"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="force_logout"><input type="hidden" name="staff_id" value="<?php echo (int)$member['id']; ?>"><button type="submit">Force Logout</button></form>
-                            <form method="post"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="reset_password"><input type="hidden" name="staff_id" value="<?php echo (int)$member['id']; ?>"><input type="password" name="new_password" placeholder="New password" minlength="8" required><button type="submit">Change Password</button></form>
+                            <form method="post" class="staff-password-form"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="reset_password"><input type="hidden" name="staff_id" value="<?php echo (int)$member['id']; ?>"><label for="staff-password-<?php echo (int)$member['id']; ?>">New password</label><input id="staff-password-<?php echo (int)$member['id']; ?>" type="password" name="new_password" autocomplete="new-password" placeholder="At least 8 characters" minlength="8" required><button type="submit">Change Password</button></form>
                         </div></td>
                     </tr><?php endforeach; endif; ?>
                 </tbody></table></div>
@@ -729,8 +730,8 @@ if ($result) {
         const menuToggle = document.getElementById('menuToggle');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebarOverlay');
-        menuToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); overlay.classList.toggle('open'); });
-        overlay.addEventListener('click', () => { sidebar.classList.remove('open'); overlay.classList.remove('open'); });
+        /* Navigation is handled by the shared UI module. */
+        /* Navigation is handled by the shared UI module. */
 
         const staffCreateForm = document.getElementById('staffCreateForm');
         const staffConfirmOverlay = document.getElementById('staffConfirmOverlay');

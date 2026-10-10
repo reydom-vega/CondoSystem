@@ -97,8 +97,9 @@ function parkingFormValue(string $field, string $default = ''): string { return 
     <title>Celandine Residences - Parking</title>
     <link rel="stylesheet" href="../resident.css">
     <link rel="stylesheet" href="../services.css?v=<?php echo filemtime(__DIR__ . '/../services.css'); ?>">
+<?php renderPortalUiHead(); ?>
 </head>
-<body class="dashboard-page">
+<body class="portal-ui dashboard-page">
 
     <div class="dash-layout">
 
@@ -224,10 +225,10 @@ function parkingFormValue(string $field, string $default = ''): string { return 
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebarOverlay');
         if (menuToggle) {
-            menuToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); overlay.classList.toggle('open'); });
+            /* Navigation is handled by the shared UI module. */
         }
         if (overlay) {
-            overlay.addEventListener('click', () => { sidebar.classList.remove('open'); overlay.classList.remove('open'); });
+            /* Navigation is handled by the shared UI module. */
         }
         const profileMenu = document.getElementById('profileMenu');
         const profileToggle = document.getElementById('profileToggle');

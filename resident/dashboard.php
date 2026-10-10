@@ -23,7 +23,7 @@ if (ensurePaymentsTable($connection)) {
     $monthlyDue = getResidentBillingSummary($connection,(int)$_SESSION['user_id'])['amount'];
 }
 if (residentHasPermission('resident.amenities.book') && ensureBookingsTable($connection)) {
-    $bookingResult = $connection->query("SELECT COUNT(*) AS total FROM bookings WHERE user_id = " . (int)$_SESSION['user_id'] . " AND status IN ('pending', 'confirmed')");
+    $bookingResult = $connection->query("SELECT COUNT(*) AS total FROM bookings WHERE user_id = " . (int)$_SESSION['user_id'] . " AND status IN ('pending', 'approved', 'confirmed')");
     if ($bookingResult) $activeBookings = (int)$bookingResult->fetch_assoc()['total'];
 }
 if (residentHasPermission('resident.maintenance.request') && ensureMaintenanceTable($connection)) {
@@ -46,8 +46,9 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celandine Residences - My Dashboard</title>
     <link rel="stylesheet" href="../resident.css">
+<?php renderPortalUiHead(); ?>
 </head>
-<body class="dashboard-page">
+<body class="portal-ui dashboard-page">
     <?php if (!$accountApproved): ?>
         <div id="approvalModal" class="approval-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="approval-modal-title">
             <div class="approval-modal">
@@ -205,11 +206,11 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
                         <p>No announcements at this time.</p>
                     </div>
                 <?php else: ?>
-                    <?php foreach ($announcements as $announcement): 
+                    <?php foreach ($announcements as $announcement):
                         $priorityClass = 'notice-info';
                         if ($announcement['priority'] === 'high') $priorityClass = 'notice-danger';
                         elseif ($announcement['priority'] === 'medium') $priorityClass = 'notice-warning';
-                        
+
                         $priorityIcon = 'info';
                         if ($announcement['priority'] === 'high') $priorityIcon = 'violations';
                         elseif ($announcement['priority'] === 'medium') $priorityIcon = 'clock';
@@ -293,15 +294,9 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
         const overlay = document.getElementById('sidebarOverlay');
 
         if (menuToggle && sidebar && overlay) {
-            menuToggle.addEventListener('click', () => {
-                sidebar.classList.toggle('open');
-                overlay.classList.toggle('open');
-            });
+            /* Navigation is handled by the shared UI module. */
 
-            overlay.addEventListener('click', () => {
-                sidebar.classList.remove('open');
-                overlay.classList.remove('open');
-            });
+            /* Navigation is handled by the shared UI module. */
         }
 
         const profileMenu = document.getElementById('profileMenu');

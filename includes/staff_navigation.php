@@ -44,4 +44,5 @@ function renderStaffSidebarNavigation(): void {
         }
         echo '<a href="' . htmlspecialchars(buildUrl($path), ENT_QUOTES, 'UTF-8') . '" class="sidebar-link' . ($active ? ' active' : '') . '"' . ($active ? ' aria-current="page"' : '') . '>' . systemSidebarIcon($icon) . ' ' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</a>';
     }
+    renderPortalSidebarFooter();
 }

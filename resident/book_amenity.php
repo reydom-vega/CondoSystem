@@ -1,82 +1,36 @@
 <?php
 require_once '../config.php';
-
-if (!isLoggedIn()) {
-    redirect('../login.php');
-}
-if (isAdmin()) {
-    redirect(isSecurity() ? '../security/security_dashboard.php' : (isMaintenance() ? '../maintenance/maintenance_dashboard.php' : '../admin/admin_dashboard.php'));
-}
+if (!isLoggedIn()) redirect('../login.php');
+if (isAdmin()) redirect(buildUrl(dashboardPathForRole()));
 requireApproval();
 requireResidentPermission('resident.amenities.book');
-
-$username = $_SESSION['username'] ?? 'User';
-$unitNumber = isset($_SESSION['unit_number']) ? 'Unit ' . htmlspecialchars($_SESSION['unit_number']) : 'Unit Not Set';
-$nameParts = preg_split('/\s+/', trim($username));
-$initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? substr(end($nameParts), 0, 1) : ''));
-$errors = [];
-$success = false;
-
-$connection = connectDb();
-$tableReady = ensureAmenityBookingSchema($connection);
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+$username=$_SESSION['username'] ?? 'Resident';
+$unitNumber='Unit '.htmlspecialchars($_SESSION['unit_number'] ?? '');
+$nameParts=preg_split('/\s+/',trim($username));
+$initials=strtoupper(substr($nameParts[0],0,1).(count($nameParts)>1?substr(end($nameParts),0,1):''));
+$connection=connectDb(); ensureAmenityBookingSchema($connection); ensurePaymentsTable($connection); ensurePaymongoColumns($connection);
+$errors=[]; $conflict=false;
+if($_SERVER['REQUEST_METHOD']==='POST') {
     requireWorkflowCsrf();
-    $amenity = trim($_POST['amenity'] ?? '');
-    $bookingDate = trim($_POST['booking_date'] ?? '');
-    $bookingTime = trim($_POST['booking_time'] ?? '');
     try {
-        if (!$tableReady) throw new RuntimeException('Booking storage is unavailable.');
-        if (($_POST['action'] ?? '') === 'cancel') {
-            $bookingId = (int)($_POST['booking_id'] ?? 0);
-            $cancel = $connection->prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ? AND user_id = ? AND status IN ('pending','confirmed') AND TIMESTAMP(booking_date,booking_time) > NOW()");
-            $cancel->bind_param('ii', $bookingId, $_SESSION['user_id']); $cancel->execute();
-            if ($cancel->affected_rows !== 1) throw new InvalidArgumentException('This booking can no longer be cancelled.');
-            logAudit('cancel','booking',$bookingId);
-        } else {
-            $attendees = filter_var($_POST['attendees'] ?? null, FILTER_VALIDATE_INT);
-            if ($attendees === false || !createAmenityBooking($connection, (int)$_SESSION['user_id'], $amenity, $bookingDate, $bookingTime, $attendees)) throw new InvalidArgumentException('Unable to save booking. Enter a valid guest count.');
-            trackEvent('booking_created', $amenity . ' on ' . $bookingDate, (int)$_SESSION['user_id']);
+        if(($_POST['action'] ?? '')==='cancel') decideAmenityBooking($connection,(int)($_POST['booking_id'] ?? 0),'cancelled');
+        else {
+            $guests=filter_var($_POST['attendees'] ?? null,FILTER_VALIDATE_INT);
+            $duration=filter_var($_POST['duration_hours'] ?? 1,FILTER_VALIDATE_INT);
+            if($guests===false || $duration===false) throw new InvalidArgumentException('Enter valid guests and duration.');
+            createAmenityBooking($connection,(int)$_SESSION['user_id'],trim((string)($_POST['amenity'] ?? '')),trim((string)($_POST['booking_date'] ?? '')),trim((string)($_POST['booking_time'] ?? '')),$guests,$duration);
+            trackEvent('booking_created',(string)$_POST['amenity'].' on '.(string)$_POST['booking_date'],(int)$_SESSION['user_id']);
         }
-        setFlash('success', 'Booking saved successfully.');
-        redirect('book_amenity.php');
-    } catch (InvalidArgumentException $e) { $errors[] = $e->getMessage(); }
-    catch (Throwable $e) { error_log($e->getMessage()); $errors[] = 'Unable to save your booking. Please try again.'; }
+        setFlash('success','Reservation saved successfully.'); redirect('book_amenity.php#yourBookings');
+    } catch(AmenityScheduleConflict $error) { $conflict=true; $errors[]=$error->getMessage(); }
+    catch(InvalidArgumentException $error) { $errors[]=$error->getMessage(); }
+    catch(Throwable $error) { error_log($error->getMessage()); $errors[]='Unable to save your reservation. Please try again.'; }
 }
-$bookingFlash = getFlash();
-$success = $bookingFlash !== null;
-
-$amenities = [
-    [
-        'name'        => 'Swimming Pool',
-        'description' => 'Olympic-size pool on the 3rd floor',
-        'image'       => '../IMAGES/ThePool.webp',
-        'photo_class' => 'amenity-photo-pool',
-        'meta'        => [
-            ['icon' => 'clock', 'label' => 'Hours: 6AM - 9PM'],
-            ['icon' => 'users', 'label' => 'Max 20 persons'],
-        ],
-        'button_class' => 'amenity-btn-blue',
-    ],
-    [
-        'name'        => 'Function Hall',
-        'description' => 'Perfect for events and gatherings',
-        'image'       => '../IMAGES/ThePatio.webp',
-        'photo_class' => 'amenity-photo-hall',
-        'meta'        => [
-            ['icon' => 'clock', 'label' => 'Capacity: 100 persons'],
-            ['icon' => 'users', 'label' => 'Rates: ₱3,000/day'],
-        ],
-        'button_class' => 'amenity-btn-purple',
-    ],
-];
-
-$bookings = [];
-if ($tableReady) {
-    $bookingQuery = $connection->prepare('SELECT id, amenity, booking_date, booking_time, attendees, status FROM bookings WHERE user_id = ? ORDER BY booking_date ASC, booking_time ASC');
-    $bookingQuery->bind_param('i', $_SESSION['user_id']);
-    $bookingQuery->execute();
-    $bookings = $bookingQuery->get_result()->fetch_all(MYSQLI_ASSOC);
-}
+$bookingFlash=getFlash();
+$query=$connection->prepare('SELECT b.*,p.status AS payment_status,p.paymongo_checkout_id FROM bookings b LEFT JOIN payments p ON p.id=b.payment_id WHERE b.user_id=? ORDER BY b.booking_date DESC,b.booking_time DESC,b.id DESC');
+$query->bind_param('i',$_SESSION['user_id']); $query->execute(); $bookings=$query->get_result()->fetch_all(MYSQLI_ASSOC);
+$catalog=amenityCatalog();
+$escape=static fn($value)=>htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -86,8 +40,10 @@ if ($tableReady) {
     <title>Celandine Residences - Book Amenities</title>
     <link rel="stylesheet" href="../resident.css">
     <link rel="stylesheet" href="../services.css?v=<?php echo filemtime(__DIR__ . '/../services.css'); ?>">
+    <link rel="stylesheet" href="../amenities.css?v=<?= filemtime(__DIR__ . '/../amenities.css') ?>">
+<?php renderPortalUiHead(); ?>
 </head>
-<body class="dashboard-page">
+<body class="portal-ui dashboard-page amenity-page amenity-resident-page">
 
     <div class="dash-layout">
 
@@ -102,7 +58,7 @@ if ($tableReady) {
 
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-        <main class="dashboard-main">
+        <main class="dashboard-main" id="amenityApp" data-csrf="<?= htmlspecialchars(workflowCsrfToken(),ENT_QUOTES,'UTF-8') ?>">
             <header class="dash-header">
                 <div class="dash-header-left">
                     <button class="btn-icon-menu" id="menuToggle" aria-label="Menu">
@@ -110,7 +66,7 @@ if ($tableReady) {
                     </button>
                     <div>
                         <span class="dash-subtitle">CELANDINE RESIDENCES</span>
-                        <h1 class="dash-title">Book Amenities</h1>
+                        <h1 class="dash-title">Book Amenity</h1>
                     </div>
                 </div>
                 <div class="dash-header-right">
@@ -119,7 +75,7 @@ if ($tableReady) {
                         <button class="btn-profile-nav" id="profileToggle" aria-label="Profile menu" aria-haspopup="true" aria-expanded="false">
                             <span class="profile-avatar"><?php echo htmlspecialchars($initials); ?></span>
                             <span class="profile-nav-name"><?php echo htmlspecialchars($username); ?></span>
-                            <span class="profile-caret">▾</span>
+                            <span class="profile-caret">&#9662;</span>
                         </button>
                         <div class="profile-dropdown" id="profileDropdown">
                             <div class="profile-dropdown-header">
@@ -140,109 +96,96 @@ if ($tableReady) {
                 </div>
             </header>
 
-            <?php if ($success): ?><div class="alert success" role="status"><?php echo htmlspecialchars($bookingFlash['message']); ?></div><?php endif; ?>
-            <?php if (!empty($errors)): ?><div class="alert error"><ul><?php foreach ($errors as $error): ?><li><?php echo htmlspecialchars($error); ?></li><?php endforeach; ?></ul></div><?php endif; ?>
+            <?php if($bookingFlash): ?><div class="alert success" role="status"><?= $escape($bookingFlash['message']) ?></div><?php endif; ?>
+            <?php if($errors): ?><div class="alert error" role="alert"><?php if($conflict): ?><strong>Time Slot Already Booked</strong><?php endif; ?><?php foreach($errors as $error): ?><p><?= $escape($error) ?></p><?php endforeach; ?></div><?php endif; ?>
+            <section class="amenity-page-intro">
+                <div><p class="amenity-kicker">YOUR COMMUNITY, YOUR SPACE</p><h2>Make time for what matters</h2><p>Reserve the Swimming Pool or Function Hall, or explore the other amenities in your community.</p></div>
+                <span class="amenity-timezone">All times in Asia/Manila</span>
+            </section>
+            <nav class="amenity-view-nav" aria-label="Amenity views" hidden>
+                <button type="button" id="amenityExploreTab" data-amenity-view="exploreAmenities" aria-controls="exploreAmenities">Explore amenities</button>
+                <button type="button" id="amenityBookingsTab" data-amenity-view="yourBookings" aria-controls="yourBookings">My reservations <span class="amenity-count"><?= count($bookings) ?></span></button>
+            </nav>
+            <section id="exploreAmenities" aria-labelledby="amenityExploreHeading">
+            <div class="amenity-section-heading amenity-reservable-heading"><div><h2 class="amenity-section-title" id="amenityExploreHeading">Find your next reservation</h2><p>Choose a space below. Every request is subject to admin approval.</p></div><span class="amenity-section-count">2 reservable amenities</span></div>
 
-            <p class="bookings-empty">Looking for parking? Visit the <a href="parking.php">Parking</a> page to check your assigned slot or request visitor parking.</p>
-
-            <section class="amenities-grid">
-                <?php foreach ($amenities as $amenity): ?>
-                    <div class="amenity-card">
-                        <div class="amenity-photo <?php echo htmlspecialchars($amenity['photo_class']); ?>">
-                            <img src="<?php echo htmlspecialchars($amenity['image']); ?>" alt="<?php echo htmlspecialchars($amenity['name']); ?>" class="amenity-photo-img">
-                        </div>
-                        <div class="amenity-body">
-                            <h3 class="amenity-title"><?php echo htmlspecialchars($amenity['name']); ?></h3>
-                            <p class="amenity-desc"><?php echo htmlspecialchars($amenity['description']); ?></p>
-                            <ul class="amenity-meta">
-                                <?php foreach ($amenity['meta'] as $meta): ?>
-                                    <li><?php echo systemIcon($meta['icon'], 'amenity-meta-icon'); ?> <?php echo htmlspecialchars($meta['label']); ?></li>
-                                <?php endforeach; ?>
-                            </ul>
-                            <form method="POST" action="book_amenity.php"><?php echo workflowCsrfField(); ?>
-                                <input type="hidden" name="amenity" value="<?php echo htmlspecialchars($amenity['name']); ?>">
-                                <label class="field-label" for="booking_date_<?php echo htmlspecialchars($amenity['name']); ?>">Date</label>
-                                <input class="form-date" type="date" id="booking_date_<?php echo htmlspecialchars($amenity['name']); ?>" name="booking_date" min="<?php echo date('Y-m-d'); ?>" required>
-                                <label class="field-label" for="booking_time_<?php echo htmlspecialchars($amenity['name']); ?>">Time</label>
-                                <input class="form-date" type="time" id="booking_time_<?php echo htmlspecialchars($amenity['name']); ?>" name="booking_time" min="06:00" max="20:00" step="3600" required>
-                                <label class="field-label">Number of guests<input class="form-date" type="number" name="attendees" min="1" max="<?php echo $amenity['name'] === 'Swimming Pool' ? 20 : 100; ?>" value="1" required></label>
-                                <p class="amenity-desc"><?php echo $amenity['name'] === 'Swimming Pool' ? 'One-hour sessions, up to 20 guests across all bookings. Pending requests reserve capacity.' : 'Exclusive full-day reservation, up to 100 guests. Select your arrival time.'; ?></p>
-                                <button type="submit" class="amenity-book-btn <?php echo htmlspecialchars($amenity['button_class']); ?>">Book Now</button>
-                            </form>
-                        </div>
+            <div class="amenity-featured-grid">
+            <?php foreach($catalog as $name=>$entry): if(!$entry['booking']) continue; ?>
+                <article class="amenity-card" id="amenity-<?= $escape($entry['slug']) ?>">
+                    <?php renderAmenityGallery($name,false); ?>
+                    <div class="amenity-body"><div class="amenity-title-row"><h3><?= $escape($name) ?></h3><span class="amenity-price"><?= $escape($entry['price']) ?></span></div>
+                        <p><?= $escape($entry['description']) ?></p><dl class="amenity-facts"><div><dt>Operating hours</dt><dd><?= $escape($entry['hours']) ?></dd></div><div><dt>Location</dt><dd><?= $escape($entry['location']) ?></dd></div></dl>
+                        <details class="amenity-information"><summary>Rules and reservation details</summary><p><?= $escape($entry['rules']) ?></p><?php if($name==='Swimming Pool'): ?><p>Pricing is per reservation, independent of guest count. Approval creates one bill for your unit owner. Paid reservations and online checkouts require PMO review before cancellation.</p><?php endif; ?></details>
+                        <button type="button" class="service-btn" data-open-booking="<?= $escape($entry['slug']) ?>">Reserve <?= $escape($name) ?></button>
                     </div>
-                <?php endforeach; ?>
+                </article>
+            <?php endforeach; ?>
+            </div>
+            <div class="amenity-section-heading"><h2 class="amenity-section-title">More places to enjoy</h2><p>Information only &middot; Online reservations are not offered for these amenities.</p></div>
+            <div class="amenity-information-grid">
+            <?php foreach($catalog as $name=>$entry): if($entry['booking']) continue; ?>
+                <article class="amenity-card" id="amenity-<?= $escape($entry['slug']) ?>">
+                    <?php renderAmenityGallery($name); ?>
+                    <div class="amenity-body"><div class="amenity-title-row"><h3><?= $escape($name) ?></h3><span class="amenity-view-only">View only</span></div><p><?= $escape($entry['description']) ?></p>
+                        <details class="amenity-information"><summary>View amenity details</summary><dl class="amenity-facts"><div><dt>Operating hours</dt><dd><?= $escape($entry['hours']) ?></dd></div><div><dt>Location</dt><dd><?= $escape($entry['location']) ?></dd></div></dl><p>Ask PMO about access and the current house rules.</p></details>
+                    </div>
+                </article>
+            <?php endforeach; ?>
+            </div>
             </section>
-
-            <section class="bookings-section">
-                <h3 class="section-title">Your Bookings</h3>
-
-                <?php if (empty($bookings)): ?>
-                    <p class="bookings-empty">You have no bookings yet.</p>
-                <?php else: ?>
-                    <?php foreach ($bookings as $booking): ?>
-                        <div class="booking-item">
-                            <?php echo systemIconFromGlyph('📋', 'booking-icon'); ?>
-                            <div class="booking-content">
-                                <h4><?php echo htmlspecialchars($booking['amenity']); ?></h4>
-                                <p><?php echo htmlspecialchars(date('M j, Y', strtotime($booking['booking_date'])) . ' - ' . date('g:i A', strtotime($booking['booking_time']))); ?></p>
-                            </div>
-                            <span class="badge badge-success"><?php echo htmlspecialchars($booking['status']); ?></span>
-                            <?php if (in_array($booking['status'], ['pending','confirmed'], true) && $booking['booking_date'] . ' ' . $booking['booking_time'] > date('Y-m-d H:i:s')): ?>
-                            <form method="post"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="cancel"><input type="hidden" name="booking_id" value="<?php echo (int)$booking['id']; ?>"><button type="submit" class="service-btn service-btn-danger">Cancel</button></form>
-                            <?php endif; ?>
-                        </div>
-                    <?php endforeach; ?>
+            <section class="amenity-booking-history" id="yourBookings" aria-labelledby="amenityHistoryHeading"><h2 class="amenity-section-title" id="amenityHistoryHeading">My reservations</h2><p>Pending requests do not hold pool hours. Approved and paid reservations keep their schedule reserved.</p>
+            <?php if(!$bookings): ?><div class="amenity-empty"><h3>No reservations yet</h3><p>Choose the Swimming Pool or Function Hall to plan your next visit.</p><a class="service-btn service-btn-secondary" href="#exploreAmenities" data-amenity-view-link>Explore amenities</a></div><?php endif; ?>
+            <?php foreach($bookings as $booking):
+                $future=$booking['booking_date'].' '.$booking['booking_time']>date('Y-m-d H:i:s');
+                $review=$booking['payment_id'] && ($booking['payment_status']==='paid' || $booking['paymongo_checkout_id']);
+            ?>
+                <article class="amenity-history-card"><div><span class="amenity-kicker">BOOKING #<?= (int)$booking['id'] ?></span><h3><?= $escape($booking['amenity']) ?></h3><p><?= $escape(date('F j, Y',strtotime($booking['booking_date']))) ?> &middot; <?= $escape(date('g:i A',strtotime($booking['booking_time']))) ?><?= $booking['end_time']?' - '.$escape(date('g:i A',strtotime($booking['end_time']))):'' ?></p><p>Unit <?= $escape($booking['unit_number']) ?> &middot; <?= (int)$booking['attendees'] ?> <?= (int)$booking['attendees']===1?'guest':'guests' ?><?= $booking['duration_hours']?' · '.(int)$booking['duration_hours'].' '.((int)$booking['duration_hours']===1?'hour':'hours'):'' ?></p></div>
+                <div class="amenity-history-status"><span class="amenity-status amenity-status-<?= $escape($booking['status']) ?>"><?= $escape(ucfirst($booking['status'])) ?></span><strong>&#8369;<?= number_format((float)$booking['total_fee'],2) ?></strong><span><?= $booking['payment_id']?'Payment: '.$escape($booking['payment_status']==='rejected'?'Voided':($booking['payment_status']==='pending'?'Unpaid':ucfirst($booking['payment_status']))):'No automatic bill issued' ?></span></div>
+                <div class="amenity-history-actions">
+                <?php if($booking['rejection_reason'] || $booking['cancellation_note']): ?><p class="amenity-history-note"><?= $escape($booking['rejection_reason'] ?: $booking['cancellation_note']) ?></p><?php endif; ?>
+                <?php if($future && in_array($booking['status'],['pending','approved','confirmed'],true)): ?>
+                    <?php if($review): ?><p class="amenity-history-note">Contact PMO to review cancellation and any payment or refund.</p><?php else: ?><form method="post"><?= workflowCsrfField() ?><input type="hidden" name="action" value="cancel"><input type="hidden" name="booking_id" value="<?= (int)$booking['id'] ?>"><button class="service-btn service-btn-danger" type="submit">Cancel reservation</button></form><?php endif; ?>
                 <?php endif; ?>
+                <?php if($booking['payment_id'] && in_array($booking['payment_status'],['pending','overdue'],true)): ?><a href="payments.php" class="service-btn service-btn-secondary">View unit bill</a><?php endif; ?>
+                </div>
+                </article>
+            <?php endforeach; ?>
             </section>
+            <dialog id="amenityBookingDialog" class="amenity-dialog" aria-labelledby="amenityBookingTitle">
+                <div class="amenity-dialog-heading"><div><p class="amenity-kicker">REQUEST A RESERVATION</p><h2 id="amenityBookingTitle">Swimming Pool reservation</h2></div><button class="service-btn service-btn-secondary" type="button" data-close-amenity aria-label="Close reservation dialog">Close</button></div>
+                <div data-booking-pane="swimming-pool">
+                    <div class="amenity-booking-overview"><?php renderAmenityGallery('Swimming Pool'); ?><div><span class="amenity-overview-tag">Exclusive use</span><h3>A pool day, just for your group</h3><p>6 AM–9 PM &middot; Up to 20 guests</p><p>Choose 1–3 hours. &#8369;300 per hour, regardless of guest count.</p></div></div>
+                    <form method="post" id="poolBookingForm" data-pool-reservation class="amenity-booking-layout">
+                        <?= workflowCsrfField() ?><input type="hidden" name="amenity" value="Swimming Pool"><input type="hidden" name="booking_time" value="">
+                        <div class="amenity-booking-fields">
+                            <h3 class="amenity-step-heading"><span>1</span> Plan your visit</h3>
+                            <div class="amenity-form-grid"><label class="field-label">Reservation date<input type="date" name="booking_date" min="<?= date('Y-m-d') ?>" required></label><label class="field-label">Duration<select name="duration_hours"><option value="1">1 hour</option><option value="2">2 hours</option><option value="3">3 hours</option></select></label><label class="field-label">Guests <span class="amenity-field-hint">Including yourself</span><input type="number" name="attendees" value="1" min="1" max="20" required></label></div>
+                            <div class="amenity-slot-heading"><h3 class="amenity-step-heading"><span>2</span> Choose a time</h3><button type="button" class="service-btn service-btn-secondary" data-refresh-slots>Refresh</button></div>
+                            <div class="amenity-slot-legend"><span>Available</span><span>Booked</span><span>Selected</span></div>
+                            <p class="amenity-availability-message" data-availability-message role="status" aria-live="polite">Select a date to see available starting times.</p><div class="amenity-time-slots" data-time-slots role="group" aria-label="Available pool starting times"></div>
+                            <noscript><p>Enable JavaScript to load schedule availability and choose a pool starting time.</p></noscript>
+                        </div>
+                        <aside class="amenity-booking-review" aria-label="Review pool reservation">
+                            <div class="amenity-reservation-summary" aria-live="polite"><p class="amenity-kicker">REVIEW YOUR VISIT</p><h3>Booking summary</h3><dl><div><dt>Amenity</dt><dd>Swimming Pool</dd></div><div><dt>Date</dt><dd data-summary-date>Choose a date</dd></div><div><dt>Time</dt><dd data-summary-time>Choose a time</dd></div><div><dt>Duration</dt><dd data-summary-duration>1 hour</dd></div><div><dt>Hourly rate</dt><dd>&#8369;300/hour</dd></div><div class="amenity-summary-total"><dt>Total fee</dt><dd data-summary-fee>&#8369;300.00</dd></div></dl>
+                            <p class="amenity-payment-note">Admin approval creates one charge on your unit owner's billing account. Pending requests do not hold a time slot.</p>
+                            <div class="amenity-form-feedback" data-booking-feedback role="status" aria-live="polite"></div><button type="submit" class="service-btn" data-reservation-submit disabled>Submit reservation</button>
+                            <p class="amenity-submit-hint">Select a date and available time to continue.</p>
+                            </div>
+                            <p class="amenity-review-help">Paid reservations and online checkouts require PMO review before cancellation.</p>
+                        </aside>
+                    </form>
+                </div>
+                <div data-booking-pane="function-hall" hidden>
+                    <div class="amenity-booking-overview"><?php renderAmenityGallery('Function Hall'); ?><div><span class="amenity-overview-tag">Full-day reservation</span><h3>A space to bring everyone together</h3><p>Arrival: 6 AM–8 PM &middot; Up to 100 guests</p><p>&#8369;3,000 per day. Admin approval is required.</p></div></div>
+                    <form method="post" class="amenity-hall-form amenity-booking-layout"><?= workflowCsrfField() ?><input type="hidden" name="amenity" value="Function Hall">
+                        <div class="amenity-booking-fields"><h3 class="amenity-step-heading"><span>1</span> Plan your event</h3><div class="amenity-form-grid"><label class="field-label">Reservation date<input type="date" name="booking_date" min="<?= date('Y-m-d') ?>" required></label><label class="field-label">Arrival time<input type="time" name="booking_time" min="06:00" max="20:00" step="3600" required></label><label class="field-label">Number of guests<input type="number" name="attendees" min="1" max="100" value="1" required></label></div><div class="amenity-hall-guidance"><h3>Before you submit</h3><p><?= $escape($catalog['Function Hall']['rules']) ?></p><p>PMO will confirm your request and coordinate payment arrangements.</p></div></div>
+                        <aside class="amenity-booking-review" aria-label="Function Hall reservation rate"><div class="amenity-reservation-summary"><p class="amenity-kicker">YOUR RESERVATION</p><h3>Function Hall</h3><dl><div><dt>Reservation type</dt><dd>Full day</dd></div><div><dt>Maximum guests</dt><dd>100</dd></div><div class="amenity-summary-total"><dt>Daily fee</dt><dd>&#8369;3,000.00</dd></div></dl><p class="amenity-payment-note">Payment arrangements are handled by PMO after approval.</p><button class="service-btn" type="submit">Submit reservation</button></div></aside>
+                    </form>
+                </div>
+            </dialog>
+            <?php include __DIR__.'/../includes/amenity_lightbox.php'; ?>
         </main>
-
     </div>
-    <script>
-        // Toggle Mobile Sidebar
-        const menuToggle = document.getElementById('menuToggle');
-        const sidebar = document.getElementById('sidebar');
-        const overlay = document.getElementById('sidebarOverlay');
-
-        if (menuToggle) {
-            menuToggle.addEventListener('click', () => {
-                sidebar.classList.toggle('open');
-                overlay.classList.toggle('open');
-            });
-        }
-
-        if (overlay) {
-            overlay.addEventListener('click', () => {
-                sidebar.classList.remove('open');
-                overlay.classList.remove('open');
-            });
-        }
-
-        // Profile Dropdown Menu Toggle
-        const profileMenu = document.getElementById('profileMenu');
-        const profileToggle = document.getElementById('profileToggle');
-
-        if (profileToggle && profileMenu) {
-            profileToggle.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const isOpen = profileMenu.classList.toggle('open');
-                profileToggle.setAttribute('aria-expanded', isOpen);
-            });
-
-            document.addEventListener('click', (e) => {
-                if (!profileMenu.contains(e.target)) {
-                    profileMenu.classList.remove('open');
-                    profileToggle.setAttribute('aria-expanded', 'false');
-                }
-            });
-
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') {
-                    profileMenu.classList.remove('open');
-                    profileToggle.setAttribute('aria-expanded', 'false');
-                }
-            });
-        }
-    </script>
-</body>
-</html>
+    <script src="../js/services-menu.js"></script><script src="../js/profile-menu.js"></script><script src="../js/notification-menu.js"></script>
+    <script src="../js/amenities.js?v=<?= filemtime(__DIR__.'/../js/amenities.js') ?>"></script>
+</body></html>

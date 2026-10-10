@@ -47,8 +47,12 @@ try {
     checkWorkflow(workflowDate('2026-02-28') && !workflowDate('2026-02-30'), 'strict calendar dates');
     $today = date('Y-m-d');
     $tomorrow = date('Y-m-d', strtotime('+1 day'));
-    $input = ['visitor_name'=>'Guest One','visitor_contact'=>'123','details'=>'Family visit','start_date'=>$today];
+    $input = ['visitor_name'=>'Guest One','visitor_contact'=>'123','visitor_count'=>'5','details'=>'Family visit','start_date'=>$today];
     $visitorId = createResidentServiceRequest($db,1,'visitor',$input);
+    checkWorkflow((int)$db->query('SELECT visitor_count FROM resident_service_requests WHERE id='.$visitorId)->fetch_assoc()['visitor_count'] === 5, 'group visitor count persists');
+    foreach (['0', '-1', '1.5', 'abc', '', '65536', ['2']] as $invalidCount) {
+        expectWorkflowRejection(fn()=>createResidentServiceRequest($db,1,'visitor',array_merge($input,['visitor_count'=>$invalidCount])), 'invalid group visitor count rejected');
+    }
     $permitId = createResidentServiceRequest($db,1,'permit',['permit_type'=>'Renovation','details'=>'Kitchen work','start_date'=>$today,'end_date'=>$tomorrow]);
     expectWorkflowRejection(fn()=>createResidentServiceRequest($db,1,'visitor',array_merge($input,['visitor_name'=>''])), 'visitor name required');
     expectWorkflowRejection(fn()=>createResidentServiceRequest($db,1,'permit',['permit_type'=>'Unknown','details'=>'Work','start_date'=>$today]), 'permit type allowlist');
@@ -65,7 +69,10 @@ try {
     checkWorkflow(!checkInRegisteredVisitor($db,$visitorId,$visitor['access_token']), 'duplicate check-in rejected');
     $visitor = getResidentServiceRequests($db,'visitor',1)[0];
     checkWorkflow($visitor['status'] === 'checked_in' && $visitor['visitor_log_id'] > 0, 'registration linked to gate log');
+    checkWorkflow((int)$db->query('SELECT visitor_count FROM visitor_logs WHERE id='.(int)$visitor['visitor_log_id'])->fetch_assoc()['visitor_count'] === 5, 'group count reaches gate log');
+    checkWorkflow(countActiveVisitors($db) === 5, 'inside count includes every group member');
     checkWorkflow(logVisitorOut($db,(int)$visitor['visitor_log_id'],3), 'checkout succeeds');
+    checkWorkflow(countActiveVisitors($db) === 0, 'group checkout removes all group members from inside count');
     checkWorkflow(getResidentServiceRequests($db,'visitor',1)[0]['status'] === 'checked_out', 'checkout synchronizes resident status');
     workflowTestActor(4,'superadmin');
     checkWorkflow(decideResidentServiceRequest($db,$permitId,'approved','Authorized'), 'management approves permit');
@@ -176,11 +183,14 @@ try {
     checkWorkflow(!createParkingRequest(1,'visitor','TOOLONG','Sedan',$today,date('Y-m-d', strtotime('+5 days'))), 'parking duration includes start date');
     workflowTestActor(1,'resident');
     checkWorkflow(createAmenityBooking($db,1,'Swimming Pool',$tomorrow,'08:00',15), 'pool reservation created');
-    expectWorkflowRejection(fn()=>createAmenityBooking($db,2,'Swimming Pool',$tomorrow,'08:00',6), 'pool capacity enforced');
-    checkWorkflow(createAmenityBooking($db,2,'Swimming Pool',$tomorrow,'08:00',5), 'remaining pool capacity allowed');
+    expectWorkflowRejection(fn()=>createAmenityBooking($db,1,'Swimming Pool',$tomorrow,'09:00',21), 'pool guest limit enforced');
+    workflowTestActor(2,'resident');
+    checkWorkflow(createAmenityBooking($db,2,'Swimming Pool',$tomorrow,'08:00',5), 'overlapping pending pool requests allowed before approval');
+    workflowTestActor(1,'resident');
     expectWorkflowRejection(fn()=>createAmenityBooking($db,1,'Swimming Pool',$tomorrow,'08:00',1), 'duplicate pool booking rejected');
     expectWorkflowRejection(fn()=>createAmenityBooking($db,1,'Swimming Pool',$tomorrow,'22:00',1), 'amenity hours enforced');
     checkWorkflow(createAmenityBooking($db,1,'Function Hall',$tomorrow,'08:00',50), 'hall booking created');
+    workflowTestActor(2,'resident');
     expectWorkflowRejection(fn()=>createAmenityBooking($db,2,'Function Hall',$tomorrow,'10:00',20), 'hall day is exclusive');
     checkWorkflow($db->query("SELECT entity_type FROM audit_logs WHERE entity_type = 'parking_sticker'")->num_rows > 0, 'audit entity types persist correctly');
     workflowTestActor(4,'superadmin');

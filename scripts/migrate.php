@@ -1,7 +1,7 @@
 <?php
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 if ($argc !== 2 || $argv[1] !== '--apply') {
-    fwrite(STDOUT, "Usage: php scripts/migrate.php --apply\nBack up the database and private_uploads before applying migrations.\nThis upgrades an existing base schema; import database on a fresh installation.\n");
+    fwrite(STDOUT, "Usage: php scripts/migrate.php --apply\nBack up the database and private_uploads before applying migrations.\nThis upgrades an existing base schema; import database.sql on a fresh installation.\n");
     exit($argc === 1 || ($argv[1] ?? '') === '--help' ? 0 : 2);
 }
 
@@ -31,7 +31,7 @@ try {
         'ensureRememberTokensTable', 'ensurePhoneVerificationColumns', 'ensureAuditLogTable',
         'ensureParkingTables', 'ensureParkingPolicyTable', 'ensureParkingStickerOrdersTable',
         'ensureVehiclesTable', 'ensureStickerVehicleLinks', 'ensureViolationsTable',
-        'ensureVisitorLogsTable', 'ensureVisitorLogColumns', 'ensureResidentServicesTables',
+        'ensureVisitorLogsTable', 'ensureVisitorLogColumns', 'ensureResidentServicesTables', 'ensureQrScanHistorySchema',
     ];
     foreach ($functions as $function) {
         $step = $function;

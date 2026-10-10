@@ -1,8 +1,4 @@
-const serviceMenu = document.getElementById('menuToggle');
-const serviceSidebar = document.getElementById('sidebar');
-const serviceOverlay = document.getElementById('sidebarOverlay');
-serviceMenu?.addEventListener('click', () => { serviceSidebar?.classList.toggle('open'); serviceOverlay?.classList.toggle('open'); });
-serviceOverlay?.addEventListener('click', () => { serviceSidebar?.classList.remove('open'); serviceOverlay.classList.remove('open'); });
+// Navigation is handled by assets/js/ui-components.js.
 const visitorNeedsParking = document.getElementById('needs_parking');
 const visitorParkingFields = document.getElementById('visitorParkingFields');
 function syncVisitorParkingFields() {

@@ -60,8 +60,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($errors)) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celandine Residences</title>
     <link rel="stylesheet" href="styles.css">
+<?php renderPortalUiHead(); ?>
 </head>
-<body>
+<body class="portal-ui portal-account-page">
     <div class="card">
         <h2>Reset Password</h2>
         <p class="subtitle">Enter your new password below to secure your account.</p>

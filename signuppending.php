@@ -96,176 +96,32 @@ $pageFlash = getFlash();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Account Pending Approval</title>
+    <title><?php echo $isRejected ? 'Application Rejected' : 'Account Pending Approval'; ?> | The Celandine Homes</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="rejection.css?v=<?php echo filemtime(__DIR__ . '/rejection.css'); ?>">
-    <style>
-        :root {
-            --status-blue: #0d4d8d;
-            --status-blue-dark: #0a3d73;
-            --status-orange: #f59e0b;
-            --status-text: #0f172a;
-            --status-muted: #334155;
-            --status-light: #edf1f5;
-            --status-button: #0b5ea8;
-        }
 
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            min-height: 100vh;
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, rgba(10,15,29,0.88), rgba(15,23,42,0.9));
-            color: var(--status-text);
-        }
-
-        .status-shell {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 36px 0;
-        }
-
-        .pending-card {
-            width: min(92vw, 620px);
-            padding: 30px 34px 24px;
-            border-radius: 16px;
-            background: rgba(10, 27, 40, 0.88);
-            border: 1px solid rgba(255,255,255,0.05);
-            box-shadow: 0 28px 55px rgba(0,0,0,0.38);
-            text-align: center;
-        }
-
-        .pending-icon-wrap {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 144px;
-            height: 144px;
-            margin: 0 auto 20px;
-        }
-
-        .pending-clock {
-            width: 116px;
-            height: 116px;
-            color: var(--status-orange);
-            stroke: currentColor;
-            stroke-width: 5;
-            fill: none;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-        }
-
-        .pending-clock .clock-hand {
-            stroke-width: 6;
-            stroke-linecap: round;
-        }
-
-        .status-heading {
-            margin: 0;
-            font-size: 28px;
-            line-height: 1.2;
-            letter-spacing: -0.02em;
-            font-weight: 700;
-            color: #f8fafc;
-        }
-
-        .status-message {
-            margin: 16px auto 0;
-            color: #dbe7f6;
-            font-size: 14px;
-            line-height: 1.5;
-            font-weight: 400;
-            max-width: 520px;
-        }
-
-        .status-update {
-            margin: 20px auto 16px;
-            max-width: 560px;
-            font-size: 14px;
-            line-height: 1.5;
-            color: #e2e8f0;
-            font-weight: 700;
-            font-style: italic;
-        }
-
-        .status-button-wrap {
-            margin-top: 12px;
-        }
-
-        .status-button {
-            display: block;
-            width: auto;
-            min-width: 150px;
-            margin: 0 auto;
-            border: none;
-            border-radius: 8px;
-            background: var(--btn-orange, #d97706);
-            color: #fff;
-            padding: 11px 20px;
-            font-size: 14px;
-            font-weight: 700;
-            letter-spacing: 0;
-            cursor: pointer;
-            transition: background-color 0.2s ease, transform 0.2s ease;
-            box-shadow: 0 4px 10px rgba(217, 119, 6, 0.2);
-        }
-
-        .status-button:hover {
-            background: var(--btn-orange-hover, #b45309);
-            transform: translateY(-1px);
-            box-shadow: 0 6px 12px rgba(217, 119, 6, 0.25);
-        }
-
-        @media (max-width: 560px) {
-            .pending-card {
-                width: min(92vw, 560px);
-                padding: 28px 18px 20px;
-            }
-
-            .pending-icon-wrap {
-                width: 120px;
-                height: 120px;
-            }
-
-            .pending-clock {
-                width: 96px;
-                height: 96px;
-            }
-        }
-    </style>
+    <?php renderPortalUiHead(); ?>
+    <link rel="stylesheet" href="assets/css/signup-status.css?v=<?php echo filemtime(__DIR__ . '/assets/css/signup-status.css'); ?>">
 </head>
-<body>
+<body class="portal-ui portal-account-page signup-status-page">
     <div class="status-shell">
-        <div class="pending-card<?php echo $isRejected ? ' rejected-card' : ''; ?>">
-            <?php if (!$isRejected): ?>
-            <div class="pending-icon-wrap" aria-hidden="true">
-                <svg class="pending-clock" viewBox="0 0 64 64" role="img" aria-label="Pending approval clock icon">
-                    <circle cx="32" cy="32" r="23"></circle>
-                    <path class="clock-hand" d="M32 32 L32 18"></path>
-                    <path class="clock-hand" d="M32 32 L40 37"></path>
-                </svg>
+        <main class="pending-card<?php echo $isRejected ? ' rejected-card' : ''; ?>" aria-labelledby="signupStatusTitle">
+            <div class="signup-status-brand">
+                <?php echo systemIcon('dashboard'); ?>
+                <span>The Celandine Homes<small>Resident registration</small></span>
             </div>
-            <?php endif; ?>
-
             <?php if ($isRejected): ?>
-                <div class="rejected-heading-row">
-                    <span class="rejected-mark" aria-hidden="true">!</span>
-                    <div>
-                        <h1 class="status-heading">Application Rejected</h1>
-                        <p class="rejected-subtitle">Please review the reason and update your information.</p>
-                    </div>
-                </div>
+                <header class="signup-status-header">
+                    <span class="signup-status-badge signup-status-badge--rejected"><?php echo systemIcon('close'); ?>Application rejected</span>
+                    <h1 id="signupStatusTitle" class="status-heading">Update your application</h1>
+                    <p class="rejected-subtitle">Please review the reason and update your information.</p>
+                </header>
                 <p class="status-message">Your registration was reviewed and could not be approved.</p>
                 <div class="rejection-reason"><strong>Reason provided by Admin:</strong><br><?php echo nl2br(htmlspecialchars($account['rejection_reason'] ?: 'No reason was provided. Please contact your Property Manager.')); ?></div>
                 <p class="resubmit-intro">Correct any information below, then send your application back for review.</p>
 
                 <?php if ($pageFlash): ?>
-                    <div class="resubmit-notice"><?php echo htmlspecialchars($pageFlash['message']); ?></div>
+                    <div class="resubmit-notice" role="status"><?php echo htmlspecialchars($pageFlash['message']); ?></div>
                 <?php endif; ?>
                 <?php if (!empty($resubmitErrors)): ?>
                     <div class="resubmit-errors" role="alert">
@@ -314,25 +170,51 @@ $pageFlash = getFlash();
                     </div>
                     <div class="resubmit-actions resubmit-field-wide">
                         <button type="submit" name="resubmit_application" value="1" class="resubmit-submit">Resubmit application</button>
-                        <a class="resubmit-logout" href="logout.php">Log out</a>
+                        <a class="resubmit-logout service-btn service-btn-secondary" href="logout.php">Log out</a>
                     </div>
                 </form>
             <?php else: ?>
-                <h1 class="status-heading">Registration Submitted</h1>
-                <p class="status-message">Thank you for registering. Your application is now under review by Admin.</p>
-                <?php if (in_array(residentAccountKind($account['account_type']), ['tenant', 'occupant'], true)): ?>
-                <p class="status-message">Management must confirm your occupancy and link your account to an approved unit owner. You can view unit bills after approval; the unit owner handles payment.</p>
-                <?php endif; ?>
-                <p class="status-message">You'll receive an email confirmation once your account is approved. Please check your inbox regularly for updates.</p>
-                <p class="status-update">For updates on your account status,<br>Contact your Property Manager</p>
+                <header class="signup-status-header">
+                    <span class="signup-status-badge"><?php echo systemIcon('clock'); ?>Pending approval</span>
+                    <h1 id="signupStatusTitle" class="status-heading">Registration submitted</h1>
+                    <p class="status-message">Thank you for registering. Management will review your application before you can access your account.</p>
+                </header>
                 <?php if ($pageFlash): ?>
-                    <p class="status-message"><?php echo htmlspecialchars($pageFlash['message']); ?></p>
+                    <div class="signup-status-notice" role="status"><?php echo systemIcon('check-circle'); ?><p><?php echo htmlspecialchars($pageFlash['message']); ?></p></div>
                 <?php endif; ?>
+                <section class="signup-review" aria-labelledby="reviewStepsTitle">
+                    <h2 id="reviewStepsTitle">What happens next</h2>
+                    <ol class="signup-review-steps">
+                        <li class="signup-review-step signup-review-step--complete">
+                            <?php echo systemIcon('check', 'signup-review-marker'); ?>
+                            <div><h3>Application received</h3></div>
+                        </li>
+                        <li class="signup-review-step signup-review-step--current" aria-current="step">
+                            <?php echo systemIcon('clock', 'signup-review-marker'); ?>
+                            <div><h3>Management review</h3></div>
+                        </li>
+                        <li class="signup-review-step">
+                            <?php echo systemIcon('lock', 'signup-review-marker'); ?>
+                            <div><h3>Account access</h3></div>
+                        </li>
+                    </ol>
+                </section>
+                <?php if (in_array(residentAccountKind($account['account_type']), ['tenant', 'occupant'], true)): ?>
+                <aside class="signup-status-info">
+                    <?php echo systemIcon('users'); ?>
+                    <div><h2>Occupancy confirmation</h2><p>Management must confirm your occupancy and link your account to an approved unit owner. You can view unit bills after approval; the unit owner handles payment.</p></div>
+                </aside>
+                <?php endif; ?>
+                <aside class="signup-status-info">
+                    <?php echo systemIcon('mail'); ?>
+                    <div><h2>Watch your inbox</h2><p>You'll receive an email confirmation once your account is approved. Check your inbox regularly for updates.</p></div>
+                </aside>
+                <div class="signup-status-help"><?php echo systemIcon('help'); ?><p>Need an update? Contact your Property Manager for your application status.</p></div>
                 <div class="status-button-wrap">
-                    <button type="button" class="status-button" onclick="window.location.href='logout.php'">UNDERSTOOD</button>
+                    <a class="service-btn status-button" href="logout.php">Understood<?php echo systemIcon('arrow-right'); ?></a>
                 </div>
             <?php endif; ?>
-        </div>
+        </main>
     </div>
 </body>
 </html>

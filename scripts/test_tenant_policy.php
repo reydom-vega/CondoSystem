@@ -146,6 +146,14 @@ try {
     }
     putenv('CONDO_TENANT_PERMITS=1');
     tenantCheck(residentHasPermission('resident.permits.request'), 'management may enable tenant permit requests');
+    $tenantPermitPage = tenantRequest('resident/permits.php', 2);
+    tenantCheck($tenantPermitPage['status'] === 200 && str_contains($tenantPermitPage['body'], 'name="permit_type"'), 'enabled tenant permit form is available');
+    $tenantPermitDashboard = tenantRequest('resident/dashboard.php', 2);
+    tenantCheck(str_contains($tenantPermitDashboard['body'], 'href="permits.php"'), 'enabled tenant sees permit navigation');
+    tenantRequest('resident/permits.php', 2, ['permit_type'=>'Delivery', 'details'=>'Tenant delivery permit test', 'start_date'=>date('Y-m-d')]);
+    $submittedTenantPermit = $db->query("SELECT user_id,status FROM resident_service_requests WHERE request_kind='permit' AND details='Tenant delivery permit test'")->fetch_assoc();
+    tenantCheck($submittedTenantPermit && (int)$submittedTenantPermit['user_id'] === 2 && $submittedTenantPermit['status'] === 'pending', 'tenant submission saves own pending permit for management review');
+    tenantCheck(count(getResidentServiceRequests($db, 'permit', 3)) === 0, 'tenant permit remains private to its requester');
     tenantCheck(!residentHasPermission('resident.billing.pay') && residentHasPermission('resident.stickers.order'), 'tenant parking access does not grant shared unit payment authority');
     putenv('CONDO_TENANT_PERMITS=0');
     tenantActor($db,7); tenantCheck(!residentHasPermission('resident.billing.view'), 'staff cannot assume tenant resident permissions');

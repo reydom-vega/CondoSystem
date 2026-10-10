@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         // datetime-local sends "YYYY-MM-DDTHH:MM"; MySQL wants a space instead of "T".
         $expiresAt = str_replace('T', ' ', $expiresAtInput) . ':00';
     }
-    
+
     if ($title === '' || $content === '') {
         $errors[] = 'Title and content are required.';
     } elseif (!in_array($priority, ['low', 'medium', 'high'], true)) {
@@ -85,8 +85,9 @@ $announcements = getAnnouncements(50, false);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celandine Residences</title>
     <link rel="stylesheet" href="../styles.css">
+<?php renderPortalUiHead(); ?>
 </head>
-<body class="dashboard-page admin-page">
+<body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
             <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
@@ -166,7 +167,7 @@ $announcements = getAnnouncements(50, false);
                                     </div>
                                     <div class="announcement-meta">
                                         <?php if (!empty($announcement['category'])): ?>
-                                            <strong><?php echo htmlspecialchars($announcement['category']); ?></strong> • 
+                                            <strong><?php echo htmlspecialchars($announcement['category']); ?></strong> •
                                         <?php endif; ?>
                                         <?php echo date('M d, Y H:i', strtotime($announcement['created_at'])); ?>
                                     </div>
@@ -197,7 +198,7 @@ $announcements = getAnnouncements(50, false);
             <form method="post" style="margin-top: 20px;"><?php echo workflowCsrfField(); ?>
                 <input type="hidden" name="action" value="save">
                 <input type="hidden" name="announcement_id" id="announcement_id" value="0">
-                
+
                 <div style="margin-bottom: 15px;">
                     <label for="title" style="display: block; margin-bottom: 5px; color: #cbd5e1;">Title</label>
                     <input type="text" id="title" name="title" required style="width: 100%; padding: 10px; background: #1f293d; border: 1px solid #374151; border-radius: 6px; color: #fff;" placeholder="Announcement title">
@@ -402,7 +403,7 @@ $announcements = getAnnouncements(50, false);
             function useTemplate(templateKey) {
                 const template = templates[templateKey];
                 if (!template) return;
-            
+
                 document.getElementById('announcement_id').value = 0;
                 document.getElementById('title').value = template.title;
                 document.getElementById('category').value = template.category;
@@ -410,7 +411,7 @@ $announcements = getAnnouncements(50, false);
                 document.getElementById('content').value = template.content;
                 document.getElementById('expires_at').value = '';
                 document.getElementById('modalTitle').textContent = 'New Announcement (from Template)';
-            
+
                 closeTemplateModal();
                 document.getElementById('announcementModal').classList.add('open');
             }
@@ -422,9 +423,9 @@ $announcements = getAnnouncements(50, false);
         const menuToggle = document.getElementById('menuToggle');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebarOverlay');
-        menuToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); overlay.classList.toggle('open'); });
-        overlay.addEventListener('click', () => { sidebar.classList.remove('open'); overlay.classList.remove('open'); });
-        
+        /* Navigation is handled by the shared UI module. */
+        /* Navigation is handled by the shared UI module. */
+
         const profileMenu = document.getElementById('profileMenu');
         const profileToggle = document.getElementById('profileToggle');
         profileToggle.addEventListener('click', (event) => { event.stopPropagation(); const isOpen = profileMenu.classList.toggle('open'); profileToggle.setAttribute('aria-expanded', isOpen); });
@@ -434,6 +435,6 @@ $announcements = getAnnouncements(50, false);
             if (e.target === this) closeTemplateModal();
         });
     </script>
-    <script src="../js/confirmation-ui.js"></script>
+
 </body>
 </html>

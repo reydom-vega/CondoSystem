@@ -9,7 +9,7 @@ For operational use, select a PHP/MySQL host that permits payment-provider callb
 For a browser-only demonstration on InfinityFree:
 
 1. Create the host database and record credentials in private server configuration. Do not put credentials into `config.php` or this guide. The application reads `CONDO_*` environment variables or a protected `.env` file; `.env.example` lists available settings.
-2. Prepare a clean demonstration database locally: import `database`, run `php scripts/migrate.php --apply`, and export the complete resulting schema. On a host without CLI, import that prepared schema with phpMyAdmin. Do not manually add the schema-version marker to an incomplete installation.
+2. Prepare a clean demonstration database locally: import `database.sql`, run `php scripts/migrate.php --apply`, and export the complete resulting schema. On a host without CLI, import that prepared schema with phpMyAdmin. Do not manually add the schema-version marker to an incomplete installation.
 3. Upload application code and Composer dependencies, including all `.htaccess` files. Exclude repository metadata, real resident documents, debug tools, setup archives, test scripts and database exports from the public upload.
 4. Use the exact hosting database hostname and prefixed account/database names. Set the canonical HTTPS `CONDO_APP_URL` to the hosted address. Use separate sandbox provider credentials and a new pass-signing key.
 5. Verify forbidden files in a real browser and inspect the actual responses; the host's security page can hide failed route access from automated HTTP clients. Check resident and staff journeys, login, document ownership and role denial.

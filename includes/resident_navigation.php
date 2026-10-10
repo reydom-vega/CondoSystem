@@ -29,4 +29,5 @@ function renderResidentSidebarNavigation(?string $activePage = null): void {
         $active = $path === $activePage;
         echo '<a href="' . htmlspecialchars($path, ENT_QUOTES, 'UTF-8') . '" class="sidebar-link' . ($active ? ' active' : '') . '"' . ($active ? ' aria-current="page"' : '') . '>' . systemSidebarIcon($icon) . ' ' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</a>';
     }
+    renderPortalSidebarFooter();
 }

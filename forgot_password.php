@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $connection = connectDb();
         $allowed = allowAuthenticationRequest($connection, 'password_reset', 5);
-        
+
         $stmt = $connection->prepare('SELECT id, username FROM users WHERE email = ? AND is_active = 1 LIMIT 1');
         $stmt->bind_param('s', $email);
         $stmt->execute();
@@ -59,8 +59,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Forgot Password</title>
     <link rel="stylesheet" href="styles.css">
+<?php renderPortalUiHead(); ?>
 </head>
-<body>
+<body class="portal-ui portal-account-page">
     <div class="card">
         <div class="panel-hero">
             <div class="brand">
@@ -88,6 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php echo workflowCsrfField(); ?>
                 <div class="input-wrap">
                     <?php echo systemIconFromGlyph('✉️', 'icon'); ?>
+                    <label class="field-label" for="email">Email address</label>
                     <input type="email" id="email" name="email" placeholder="Email" value="<?php echo htmlspecialchars($email ?? ''); ?>" required>
                 </div>
                 <button type="submit">Send Reset Link</button>

@@ -24,8 +24,24 @@
 .visitor-parking-form .form-date { width:100%; margin-bottom:0; }
 .service-empty-state { padding:16px; border:1px dashed var(--input-border,#374151); border-radius:10px; }
 .parking-request-card a,.booking-content a { color:#f59e0b; }
-.service-request { padding:20px 0; border-top:1px solid #334155; }
-.service-request-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+.service-request-list > h2 { margin:0 0 20px; font-size:20px; font-weight:700; line-height:1.4; }
+.service-request { padding:20px; margin-top:14px; border:1px solid var(--dash-card-border,#334155); border-radius:12px; }
+.service-request-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+.service-request-heading h3 { margin:0; min-width:0; font-size:16px; font-weight:650; line-height:1.5; overflow-wrap:anywhere; }
+.service-request p { margin:10px 0 0; font-size:14px; line-height:1.6; overflow-wrap:anywhere; }
+.service-request .service-request-meta { margin-top:5px; font-size:13px; }
+.service-request .service-request-count { margin-top:16px; }
+.service-request-count strong { color:var(--text-primary,#f1f5f9); font-weight:600; }
+.service-request .service-request-description { color:var(--text-primary,#e2e8f0); white-space:pre-line; }
+.service-request .service-status { display:inline-flex; align-items:center; flex-shrink:0; padding:5px 11px; border:1px solid #64748b; border-radius:999px; background:rgba(148,163,184,.08); color:#cbd5e1; font-size:12px; font-weight:600; line-height:1.4; }
+.service-request .service-status-approved,.service-request .service-status-checked_in { border-color:#34d399; color:#a7f3d0; background:rgba(16,185,129,.1); }
+.service-request .service-status-pending { border-color:#d97706; color:#fcd34d; background:rgba(245,158,11,.1); }
+.service-request .service-status-rejected { border-color:#f87171; color:#fecaca; background:rgba(239,68,68,.1); }
+.service-request-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:20px; padding-top:16px; border-top:1px solid var(--dash-card-border,#334155); }
+.service-request-actions > p,.service-request-actions > .service-actions { margin:0; }
+.service-request-actions > .service-parking-status { flex-basis:100%; }
+.service-request-actions > .service-actions:has(input[name="admin_notes"]) { flex:1 1 100%; }
+@media(max-width:640px) { .service-request { padding:16px; } .service-request-actions > a,.service-request-actions > p:not(.service-parking-status),.service-request-actions > form { flex:1 1 100%; } .service-request-actions .service-btn { width:100%; } }
 .service-actions { display:flex; gap:12px; flex-wrap:wrap; margin-top:16px; }
 .service-actions button,.service-form button { width:auto; margin:0; padding:10px 18px; }
 .service-actions input { flex:1; min-width:180px; }
@@ -70,3 +86,49 @@
 .logout-confirmation .button-link-secondary { background:#242a38; border:1px solid #475569; box-shadow:none; }
 .logout-confirmation .button-link-secondary:hover { background:#334155; text-decoration:none; }
 .logout-confirmation .button-link:focus-visible { outline:2px solid #fbbf24; outline-offset:3px; }
+
+/* Permit requests share the existing dashboard shell and service controls. */
+.permit-identity { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; padding:18px; border:1px solid var(--dash-card-border,#334155); border-radius:10px; margin:18px 0; }
+.permit-identity dt { font-size:12px; color:var(--text-muted,#b0bbcd); margin-bottom:6px; }
+.permit-identity dd { margin:0; font-size:14px; font-weight:600; overflow-wrap:anywhere; }
+.permit-fieldset { min-width:0; padding:20px; border:1px solid var(--dash-card-border,#334155); border-radius:12px; }
+.permit-fieldset[hidden],[data-permit-status][hidden] { display:none; }
+.permit-fieldset legend { font-size:15px; font-weight:600; padding:0 8px; }
+.permit-fieldset h3 { margin:22px 0 6px; }
+.permit-fieldset p,.permit-fieldset small { font-size:13px; line-height:1.6; color:var(--text-muted,#b0bbcd); }
+.permit-directions { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.permit-directions label { display:flex; align-items:center; gap:12px; padding:18px; border:1px solid #475569; border-radius:10px; cursor:pointer; font-size:14px; font-weight:600; }
+.permit-directions label:has(input:checked) { border-color:#f59e0b; background:rgba(245,158,11,.08); }
+.permit-directions input,.permit-completion input[type=checkbox] { width:18px; height:18px; margin:0; accent-color:#d97706; }
+.permit-completion .checkbox { display:flex; align-items:center; gap:12px; }
+.permit-item { margin:12px 0; padding:16px; background:var(--input-bg,#111827); border:1px solid #334155; border-radius:10px; }
+.permit-item .service-form { margin-top:0; }
+.permit-item .permit-remove { margin-top:12px; }
+.permit-table-wrap { overflow-x:auto; margin:20px 0; }
+.permit-table { border-collapse:collapse; width:100%; text-align:left; font-size:13px; line-height:1.6; }
+.permit-table th { padding:14px 12px; color:var(--text-muted,#b0bbcd); border-bottom:1px solid #475569; font-size:12px; font-weight:600; white-space:nowrap; }
+.permit-table td { padding:16px 12px; border-bottom:1px solid #334155; vertical-align:top; overflow-wrap:anywhere; min-width:100px; }
+.permit-table td:first-child { min-width:170px; }
+.permit-table-actions { display:flex; flex-wrap:wrap; gap:8px; min-width:160px; }
+.permit-table-actions form { margin:0; }
+.service-panel .service-status { display:inline-flex; padding:5px 11px; border:1px solid #64748b; border-radius:999px; color:#cbd5e1; background:rgba(148,163,184,.08); font-size:12px; font-weight:600; line-height:1.4; white-space:nowrap; }
+.service-panel .service-status-approved,.service-panel .service-status-completed { border-color:#34d399; color:#a7f3d0; background:rgba(16,185,129,.1); }
+.service-panel .service-status-pending,.service-panel .service-status-changes_requested { border-color:#d97706; color:#fcd34d; background:rgba(245,158,11,.1); }
+.service-panel .service-status-rejected,.service-panel .service-status-expired { border-color:#f87171; color:#fecaca; background:rgba(239,68,68,.1); }
+.permit-review { margin:20px 0; padding:16px; border:1px solid #475569; border-radius:10px; }
+.permit-review summary { cursor:pointer; font-weight:600; font-size:14px; }
+.permit-history-list { padding-left:20px; font-size:13px; line-height:1.7; }
+.permit-history-list li { margin:12px 0; }
+.permit-history-list p { margin:4px 0; }
+.property-gate-print { width:min(880px,calc(100% - 32px)); margin:32px auto; }
+.gate-pass-brand { border-bottom:2px solid #d97706; margin-bottom:24px; padding-bottom:16px; }
+.gate-pass-brand h1 { font-size:26px; margin:0; }
+.gate-pass-brand p { margin:8px 0 0; }
+@media(max-width:700px) { .permit-identity { grid-template-columns:1fr 1fr; } .permit-directions { grid-template-columns:1fr; } .permit-fieldset { padding:14px; } .property-gate-print { padding:18px; } }
+@media print {
+  .property-gate-print { width:100%; margin:0; padding:0; border:0; box-shadow:none; background:#fff; color:#111; }
+  .property-gate-print p,.property-gate-print dt,.property-gate-print dd,.property-gate-print th,.property-gate-print td,.property-gate-print .service-status { color:#111; }
+  .property-gate-print .permit-review,.property-gate-print form,.gate-pass-controls { display:none; }
+  .property-gate-print .permit-table-wrap { overflow:visible; }
+  .property-gate-print tr,.property-gate-print #serviceQr { break-inside:avoid; }
+}

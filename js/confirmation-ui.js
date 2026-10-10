@@ -1,4 +1,6 @@
 (() => {
+    if (window.CelandineConfirmReady) return;
+    window.CelandineConfirmReady = true;
     const dialog = document.createElement('dialog');
     dialog.className = 'system-confirm-dialog';
     dialog.setAttribute('aria-labelledby', 'systemConfirmTitle');
@@ -28,6 +30,7 @@
         }
 
         event.preventDefault();
+        event.stopImmediatePropagation();
         pendingForm = form;
         pendingSubmitter = event.submitter instanceof HTMLElement ? event.submitter : null;
         message.textContent = form.dataset.confirm;
@@ -35,10 +38,11 @@
         acceptButton.textContent = form.dataset.confirmAction || 'Confirm';
         dialog.showModal();
         cancelButton.focus();
-    });
+    }, true);
 
     function closeDialog() {
-        dialog.close();
+        if (window.CelandineMotion) window.CelandineMotion.closeDialog(dialog);
+        else dialog.close();
         pendingForm = null;
         pendingSubmitter = null;
     }

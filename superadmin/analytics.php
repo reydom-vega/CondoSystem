@@ -121,8 +121,9 @@ if (($_GET['export'] ?? '') === 'pdf') {
             color: #ffffff;
         }
     </style>
+<?php renderPortalUiHead(); ?>
 </head>
-<body class="dashboard-page admin-page">
+<body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
             <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
@@ -143,7 +144,7 @@ if (($_GET['export'] ?? '') === 'pdf') {
                     </div>
                 </div>
                 <div class="dash-header-right">
-                    <a href="analytics.php?export=pdf" class="btn btn-sm" style="background:#d97706; color:#fff; padding:8px 16px; border-radius:6px; text-decoration:none; font-size:13px; font-weight:600; margin-right:10px;"><?php echo systemIcon('file-text', 'system-action-icon'); ?> View Full Report</a>
+
                     <?php include '../notifications.php'; ?>
                     <div class="profile-menu" id="profileMenu">
                         <button class="btn-profile-nav" id="profileToggle" type="button" aria-label="Profile menu" aria-haspopup="true" aria-expanded="false">
@@ -161,6 +162,7 @@ if (($_GET['export'] ?? '') === 'pdf') {
                     </div>
                 </div>
             </header>
+            <div class="portal-report-toolbar"><p>Review recorded activity and financial trends.</p><a href="analytics.php?export=pdf" class="service-btn service-btn-secondary"><?php echo systemIcon('file-text', 'system-action-icon'); ?> View full report</a></div>
 
             <section class="admin-stats-grid">
                 <div class="admin-stat-card"><?php echo systemIconFromGlyph('📊', 'admin-stat-icon admin-icon-blue'); ?><strong><?php echo $analyticsData['total_events']; ?></strong><span>Total Events</span></div>
@@ -173,14 +175,14 @@ if (($_GET['export'] ?? '') === 'pdf') {
                 <div class="admin-stat-card"><?php echo systemIconFromGlyph('⚠️', 'admin-stat-icon admin-icon-pink'); ?><strong><?php echo $analyticsData['violations_total']; ?></strong><span>Total Violations</span><em>₱<?php echo number_format($analyticsData['outstanding_fines'], 2); ?> unpaid</em></div>
             </section>
 
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin: 30px 0;">
+            <div class="portal-analytics-grid">
                 <!-- Daily Activity -->
                 <div class="admin-panel" style="padding: 20px;">
                     <h3 style="margin-bottom: 15px; font-size: 16px; font-weight: 600;">Daily Activity (Last 7 Days)</h3>
                     <div style="display: flex; align-items: flex-end; justify-content: space-around; height: 150px; gap: 8px;">
-                        <?php 
+                        <?php
                         $maxCount = max(array_column($analyticsData['daily_activity'], 'count') ?: [1]);
-                        foreach ($analyticsData['daily_activity'] as $activity): 
+                        foreach ($analyticsData['daily_activity'] as $activity):
                             $height = ($activity['count'] / $maxCount) * 100;
                         ?>
                             <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
@@ -309,14 +311,14 @@ if (($_GET['export'] ?? '') === 'pdf') {
             </div>
 
             <!-- Payment & Maintenance Trends -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 30px;">
+            <div class="portal-analytics-trends">
                 <?php if (!empty($analyticsData['payment_trend'])): ?>
                 <div class="admin-panel" style="padding: 20px;">
                     <h3 style="margin-bottom: 15px; font-size: 16px; font-weight: 600;">Payment Trend (Last 30 Days)</h3>
                     <div style="display: flex; align-items: flex-end; height: 120px; gap: 4px;">
-                        <?php 
+                        <?php
                         $maxPayments = max(array_column($analyticsData['payment_trend'], 'count') ?: [1]);
-                        foreach ($analyticsData['payment_trend'] as $payment): 
+                        foreach ($analyticsData['payment_trend'] as $payment):
                             $height = ($payment['count'] / $maxPayments) * 100;
                         ?>
                             <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
@@ -335,9 +337,9 @@ if (($_GET['export'] ?? '') === 'pdf') {
                         <a href="maintenancerequests.php" style="font-size: 12px; font-weight: 600;">View requests →</a>
                     </div>
                     <div style="display: flex; align-items: flex-end; height: 120px; gap: 4px;">
-                        <?php 
+                        <?php
                         $maxMaint = max(array_column($analyticsData['maintenance_trend'], 'count') ?: [1]);
-                        foreach ($analyticsData['maintenance_trend'] as $maint): 
+                        foreach ($analyticsData['maintenance_trend'] as $maint):
                             $height = ($maint['count'] / $maxMaint) * 100;
                         ?>
                             <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
@@ -356,9 +358,9 @@ if (($_GET['export'] ?? '') === 'pdf') {
         const menuToggle = document.getElementById('menuToggle');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebarOverlay');
-        menuToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); overlay.classList.toggle('open'); });
-        overlay.addEventListener('click', () => { sidebar.classList.remove('open'); overlay.classList.remove('open'); });
-        
+        /* Navigation is handled by the shared UI module. */
+        /* Navigation is handled by the shared UI module. */
+
         const profileMenu = document.getElementById('profileMenu');
         const profileToggle = document.getElementById('profileToggle');
         profileToggle.addEventListener('click', (event) => { event.stopPropagation(); const isOpen = profileMenu.classList.toggle('open'); profileToggle.setAttribute('aria-expanded', isOpen); });

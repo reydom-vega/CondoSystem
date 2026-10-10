@@ -14,8 +14,9 @@ $email = $_GET['email'] ?? '';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verify Your Email</title>
     <link rel="stylesheet" href="styles.css">
+<?php renderPortalUiHead(); ?>
 </head>
-<body>
+<body class="portal-ui portal-account-page">
     <div class="card">
         <div class="form-panel">
             <h1>Verify Your Email</h1>

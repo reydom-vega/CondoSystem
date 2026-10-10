@@ -114,8 +114,9 @@ if ($tableReady) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celandine Residences - Maintenance Request</title>
     <link rel="stylesheet" href="../resident.css">
+<?php renderPortalUiHead(); ?>
 </head>
-<body class="dashboard-page">
+<body class="portal-ui dashboard-page">
 
     <div class="dash-layout">
 
@@ -213,17 +214,11 @@ if ($tableReady) {
         const overlay = document.getElementById('sidebarOverlay');
 
         if (menuToggle) {
-            menuToggle.addEventListener('click', () => {
-                sidebar.classList.toggle('open');
-                overlay.classList.toggle('open');
-            });
+            /* Navigation is handled by the shared UI module. */
         }
 
         if (overlay) {
-            overlay.addEventListener('click', () => {
-                sidebar.classList.remove('open');
-                overlay.classList.remove('open');
-            });
+            /* Navigation is handled by the shared UI module. */
         }
 
         // Profile Dropdown Menu Toggle

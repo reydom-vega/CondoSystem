@@ -35,7 +35,7 @@ $overduePayments = 0;
 $activeMaintenance = 0;
 $occupancyRate = 0;
 $recentResidents = [];
-$residentResult = $connection->query("SELECT full_name, username, unit_number, created_at FROM users WHERE role = 'resident' ORDER BY created_at DESC LIMIT 5");
+$residentResult = $connection->query("SELECT full_name, username, unit_number, status, is_active, created_at FROM users WHERE role = 'resident' ORDER BY created_at DESC LIMIT 5");
 if ($residentResult) {
     $recentResidents = $residentResult->fetch_all(MYSQLI_ASSOC);
 }
@@ -105,8 +105,9 @@ $analyticsData = getAnalytics();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celandine Residences - Admin Dashboard</title>
     <link rel="stylesheet" href="../styles.css">
+<?php renderPortalUiHead(); ?>
 </head>
-<body class="dashboard-page admin-page">
+<body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
             <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
@@ -166,14 +167,17 @@ $analyticsData = getAnalytics();
                         <p class="admin-empty">No residents have registered yet.</p>
                     <?php else: ?>
                         <?php foreach ($recentResidents as $resident): ?>
-                            <div class="admin-list-row"><div><strong><?php echo htmlspecialchars($resident['unit_number']); ?> - <?php echo htmlspecialchars($resident['full_name']); ?></strong><small><?php echo htmlspecialchars($resident['username']); ?></small></div><span class="admin-pill admin-pill-success">Active</span></div>
+                            <?php $residentState = empty($resident['is_active']) ? 'inactive' : ($resident['status'] ?? 'pending'); $residentTone = $residentState === 'approved' ? 'success' : ($residentState === 'pending' ? 'warning' : 'danger'); ?>
+                            <div class="admin-list-row"><div><strong><?php echo htmlspecialchars($resident['unit_number'] ?: 'Unassigned'); ?> - <?php echo htmlspecialchars($resident['full_name']); ?></strong><small><?php echo htmlspecialchars($resident['username']); ?></small></div><span class="admin-pill admin-pill-<?= $residentTone ?>"><?= htmlspecialchars(ucfirst($residentState)) ?></span></div>
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </div>
-            
+
                 <div class="admin-panel" id="payments">
-                    <h2>Outstanding Dues</h2>
+                    <h2><?= canAccess('billing.manage') ? 'Outstanding Dues' : 'Resident conversations' ?></h2>
+                    <?php if (canAccess('billing.manage')): ?>
                     <div class="admin-list-row"><div><strong><?php echo $overduePayments; ?> overdue bill<?php echo $overduePayments === 1 ? '' : 's'; ?></strong><small>Review balances and mark manual payments in Billing &amp; Payments.</small></div><a href="../superadmin/unitpayments.php" class="admin-pill <?php echo $overduePayments > 0 ? 'admin-pill-warning' : 'admin-pill-success'; ?>">View</a></div>
+                    <?php endif; ?>
                     <div class="admin-list-row"><div><strong>Message alerts</strong><small><?php echo $unreadCount; ?> unread resident conversation<?php echo $unreadCount === 1 ? '' : 's'; ?>.</small></div><a href="../superadmin/admin_messages.php" class="admin-pill admin-pill-info">View</a></div>
                 </div>
             </section>
@@ -183,8 +187,8 @@ $analyticsData = getAnalytics();
         const menuToggle = document.getElementById('menuToggle');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebarOverlay');
-        menuToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); overlay.classList.toggle('open'); });
-        overlay.addEventListener('click', () => { sidebar.classList.remove('open'); overlay.classList.remove('open'); });
+        /* Navigation is handled by the shared UI module. */
+        /* Navigation is handled by the shared UI module. */
         const profileMenu = document.getElementById('profileMenu');
         const profileToggle = document.getElementById('profileToggle');
         profileToggle.addEventListener('click', (event) => { event.stopPropagation(); const isOpen = profileMenu.classList.toggle('open'); profileToggle.setAttribute('aria-expanded', isOpen); });
@@ -192,4 +196,4 @@ $analyticsData = getAnalytics();
     </script>
     <script src="../js/live-updates.js"></script>
 </body>
-</html> 
+</html>

@@ -1,6 +1,6 @@
 <?php
 /** A migration is complete only after these dependencies are available. */
-const APP_SCHEMA_VERSION = '2026.10.09.1';
+const APP_SCHEMA_VERSION = '2026.10.09.5';
 
 function deploymentSchemaRequirements(): array {
     return [
@@ -11,7 +11,7 @@ function deploymentSchemaRequirements(): array {
         'bill_items' => ['payment_id', 'amount'],
         'maintenance_requests' => ['urgency', 'evidence_path', 'completion_note', 'before_photo_path', 'after_photo_path', 'status'],
         'messages' => ['attachment_path', 'attachment_name', 'attachment_mime', 'is_read'],
-        'bookings' => ['attendees', 'status'],
+        'bookings' => ['attendees','status','unit_number','end_time','duration_hours','hourly_rate','total_fee','payment_id','approved_by','approved_at','rejection_reason','cancellation_note'],
         'analytics' => ['event_type'],
         'announcements' => ['expires_at'],
         'remember_tokens' => ['selector', 'validator_hash', 'expires_at', 'session_version'],
@@ -23,10 +23,13 @@ function deploymentSchemaRequirements(): array {
         'vehicles' => ['normalized_plate', 'or_cr_path', 'or_cr_mime', 'status'],
         'parking_sticker_vehicles' => ['order_id', 'vehicle_id', 'sticker_number'],
         'violations' => ['location', 'evidence_path', 'admin_remarks', 'payment_id'],
-        'visitor_logs' => ['checked_out_by', 'time_out', 'status'],
-        'resident_service_requests' => ['request_kind', 'visitor_log_id', 'access_token', 'status'],
+        'visitor_logs' => ['visitor_count', 'checked_out_by', 'time_out', 'status'],
+        'resident_service_requests' => ['gate_data', 'qr_token_hash', 'updated_at', 'visitor_count', 'request_kind', 'visitor_log_id', 'access_token', 'status'],
+        'permit_items' => ['request_id','item_name','category','quantity','description'],
+        'permit_documents' => ['request_id','stored_name','original_name','mime'],
+        'permit_history' => ['request_id','actor_id','action','remarks','created_at'],
         'access_signing_keys' => ['key_name', 'key_value'],
-        'qr_scan_logs' => ['user_id', 'scanned_content', 'scanned_at'],
+        'qr_scan_logs' => ['user_id','username','scanned_content','content_type','scanned_at','qr_type','reference_id','subject_name','requester_name','unit_number','pass_number','scanner_full_name','scanner_role','scan_action','verification_result','remarks','event_time_utc','created_at_utc','request_key','content_hash','verification_json'],
     ];
 }
 
@@ -50,6 +53,8 @@ function deploymentSchemaProblems(mysqli $db): array {
         'parking_sticker_vehicles' => ['vehicle_id', 'sticker_number'],
         'payments' => ['paymongo_checkout_id','paymongo_payment_id'],
         'notification_outbox' => ['deduplication_key'],
+        'qr_scan_logs' => ['request_key'],
+        'bookings' => ['payment_id'],
     ];
     foreach ($uniqueColumns as $table => $columns) {
         if (!isset($tables[$table])) continue;

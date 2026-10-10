@@ -56,4 +56,15 @@
   }
   document.getElementById('galleryPrev').addEventListener('click', () => moveGallery(-1));
   document.getElementById('galleryNext').addEventListener('click', () => moveGallery(1));
+  document.querySelectorAll('.amenity-home-preview img').forEach(image => {
+    const fallback = () => {
+      const preview = image.closest('a');
+      preview.classList.add('photo-unavailable');
+      preview.removeAttribute('href');
+      preview.removeAttribute('target');
+      preview.textContent = image.alt + ' · Photo unavailable';
+    };
+    image.addEventListener('error', fallback, {once:true});
+    if(image.complete && !image.naturalWidth) fallback();
+  });
 })();

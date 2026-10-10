@@ -92,8 +92,9 @@ $violationIcons = [
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Celandine Residences - Violations</title>
 	<link rel="stylesheet" href="../resident.css?v=<?php echo (int)filemtime(__DIR__ . '/../resident.css'); ?>">
+<?php renderPortalUiHead(); ?>
 </head>
-<body class="dashboard-page resident-violations-page">
+<body class="portal-ui dashboard-page resident-violations-page">
 	<div class="dash-layout">
 		<aside class="sidebar" id="sidebar">
 			<a href="dashboard.php" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
@@ -213,8 +214,8 @@ $violationIcons = [
 		const menuToggle = document.getElementById('menuToggle');
 		const sidebar = document.getElementById('sidebar');
 		const overlay = document.getElementById('sidebarOverlay');
-		menuToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); overlay.classList.toggle('open'); });
-		overlay.addEventListener('click', () => { sidebar.classList.remove('open'); overlay.classList.remove('open'); });
+		/* Navigation is handled by the shared UI module. */
+		/* Navigation is handled by the shared UI module. */
 		const profileMenu = document.getElementById('profileMenu');
 		const profileToggle = document.getElementById('profileToggle');
 		profileToggle.addEventListener('click', (event) => { event.stopPropagation(); const isOpen = profileMenu.classList.toggle('open'); profileToggle.setAttribute('aria-expanded', isOpen); });

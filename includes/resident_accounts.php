@@ -53,7 +53,8 @@ function approvePendingResident(mysqli $db, int $userId, string $unitNumber): ar
 function unassignResidentUnit(mysqli $db, int $userId, string $expectedUnit): bool {
     if (!canAccess('units.manage') || $userId < 1 || normalizeUnitNumber($expectedUnit) === '') return false;
     // Prepare schemas before starting a transaction; DDL commits in MySQL.
-    if (!ensureResidentServicesTables($db) || !ensureParkingTables($db) || !ensureRememberTokensTable($db) || !ensureVehiclesTable($db) || !ensureAmenityBookingSchema($db) || !ensureAuditLogTable($db)) return false;
+    if (!ensureResidentServicesTables($db) || !ensureParkingTables($db) || !ensureRememberTokensTable($db) || !ensureVehiclesTable($db) || !ensureAmenityBookingSchema($db) || !ensurePaymentsTable($db) || !ensureAuditLogTable($db)) return false;
+    ensurePaymongoColumns($db);
     $db->begin_transaction();
     try {
         $resident = $db->prepare("SELECT unit_number,account_type FROM users WHERE id = ? AND role = 'resident' FOR UPDATE");
@@ -71,13 +72,13 @@ function unassignResidentUnit(mysqli $db, int $userId, string $expectedUnit): bo
         $update = $db->prepare("UPDATE users SET unit_number = NULL, resident_id = NULL, unit_owner_id=NULL, status = 'pending', rejection_reason = NULL, reset_token = NULL, reset_expires = NULL, session_version = session_version + 1 WHERE id = ? AND role = 'resident'");
         $revocations=[
             'DELETE FROM remember_tokens WHERE user_id = ?',
-            "UPDATE resident_service_requests SET status = 'cancelled' WHERE user_id = ? AND status IN ('pending','approved')",
+            "UPDATE resident_service_requests SET status = 'cancelled' WHERE user_id = ? AND status IN ('pending','approved','changes_requested')",
             "UPDATE parking_requests SET status = 'cancelled' WHERE user_id = ? AND status IN ('pending','approved')",
-            "UPDATE bookings SET status = 'cancelled' WHERE user_id = ? AND booking_date >= CURRENT_DATE() AND status IN ('pending','confirmed')",
             "UPDATE parking_slots SET status = IF(status = 'maintenance', 'maintenance', 'available'), assigned_user_id = NULL, assigned_unit = NULL, vehicle_plate = NULL WHERE assigned_user_id = ?",
             'UPDATE vehicles SET parking_slot_id = NULL WHERE user_id = ?',
         ];
         foreach($revokeIds as $revokeId) {
+            cancelAmenityBookingsForResidency($db,$revokeId);
             $update->bind_param('i',$revokeId);
             if (!$update->execute() || $update->affected_rows!==1) throw new RuntimeException('Resident assignment changed.');
             foreach ($revocations as $sql) {

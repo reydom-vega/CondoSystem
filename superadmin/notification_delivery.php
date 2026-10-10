@@ -17,13 +17,14 @@ $find=$db->prepare("SELECT id,channel,recipient,event_kind,status,attempts,last_
 $find->bind_param('ss',$filter,$filter); $find->execute(); $jobs=$find->get_result()->fetch_all(MYSQLI_ASSOC);
 $flash=getFlash();
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Notification Delivery</title><link rel="stylesheet" href="../styles.css"><link rel="stylesheet" href="../services.css"></head>
-<body class="dashboard-page admin-page"><div class="dash-layout">
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Notification Delivery</title><link rel="stylesheet" href="../styles.css"><link rel="stylesheet" href="../services.css"><?php renderPortalUiHead(); ?>
+</head>
+<body class="portal-ui dashboard-page admin-page"><div class="dash-layout">
 <aside class="sidebar" id="sidebar"><a class="sidebar-brand" href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()),ENT_QUOTES,'UTF-8'); ?>"><?php include __DIR__.'/../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a><nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav></aside><div class="sidebar-overlay" id="sidebarOverlay"></div>
-<main class="dashboard-main"><header class="dash-header"><button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Open navigation" aria-expanded="false"><?php echo systemIcon('menu'); ?></button><h1>Notification Delivery</h1><a class="service-btn service-btn-secondary" href="../logout.php">Sign out</a></header>
+<main class="dashboard-main"><?php renderPortalWorkspaceHeader('Notification Delivery'); ?>
 <section class="service-panel"><h2>Delivery status</h2><p>Notices are delivered automatically. Retry a failed notice after resolving its delivery issue.</p>
 <?php if($flash): ?><div class="alert <?php echo $flash['type']==='error'?'error':'success'; ?>"><?php echo htmlspecialchars($flash['message'],ENT_QUOTES,'UTF-8'); ?></div><?php endif; ?>
-<div class="service-button-row"><?php foreach($counts as $status=>$count): ?><a class="service-btn service-btn-secondary" href="?status=<?php echo $status; ?>"><?php echo ucfirst($status).' ('.$count.')'; ?></a><?php endforeach; ?><a class="service-btn service-btn-secondary" href="?status=all">All notices</a></div>
+<nav class="service-button-row notification-status-filters" aria-label="Filter delivery status"><?php foreach($counts as $status=>$count): ?><a class="service-btn service-btn-secondary" href="?status=<?php echo $status; ?>"<?= $filter===$status ? ' aria-current="page"' : '' ?>><?php echo ucfirst($status).' ('.$count.')'; ?></a><?php endforeach; ?><a class="service-btn service-btn-secondary" href="?status=all"<?= $filter==='all' ? ' aria-current="page"' : '' ?>>All notices</a></nav>
 <?php if(!$jobs): ?><p>No notices match this status.</p><?php endif; ?>
 <?php foreach($jobs as $job): ?><article class="service-request"><div class="service-request-heading"><h3><?php echo htmlspecialchars(ucwords(str_replace('_',' ',$job['event_kind'])),ENT_QUOTES,'UTF-8').' #'.(int)$job['id']; ?></h3><span><?php echo htmlspecialchars(ucfirst($job['status']),ENT_QUOTES,'UTF-8'); ?></span></div><p><?php echo htmlspecialchars(strtoupper($job['channel']).' to '.$job['recipient'],ENT_QUOTES,'UTF-8'); ?> · Attempts: <?php echo (int)$job['attempts']; ?></p>
 <?php if($job['last_error']): ?><p><?php echo htmlspecialchars($job['last_error'],ENT_QUOTES,'UTF-8'); ?></p><?php endif; ?>

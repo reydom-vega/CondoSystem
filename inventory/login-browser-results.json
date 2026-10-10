@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-10-09T18:00:18.448Z",
+  "screenshots": "C:\\Users\\CABIGAS\\AppData\\Local\\Temp\\condo-system-ui-nZ8Hwg",
+  "pages": [],
+  "interactions": [
+    "Browser-managed credentials and native autocomplete are available",
+    "Invalid password does not save credentials and permits retry",
+    "Password visibility toggle remains usable",
+    "Only verified credentials reach the browser API; no password enters site storage",
+    "Logout retains the remembered account and browser-save preference",
+    "Logout returns to a signed-out form without placing a password in page HTML",
+    "Failed native login preserves an unchecked Remember Me choice",
+    "Opting out clears the site remembered identifier and preference",
+    "Blocked site storage does not break login",
+    "Unsupported credential API falls back to native form login",
+    "Declining browser password storage does not block authenticated login"
+  ],
+  "failures": [],
+  "limitations": [
+    "The browser credential store method was stubbed to verify request timing and refusal handling. Native password-manager consent and subsequent autofill require an interactive browser with password saving enabled."
+  ]
+}

@@ -43,7 +43,7 @@ $visitors = array_values(array_filter($allVisitors, function (array $visitor) us
     return true;
 }));
 
-$activeCount = count(array_filter($allVisitors, static fn (array $v): bool => $v['status'] === 'checked_in'));
+$activeCount = countActiveVisitors($connection);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -52,8 +52,9 @@ $activeCount = count(array_filter($allVisitors, static fn (array $v): bool => $v
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celandine Residences</title>
     <link rel="stylesheet" href="../styles.css">
+<?php renderPortalUiHead(); ?>
 </head>
-<body class="dashboard-page admin-page">
+<body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
             <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
@@ -101,7 +102,7 @@ $activeCount = count(array_filter($allVisitors, static fn (array $v): bool => $v
                                 <tr><td colspan="9" class="unit-empty">No matching visitor entries.</td></tr>
                             <?php else: foreach ($visitors as $visitor): ?>
                                 <tr>
-                                    <td><strong><?php echo htmlspecialchars($visitor['visitor_name']); ?></strong></td>
+                                    <td><strong><?php echo htmlspecialchars($visitor['visitor_name']); ?> <small>(<?php echo (int)$visitor['visitor_count']; ?> visitors)</small></strong></td>
                                     <td><?php echo htmlspecialchars($visitor['visitor_contact'] ?: '—'); ?></td>
                                     <td><?php echo htmlspecialchars($visitor['unit_number']); ?></td>
                                     <td><?php echo htmlspecialchars($visitor['purpose'] ?: '—'); ?></td>
@@ -122,8 +123,8 @@ $activeCount = count(array_filter($allVisitors, static fn (array $v): bool => $v
         const menuToggle = document.getElementById('menuToggle');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebarOverlay');
-        menuToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); overlay.classList.toggle('open'); });
-        overlay.addEventListener('click', () => { sidebar.classList.remove('open'); overlay.classList.remove('open'); });
+        /* Navigation is handled by the shared UI module. */
+        /* Navigation is handled by the shared UI module. */
         const profileMenu = document.getElementById('profileMenu');
         const profileToggle = document.getElementById('profileToggle');
         profileToggle.addEventListener('click', (event) => { event.stopPropagation(); const isOpen = profileMenu.classList.toggle('open'); profileToggle.setAttribute('aria-expanded', isOpen); });

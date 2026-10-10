@@ -111,6 +111,18 @@ function ensureParkingTables(mysqli $connection): bool {
     $visitorIndex = $connection->query("SHOW INDEX FROM parking_requests WHERE Key_name = 'idx_parking_visitor_registration'");
     if (!$visitorIndex || ($visitorIndex->num_rows === 0 && !$connection->query('ALTER TABLE parking_requests ADD INDEX idx_parking_visitor_registration (visitor_registration_id)'))) return false;
 
+    return ensureParkingLookupColumns($connection);
+}
+
+/** Indexed generated values stay synchronized with every parking write path. */
+function ensureParkingLookupColumns(mysqli $connection): bool {
+    if (!schemaMutationAllowed()) return true;
+    foreach (['parking_slots','parking_requests'] as $table) {
+        if (!$connection->query("SHOW COLUMNS FROM $table LIKE 'lookup_plate'")->num_rows
+            && !$connection->query("ALTER TABLE $table ADD lookup_plate VARCHAR(20) GENERATED ALWAYS AS (REGEXP_REPLACE(UPPER(vehicle_plate), '[^A-Z0-9]', '')) STORED")) return false;
+        if (!$connection->query("SHOW INDEX FROM $table WHERE Key_name='ix_lookup_plate'")->num_rows
+            && !$connection->query("ALTER TABLE $table ADD INDEX ix_lookup_plate (lookup_plate)")) return false;
+    }
     return true;
 }
 
@@ -335,7 +347,9 @@ function setParkingSlotStatus(int $slotId, string $status): bool {
         $slotQuery->bind_param('i', $slotId); $slotQuery->execute();
         $slot = $slotQuery->get_result()->fetch_assoc();
         if (!$slot || ($status === 'available' && !empty($slot['assigned_user_id']))) { $connection->rollback(); return false; }
-        if ($status !== 'available') {
+        // Occupied records physical use without invalidating an approved reservation.
+        // Maintenance would make the reserved slot unusable, so it remains blocked.
+        if ($status === 'maintenance') {
             $reservation = $connection->prepare("SELECT id FROM parking_requests WHERE slot_id = ? AND status = 'approved' AND COALESCE(end_date, start_date) >= CURRENT_DATE() LIMIT 1 FOR UPDATE");
             $reservation->bind_param('i', $slotId); $reservation->execute();
             if ($reservation->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
@@ -389,6 +403,10 @@ function getParkingPass(int $requestId, string $signature): ?array {
     $stmt->bind_param('i', $requestId);
     $stmt->execute();
     $pass=$stmt->get_result()->fetch_assoc();
+    if ($pass && $pass['visitor_registration_id']) {
+        $visitor = gateRequest($connection, (int)$pass['visitor_registration_id']);
+        if (!$visitor || !visitorIdentityVerified($visitor)) return null;
+    }
     return $pass && (residentContext($connection,(int)$pass['user_id'])['approved'] ?? false) ? $pass : null;
 }
 

@@ -2,6 +2,7 @@
 /** Build menus from the same capability rules used by the route guards. */
 function staffSidebarLinks(): array {
     $role = (string)($_SESSION['role'] ?? '');
+    $useParkingManagement = in_array($role, ['admin', 'superadmin'], true);
     $links = [[dashboardPathForRole($role), 'dashboard', 'Dashboard', null]];
     $candidates = [
         ['superadmin/units.php', 'units', 'Units', 'units.manage'],
@@ -18,16 +19,21 @@ function staffSidebarLinks(): array {
         ['superadmin/registeredvehicles.php', 'parking', 'Registered Vehicles', 'vehicles.read'],
         ['superadmin/service_requests.php?kind=visitor', 'visitors', 'Visitor Registrations', 'visitors.review'],
         ['superadmin/service_requests.php?kind=permit', 'calendar', 'Permit Requests', 'permits.review'],
-        ['superadmin/parking.php', 'parking', 'Parking & Stickers', 'parking.review'],
+        ['superadmin/parking.php', 'parking', $useParkingManagement ? 'Parking Management' : 'Parking & Stickers', 'parking.review'],
         ['superadmin/parkinginventory.php', 'parking', 'Parking Inventory', 'parking.configure'],
         ['superadmin/parking_configuration.php', 'parking', 'Parking Configuration', 'parking.configure'],
         [$role === 'superadmin' ? 'superadmin/scanner.php' : 'security/scanner.php', 'scanner', 'QR Scanner', 'security.gate'],
-        [$role === 'security' ? 'security/visitor_log.php' : 'superadmin/visitorlog.php', 'visitors', 'Visitor Log', 'visitors.logs'],
+        ['superadmin/visitorlog.php', 'visitors', 'Visitor Log', 'visitors.logs'],
         ['superadmin/analytics.php', 'analytics', 'Analytics', 'analytics.read'],
         ['superadmin/auditlog.php', 'audit', 'Audit Log', 'audit.read'],
         ['superadmin/notification_delivery.php', 'messages', 'Notification Delivery', 'notifications.manage'],
     ];
     foreach ($candidates as $link) {
+        if ($useParkingManagement && in_array($link[0], [
+            'superadmin/registeredvehicles.php',
+            'superadmin/parkinginventory.php',
+            'superadmin/parking_configuration.php',
+        ], true)) continue;
         if (roleHasCapability($role, $link[3])) $links[] = $link;
     }
     return $links;

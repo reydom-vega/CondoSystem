@@ -126,9 +126,17 @@
 .gate-pass-brand p { margin:8px 0 0; }
 @media(max-width:700px) { .permit-identity { grid-template-columns:1fr 1fr; } .permit-directions { grid-template-columns:1fr; } .permit-fieldset { padding:14px; } .property-gate-print { padding:18px; } }
 @media print {
+  .property-gate-print .permit-supporting-documents { display:none !important; }
+  .property-gate-print .gate-pass-movement-warning { display:none !important; }
   .property-gate-print { width:100%; margin:0; padding:0; border:0; box-shadow:none; background:#fff; color:#111; }
   .property-gate-print p,.property-gate-print dt,.property-gate-print dd,.property-gate-print th,.property-gate-print td,.property-gate-print .service-status { color:#111; }
   .property-gate-print .permit-review,.property-gate-print form,.gate-pass-controls { display:none; }
   .property-gate-print .permit-table-wrap { overflow:visible; }
   .property-gate-print tr,.property-gate-print #serviceQr { break-inside:avoid; }
 }
+.visitor-id-privacy { padding:14px 16px; border:1px solid var(--border-color, #374151); border-radius:10px; color:var(--text-muted, #b4c3d8); font-size:13px; line-height:1.7; background:var(--bg-sidebar, #111827); }
+.visitor-identity-summary { margin:16px 0; padding:16px; border:1px solid var(--border-color, #374151); border-radius:10px; }
+.visitor-identity-summary p { overflow-wrap:anywhere; }
+.visitor-identity-replace summary { color:var(--accent, #f59e0b); cursor:pointer; padding:10px 0; }
+.visitor-identity-review { margin-top:16px; }
+.visitor-identity-review label { flex-basis:100%; }

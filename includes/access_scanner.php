@@ -25,9 +25,22 @@ function verifyAccessScan(mysqli $db, string $content): array {
     elseif($status==='expired' || ($type!=='property' && ($pass['end_date'] ?: $pass['start_date'])<date('Y-m-d'))) $outcome='expired';
     elseif($type==='property') $valid=gateValid($pass);
     elseif(in_array($status,['approved','checked_in'],true) && $pass['start_date']<=date('Y-m-d')) {
-        $valid=$type!=='parking' || getParkingPass((int)$pass['id'],$signature)!==null;
+        $valid=match($type) {
+            'visitor' => visitorAccessApprovalsComplete($db, $pass),
+            'parking' => getParkingPass((int)$pass['id'],$signature)!==null,
+            default => true,
+        };
     }
     if($valid) $outcome='valid';
     $message=$valid?($type==='property'?'Property Gate Pass is valid and ready for physical verification.':($status==='checked_in'?'Visitor is checked in. Verify identity before confirming exit.':'Visitor QR verified successfully. Confirm identity before admitting.')):match($outcome) {'expired'=>'Pass has expired.','cancelled'=>'Pass has been cancelled.','already_used'=>'Pass has already been used. Confirmed movements cannot be replayed.',default=>'Access refused: pass is not currently authorized.'};
-    return ['recognized'=>true,'valid'=>$valid,'verification_result'=>$outcome,'qr_type'=>$type,'reference_id'=>(int)$pass['id'],'subject_name'=>$type==='visitor'?($pass['visitor_name'] ?? ''):$pass['full_name'],'requester_name'=>$pass['full_name'],'unit_number'=>$type==='property'?gateData($pass)['unit_number']:$pass['unit_number'],'pass_number'=>$type==='property'?gateNumber((int)$pass['id']):($type==='visitor'?'VIS-':($type==='parking'?'PARK-':'PERMIT-')).str_pad((string)$pass['id'],8,'0',STR_PAD_LEFT),'message'=>$message,'remarks'=>$message,'pass_url'=>$content];
+    $visitorInfo = [];
+    if ($type === 'visitor') {
+        $vehicle = visitorPassVehicle($db, (int)$pass['id']);
+        $visitorInfo = ['identity_status' => $pass['identity_status'], 'visit_date' => $pass['start_date'],
+            'visit_purpose' => $pass['details'], 'visitor_count' => (int)$pass['visitor_count'],
+            'vehicle_plate' => $vehicle['vehicle_plate'] ?? '', 'vehicle_description' => $vehicle['vehicle_description'] ?? '',
+            'parking_status' => $vehicle['status'] ?? ''];
+        if (!$valid && !visitorIdentityVerified($pass) && in_array($status, ['pending','approved'], true)) $message = 'Access refused: visitor identity is ' . $pass['identity_status'] . '.';
+    }
+    return $visitorInfo + ['recognized'=>true,'valid'=>$valid,'verification_result'=>$outcome,'qr_type'=>$type,'reference_id'=>(int)$pass['id'],'subject_name'=>$type==='visitor'?($pass['visitor_name'] ?? ''):$pass['full_name'],'requester_name'=>$pass['full_name'],'unit_number'=>$type==='property'?gateData($pass)['unit_number']:$pass['unit_number'],'pass_number'=>$type==='property'?gateNumber((int)$pass['id']):($type==='visitor'?'VIS-':($type==='parking'?'PARK-':'PERMIT-')).str_pad((string)$pass['id'],8,'0',STR_PAD_LEFT),'message'=>$message,'remarks'=>$message,'pass_url'=>$content];
 }

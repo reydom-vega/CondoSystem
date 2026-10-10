@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/vehicle_violations.php';
 /**
  * Violation management.
  *
@@ -74,7 +75,7 @@ function ensureViolationColumns(mysqli $connection): bool {
         }
     }
 
-    return true;
+    return ensureVehicleViolationColumns($connection);
 }
 
 /**
@@ -175,7 +176,7 @@ function issueViolation(int $userId, string $violationType, string $description,
 function getViolationsForUser(int $userId): array {
     $connection = connectDb();
     ensureViolationsTable($connection);
-    $stmt = $connection->prepare('SELECT v.*, issuer.full_name AS issued_by_name FROM violations v LEFT JOIN users issuer ON issuer.id = v.issued_by WHERE v.user_id = ? ORDER BY v.created_at DESC');
+    $stmt = $connection->prepare("SELECT v.*, issuer.full_name AS issued_by_name FROM violations v LEFT JOIN users issuer ON issuer.id = v.issued_by WHERE v.user_id = ? AND v.review_status IN ('legacy','approved') ORDER BY v.created_at DESC");
     $stmt->bind_param('i', $userId);
     $stmt->execute();
     return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -183,7 +184,7 @@ function getViolationsForUser(int $userId): array {
 
 function getAllViolations(mysqli $connection): array {
     ensureViolationsTable($connection);
-    $result = $connection->query('SELECT v.*, u.full_name, u.unit_number FROM violations v INNER JOIN users u ON u.id = v.user_id ORDER BY FIELD(v.status, "disputed", "unpaid", "warning_issued", "paid", "waived"), v.created_at DESC');
+    $result = $connection->query('SELECT v.*, COALESCE(v.account_name_snapshot,u.full_name,"Unverified responsibility") AS full_name, COALESCE(v.unit_snapshot,u.unit_number,"") AS unit_number FROM violations v LEFT JOIN users u ON u.id = v.user_id ORDER BY (v.review_status="pending") DESC, FIELD(v.status, "disputed", "unpaid", "warning_issued", "paid", "waived"), v.created_at DESC');
     return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
 }
 

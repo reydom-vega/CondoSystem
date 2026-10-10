@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/visitor_identity_fixture.php';
 /** Full UI route fixture and asset/markup checks. Disposable MySQL only. */
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require_once dirname(__DIR__).'/includes/environment.php';
@@ -43,12 +44,20 @@ try {
     $db->query("INSERT INTO maintenance_requests(user_id,issue_type,description,location,urgency) VALUES(1,'Plumbing','Please check the kitchen tap.','Kitchen','normal')");
     $db->query("INSERT INTO messages(user_id,sender_role,body) VALUES(1,'resident','May I ask about the community schedule?'),(1,'admin','The management office can help you with the current schedule.')");
     $db->query("INSERT INTO violations(user_id,violation_type,description,penalty_type,status,issued_by) VALUES(1,'Noise','Reminder to observe community quiet hours.','warning','warning_issued',6)");
+    // Resident/tenant presentation fixtures cover each financial and dispute state.
+    $db->query("INSERT INTO violations(user_id,violation_type,description,location,penalty_type,fine_amount,status,issued_by,observed_plate,incident_at,dispute_reason,due_date) VALUES
+      (1,'Unauthorized Parking','Vehicle was parked in a restricted space.','Basement 1','fine',1000,'unpaid',6,'UI-1234',NOW(),NULL,DATE_ADD(CURDATE(),INTERVAL 1 MONTH)),
+      (1,'Noise Complaint','An evening noise complaint was recorded.','Unit 0101','fine',500,'disputed',6,NULL,NOW(),'Please review the recorded incident time.',DATE_ADD(CURDATE(),INTERVAL 1 MONTH)),
+      (1,'Littering','Fine payment was recorded by management.','Lobby','fine',250,'paid',6,NULL,NOW(),NULL,CURDATE()),
+      (1,'Pet Violation','Management waived this fine after review.','Garden','fine',300,'waived',6,NULL,NOW(),NULL,CURDATE()),
+      (2,'Unauthorized Parking','Tenant vehicle incident for UI verification.','Basement 2','fine',1000,'unpaid',6,'TEN-5678',NOW(),NULL,DATE_ADD(CURDATE(),INTERVAL 1 MONTH)),
+      (2,'Noise Complaint','Tenant fine is under review.','Unit 0101','fine',500,'disputed',6,NULL,NOW(),'Please review this report.',DATE_ADD(CURDATE(),INTERVAL 1 MONTH))");
     uiActor($db,6);
     $bill=createBill(1,[['category'=>'Association Dues','description'=>'UI fixture bill','amount'=>1250]],date('Y-m-01'),date('Y-m-t'),date('Y-m-d',strtotime('+15 days')));
     uiActor($db,1);
     $tomorrow=date('Y-m-d',strtotime('+1 day'));
     createAmenityBooking($db,1,'Swimming Pool',$tomorrow,'08:00',5,2);
-    $visitor=createResidentServiceRequest($db,1,'visitor',['visitor_name'=>'Family Guest','visitor_count'=>'3','details'=>'Family visit','start_date'=>date('Y-m-d')]);
+    $visitor=fixtureCreateResidentServiceRequest($db,1,'visitor',['visitor_name'=>'Family Guest','visitor_count'=>'3','details'=>'Family visit','start_date'=>date('Y-m-d')]);
     $gate=savePropertyGateRequest($db,['permit_type'=>'Property Gate Pass','direction'=>'entry','purpose'=>'New Appliance / Furniture','details'=>'Kitchen equipment','start_date'=>date('Y-m-d'),'start_time'=>'00:00','end_time'=>'23:59','transporter'=>'Fixture Delivery','vehicle_plate'=>'ABC123','items'=>[['item_name'=>'Refrigerator','category'=>'Appliance','quantity'=>'1','description'=>'Silver']]]);
     uiActor($db,6); decideResidentServiceRequest($db,$visitor,'approved',''); gateTransition($db,$gate,'approved');
     $manifest=[]; $add=static function(string $path,int $actor,string $label) use (&$manifest):void { $manifest[]=['path'=>$path,'actor'=>$actor,'label'=>$label]; };

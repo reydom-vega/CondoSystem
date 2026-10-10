@@ -194,7 +194,7 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
             </section>
 
             <?php if (!$accountApproved || residentHasPermission('resident.announcements.view')): ?>
-            <section class="announcements-section">
+            <section class="announcements-section resident-dashboard-announcements">
                 <h3 class="section-title">Recent Announcements</h3>
 
                 <?php if (!$accountApproved): ?>
@@ -223,7 +223,7 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
                                     <small style="color: #9ca3af;"><?php echo htmlspecialchars($announcement['category']); ?> • </small>
                                 <?php endif; ?>
                                 <small style="color: #9ca3af;"><?php echo date('M d, Y', strtotime($announcement['created_at'])); ?></small>
-                                <p><?php echo htmlspecialchars(substr($announcement['content'], 0, 100)); ?><?php echo strlen($announcement['content']) > 100 ? '...' : ''; ?></p>
+                                <p class="dashboard-announcement-content"><?php echo htmlspecialchars($announcement['content']); ?></p>
                             </div>
                         </div>
                     <?php endforeach; ?>

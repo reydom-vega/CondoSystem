@@ -31,6 +31,16 @@ body.portal-ui { font-size:15px; }
 .portal-ui :is(.admin-list-row strong,.recent-item-title,.notice-content strong) { font-size:15px; line-height:1.5; }
 .portal-ui :is(.admin-list-row small,.recent-item-sub,.notice-content p) { font-size:13px; line-height:1.7; }
 .portal-ui .announcements-section { padding:24px; border:1px solid var(--border-color); border-radius:var(--radius-card); background:var(--surface-card); }
+.portal-ui .resident-dashboard-announcements .notice-content { flex:1; min-width:0; }
+.portal-ui .resident-dashboard-announcements .dashboard-announcement-content { white-space:pre-line; overflow-wrap:anywhere; font-size:14px; line-height:1.75; opacity:1; }
+.portal-ui .visitor-log-workspace { display:grid; grid-template-columns:minmax(260px,.8fr) minmax(0,1.2fr); gap:24px; margin-bottom:24px; align-items:start; }
+.portal-ui .visitor-log-workspace > .unit-management-panel { margin-bottom:0; min-width:0; }
+.portal-ui .visitor-log-workspace .visitor-form { display:grid; gap:16px; }
+.portal-ui .visitor-log-workspace .visitor-form input { width:100%; min-width:0; }
+.portal-ui .visitor-log-workspace .visitor-form > button { width:100%; margin-top:4px; }
+.portal-ui .visitor-log-workspace .unit-table { min-width:0; }
+.portal-ui .visitor-log-workspace .unit-table :is(th,td) { padding:12px 10px; white-space:normal; overflow-wrap:anywhere; }
+@media(max-width:900px) { .portal-ui .visitor-log-workspace { grid-template-columns:minmax(0,1fr); } }
 .portal-ui .dashboard-main label:not(.message-attachment-button):not(.payment-method-item) { color:#d5ddeb; font-size:14px; line-height:1.5; font-weight:500; }
 .portal-ui .dashboard-main :is(.field-label,.field>label,.form-group>label,.violation-field>label,.staff-create-form>label,.visitor-form>label) { display:block; margin-bottom:8px; }
 .portal-ui .dashboard-main :is(.staff-create-form,.service-form) > label:has(>input),.portal-ui .dashboard-main .service-form>label:has(>select),.portal-ui .dashboard-main .service-form>label:has(>textarea) { display:flex; flex-direction:column; gap:8px; margin:0; }
@@ -41,6 +51,7 @@ body.portal-ui { font-size:15px; }
 .portal-ui :is(.staff-create-form,.visitor-parking-form) { grid-template-columns:repeat(2,minmax(0,1fr)); }
 .portal-ui .visitor-parking-form { display:grid; }
 .portal-ui .maintenance-form-grid>.form-group { margin-bottom:0; }
+.portal-ui .resident-maintenance-form .maintenance-submit-form > .maintenance-submit-btn { margin-top:20px; }
 .portal-ui :is(.notify-check,.checkbox,.amenity-pmo-checkbox) { display:flex; align-items:flex-start; gap:10px; font-size:14px; line-height:1.6; }
 .portal-ui :is(.notify-check,.checkbox) input { margin-top:3px; }
 .portal-ui .notify-check { margin:20px 0; }

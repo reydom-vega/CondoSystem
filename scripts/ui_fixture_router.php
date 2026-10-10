@@ -1,6 +1,6 @@
 <?php
 /** Loopback-only UI fixture. Never runs against an application database. */
-if (PHP_SAPI !== 'cli-server' || getenv('CONDO_UI_FIXTURE') !== '1' || !preg_match('/^condo_ui_test_[a-f0-9]{12}$/D',getenv('CONDO_DB_NAME') ?: '') || !in_array($_SERVER['REMOTE_ADDR'] ?? '',['127.0.0.1','::1'],true)) { http_response_code(404); exit; }
+if (PHP_SAPI !== 'cli-server' || getenv('CONDO_UI_FIXTURE') !== '1' || !preg_match('/^condo_(?:ui|identity)_test_[a-f0-9]{12}$/D',getenv('CONDO_DB_NAME') ?: '') || !in_array($_SERVER['REMOTE_ADDR'] ?? '',['127.0.0.1','::1'],true)) { http_response_code(404); exit; }
 $root = dirname(__DIR__);
 $path = rawurldecode((string)parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH));
 $relative = substr($path,strlen('/CondoSystem3/'));
@@ -16,7 +16,7 @@ if ($asset) {
     header('Content-Type: '.$mime); readfile($file); exit;
 }
 $manifest = json_decode(getenv('CONDO_UI_MANIFEST') ?: '[]',true);
-$allowed = array_unique(array_merge(array_map(static fn(array $entry):string => explode('?',$entry['path'],2)[0],$manifest),['api/dashboard.php','api/admin_dashboard.php','api/notifications.php','api/messages.php','api/admin_messages.php','api/amenity_bookings.php','api/scan_history.php','api/scan_history_export.php','login.php','logout.php','resident/dashboard.php']));
+$allowed = array_unique(array_merge(array_map(static fn(array $entry):string => explode('?',$entry['path'],2)[0],$manifest),['api/dashboard.php','api/admin_dashboard.php','api/notifications.php','api/messages.php','api/admin_messages.php','api/amenity_bookings.php','api/scan_history.php','api/scan_history_export.php','api/violation_vehicles.php','violation_evidence.php','login.php','logout.php','resident/dashboard.php']));
 if (!in_array($relative,$allowed,true)) { http_response_code(404); exit; }
 require_once $root.'/config.php';
 $actor = filter_var($_GET['fixture_actor'] ?? $_SESSION['user_id'] ?? 0,FILTER_VALIDATE_INT);

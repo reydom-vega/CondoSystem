@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (setParkingSlotStatus($slotId, $status)) {
             $success = 'Parking slot status updated.';
         } else {
-            $errors[] = 'Slot status cannot change while its standing assignment or current reservations conflict with the selected status.';
+            $errors[] = 'Could not update the slot. Assigned resident slots cannot be marked Available. Slots with current or future approved reservations cannot be marked Maintenance; reassign those reservations first.';
         }
     }
 }
@@ -146,7 +146,7 @@ foreach ($allSlots as $slot) {
             <section class="unit-page-head">
                 <div>
                     <h2>Parking Slot Inventory</h2>
-                    <p>Manage resident and visitor parking slots across all levels.</p>
+                    <p>Manage resident and visitor parking slots across all levels. Select Occupied when a vehicle is using a slot. For visitor slots, select Available again after the vehicle leaves; approved reservation dates still prevent overlapping bookings.</p>
                 </div>
                 <div class="unit-summary">
                     <span><?php echo $totalSlots; ?> Total Slots</span>

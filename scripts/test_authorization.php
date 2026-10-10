@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/visitor_identity_fixture.php';
 /** Real role guards and account lifecycle checks in a disposable database. */
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
@@ -47,6 +48,43 @@ try {
     $db->query('UPDATE users SET is_verified = 0 WHERE id = 8');
     ensurePaymentsTable($db); ensurePaymongoColumns($db); ensureResidentServicesTables($db); ensureParkingTables($db); ensureVisitorLogsTable($db); ensureVisitorLogColumns($db); ensureVehiclesTable($db); ensureStickerVehicleLinks($db); ensureBillingTables($db); ensureMessagesTable($db); ensureBookingsTable($db); ensureMaintenanceTable($db); ensureViolationsTable($db); ensureAnnouncementsTable($db); ensureRememberTokensTable($db);
     ensureNotificationOutboxTable($db);
+    // Manual visitor logging belongs to management; QR gate operations stay available.
+    authorizationActor($db,3);
+    checkAuthorization(!canAccess('visitors.logs') && canAccess('security.gate'), 'security loses manual visitor logs while retaining gate access');
+    checkAuthorization(!in_array('Visitor Log', array_column(staffSidebarLinks(),2), true), 'security menu has no Visitor Log');
+    $visitorPost=['action'=>'checkin','visitor_name'=>'Manual Admin Guest','visitor_contact'=>'09123456789','unit_number'=>'0101','purpose'=>'Delivery'];
+    foreach (['superadmin/visitorlog.php','security/visitor_log.php'] as $visitorPage) {
+        checkAuthorization(authorizationRequest($visitorPage,3)['status']===403,'security cannot open '.$visitorPage);
+        checkAuthorization(authorizationRequest($visitorPage,3,$visitorPost)['status']===403,'security cannot forge manual check-in through '.$visitorPage);
+    }
+    checkAuthorization((int)$db->query('SELECT COUNT(*) AS n FROM visitor_logs')->fetch_assoc()['n']===0, 'denied security requests create no visitor entry');
+    foreach ([4,5] as $manager) {
+        authorizationActor($db,$manager);
+        checkAuthorization(in_array('superadmin/visitorlog.php',array_column(staffSidebarLinks(),0),true), 'management menu links to canonical Visitor Log');
+        $visitorHtml=authorizationRequest('superadmin/visitorlog.php',$manager)['body'];
+        checkAuthorization(str_contains($visitorHtml,'Log a Visitor In') && str_contains($visitorHtml,'Visitor History'), 'management visitor page has manual form and history');
+        checkAuthorization(authorizationRequest('security/visitor_log.php',$manager)['status']===302,'management legacy visitor bookmark redirects');
+    }
+    checkAuthorization(authorizationRequest('superadmin/visitorlog.php',1)['status']===403,'resident cannot open manual visitor log');
+    checkAuthorization(authorizationRequest('superadmin/visitorlog.php',5,$visitorPost,['invalid_csrf'=>true])['status']===403,'manual check-in requires valid CSRF');
+    checkAuthorization((int)$db->query('SELECT COUNT(*) AS n FROM visitor_logs')->fetch_assoc()['n']===0,'forged CSRF creates no visitor entry');
+    checkAuthorization(authorizationRequest('superadmin/visitorlog.php',5,$visitorPost)['status']===302,'admin manually checks in a visitor');
+    $manualVisitor=$db->query("SELECT * FROM visitor_logs WHERE visitor_name='Manual Admin Guest'")->fetch_assoc();
+    checkAuthorization($manualVisitor && $manualVisitor['status']==='checked_in' && (int)$manualVisitor['logged_by']===5,'manual visitor entry records the admin actor');
+    $manualVisitorId=(int)$manualVisitor['id'];
+    $checkoutPost=['action'=>'checkout','visitor_log_id'=>$manualVisitorId];
+    checkAuthorization(authorizationRequest('superadmin/visitorlog.php',3,$checkoutPost)['status']===403,'security cannot forge manual log checkout');
+    checkAuthorization(authorizationRequest('superadmin/visitorlog.php',5,$checkoutPost,['invalid_csrf'=>true])['status']===403,'manual checkout requires valid CSRF');
+    checkAuthorization($db->query('SELECT status FROM visitor_logs WHERE id='.$manualVisitorId)->fetch_assoc()['status']==='checked_in','denied checkout leaves visitor inside');
+    $activeVisitorHtml=authorizationRequest('superadmin/visitorlog.php',4)['body'];
+    checkAuthorization(str_contains($activeVisitorHtml,'Manual Admin Guest') && str_contains($activeVisitorHtml,'Check Out'),'management can see and check out the active visitor');
+    checkAuthorization(authorizationRequest('superadmin/visitorlog.php',4,$checkoutPost)['status']===302,'superadmin manually checks visitor out');
+    $manualVisitor=$db->query('SELECT * FROM visitor_logs WHERE id='.$manualVisitorId)->fetch_assoc();
+    checkAuthorization($manualVisitor['status']==='checked_out' && (int)$manualVisitor['checked_out_by']===4 && $manualVisitor['time_out']!==null,'checkout records exit time and management actor');
+    authorizationRequest('superadmin/visitorlog.php',4,$checkoutPost);
+    checkAuthorization((int)$db->query("SELECT COUNT(*) AS n FROM audit_logs WHERE entity_type='visitor' AND entity_id=$manualVisitorId AND action='checkout'")->fetch_assoc()['n']===1,'repeated checkout does not duplicate the audit');
+    $securityDashboard=authorizationRequest('security/security_dashboard.php',3)['body'];
+    checkAuthorization(!str_contains($securityDashboard,'visitor_log.php') && !str_contains($securityDashboard,'visitorlog.php'),'security dashboard does not link to manual logs');
     foreach ([[3,'superadmin/admin_messages.php'],[6,'superadmin/units.php'],[7,'superadmin/announcements.php'],[5,'superadmin/pending_accounts.php'],[1,'api/admin_messages.php'],[6,'api/admin_dashboard.php'],[7,'api/admin_messages.php'],[3,'superadmin/residents.php'],[1,'superadmin/notification_delivery.php'],[3,'superadmin/notification_delivery.php'],[5,'superadmin/notification_delivery.php'],[6,'superadmin/notification_delivery.php'],[7,'superadmin/notification_delivery.php']] as [$actor, $page]) {
         $result = authorizationRequest($page, $actor, null, ['get' => ['user_id' => 1]]);
         checkAuthorization($result['status'] === 403, 'specialty role cannot access ' . $page);
@@ -129,7 +167,7 @@ try {
     foreach ($notifications as $notification) checkAuthorization(!str_contains($notification['link'],'admin_messages.php') && !str_contains($notification['link'],'unitpayments.php'), 'maintenance notifications respect permissions');
     $db->query("INSERT INTO remember_tokens(user_id,selector,validator_hash,expires_at) VALUES(2,'rolefixture','fixture',DATE_ADD(NOW(),INTERVAL 1 DAY))");
     $today = date('Y-m-d');
-    $service = createResidentServiceRequest($db,2,'visitor',['visitor_name'=>'Fixture guest','details'=>'Visit','start_date'=>$today]);
+    $service = fixtureCreateResidentServiceRequest($db,2,'visitor',['visitor_name'=>'Fixture guest','details'=>'Visit','start_date'=>$today]);
     $db->query("UPDATE resident_service_requests SET status='approved' WHERE id=".$service);
     $db->query("INSERT INTO parking_slots(slot_code,slot_type,status,assigned_user_id,assigned_unit) VALUES('ROLE-R1','resident','occupied',2,'0102')");
     $slotId=(int)$db->insert_id;

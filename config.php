@@ -452,6 +452,7 @@ function getNotifications(): array {
         $add($count("SELECT COUNT(*) AS total FROM parking_requests WHERE status = 'pending'"), 'parking', 'Pending parking requests', 'parking requests await approval.', 'superadmin/parking.php');
     }
     if ($can('violations.review') && ensureViolationsTable($connection)) {
+        $add($count("SELECT COUNT(*) AS total FROM violations WHERE review_status = 'pending'"), 'violations', 'Vehicle reports pending review', 'vehicle incidents await responsibility verification.', 'superadmin/violations.php?status=pending');
         $add($count("SELECT COUNT(*) AS total FROM violations WHERE status = 'disputed'"), 'violations', 'Disputed violations', 'violations await review.', 'superadmin/violations.php');
     }
     if (($can('visitors.review') || $can('permits.review')) && ensureResidentServicesTables($connection)) {
@@ -938,7 +939,7 @@ function getAnalytics(): array {
             $analytics['violations_total'] = (int)$result->fetch_assoc()['total'];
         }
 
-        $result = $connection->query("SELECT status, COUNT(*) AS count FROM violations GROUP BY status");
+        $result = $connection->query("SELECT COALESCE(status, IF(review_status='pending','pending_review','rejected_report')) AS status, COUNT(*) AS count FROM violations GROUP BY COALESCE(status, IF(review_status='pending','pending_review','rejected_report'))");
         if ($result) {
             while ($row = $result->fetch_assoc()) {
                 $analytics['violations_breakdown'][$row['status']] = (int)$row['count'];
@@ -1111,6 +1112,7 @@ require_once __DIR__ . '/includes/violations.php';
 require_once __DIR__ . '/includes/visitors.php';
 require_once __DIR__ . '/includes/maintenance.php';
 require_once __DIR__ . '/includes/workflows.php';
+require_once __DIR__ . '/includes/visitor_identity.php';
 require_once __DIR__ . '/includes/resident_services.php';
 require_once __DIR__ . '/includes/property_gate_pass.php';
 require_once __DIR__ . '/includes/parking_policy.php';

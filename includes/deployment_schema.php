@@ -1,6 +1,6 @@
 <?php
 /** A migration is complete only after these dependencies are available. */
-const APP_SCHEMA_VERSION = '2026.10.09.5';
+const APP_SCHEMA_VERSION = '2026.10.11.2';
 
 function deploymentSchemaRequirements(): array {
     return [
@@ -16,15 +16,15 @@ function deploymentSchemaRequirements(): array {
         'announcements' => ['expires_at'],
         'remember_tokens' => ['selector', 'validator_hash', 'expires_at', 'session_version'],
         'audit_logs' => ['admin_role', 'entity_type', 'entity_id'],
-        'parking_slots' => ['slot_code', 'slot_type', 'status', 'assigned_user_id'],
-        'parking_requests' => ['visitor_registration_id', 'slot_id', 'status'],
+        'parking_slots' => ['slot_code', 'slot_type', 'status', 'assigned_user_id', 'lookup_plate'],
+        'parking_requests' => ['visitor_registration_id', 'slot_id', 'status', 'lookup_plate'],
         'parking_policy' => ['sticker_price', 'sticker_max_quantity', 'visitor_max_days'],
         'parking_sticker_orders' => ['quantity', 'bill_payment_id', 'claim_status', 'issued_at', 'issued_by'],
         'vehicles' => ['normalized_plate', 'or_cr_path', 'or_cr_mime', 'status'],
         'parking_sticker_vehicles' => ['order_id', 'vehicle_id', 'sticker_number'],
-        'violations' => ['location', 'evidence_path', 'admin_remarks', 'payment_id'],
+        'violations' => ['location', 'evidence_path', 'admin_remarks', 'payment_id', 'vehicle_id', 'visitor_registration_id', 'parking_request_id', 'parking_slot_id', 'observed_plate', 'observed_plate_normalized', 'registration_source', 'vehicle_snapshot', 'account_name_snapshot', 'unit_snapshot', 'incident_at', 'report_remarks', 'review_status', 'reviewed_by', 'reviewed_at', 'responsibility_note'],
         'visitor_logs' => ['visitor_count', 'checked_out_by', 'time_out', 'status'],
-        'resident_service_requests' => ['gate_data', 'qr_token_hash', 'updated_at', 'visitor_count', 'request_kind', 'visitor_log_id', 'access_token', 'status'],
+        'resident_service_requests' => ['gate_data', 'qr_token_hash', 'updated_at', 'visitor_count', 'request_kind', 'visitor_log_id', 'access_token', 'status', 'identity_status', 'id_type', 'id_number_last4', 'id_document_name', 'id_document_mime', 'id_uploaded_at', 'identity_reviewed_by', 'identity_reviewed_at', 'identity_review_note', 'id_deleted_at'],
         'permit_items' => ['request_id','item_name','category','quantity','description'],
         'permit_documents' => ['request_id','stored_name','original_name','mime'],
         'permit_history' => ['request_id','actor_id','action','remarks','created_at'],

@@ -32,6 +32,11 @@ preflightCheck(preflightIniBytes((string)ini_get('upload_max_filesize')) >= 10 *
 $postLimit = preflightIniBytes((string)ini_get('post_max_size'));
 preflightCheck($postLimit === 0 || $postLimit >= 12 * 1048576, 'PHP multipart request limit is at least 12 MB');
 preflightCheck(is_dir($root . '/private_uploads') && is_writable($root . '/private_uploads'), 'Private upload storage is writable');
+require_once $root . '/includes/visitor_identity.php';
+try {
+    visitorIdRetentionDays();
+    preflightCheck(is_writable(visitorIdStorageDirectory()), 'Visitor ID storage is writable and outside public directories');
+} catch (Throwable $e) { preflightCheck(false, 'Configure private visitor ID storage and a retention period of 1–365 days; run the migration'); }
 foreach (['.htaccess','includes/.htaccess','private_uploads/.htaccess','scripts/.htaccess','vendor/.htaccess','inventory/.htaccess'] as $file) preflightCheck(is_file($root . '/' . $file), "HTTP protection file: {$file}");
 
 $production = $production || appIsProduction();

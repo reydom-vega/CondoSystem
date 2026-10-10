@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/visitor_identity_fixture.php';
 /** Tenant authorization and owner billing checks in a disposable database; no provider calls. */
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 
@@ -229,11 +230,11 @@ try {
     }
 
     tenantActor($db,2); $today=date('Y-m-d');
-    $tenantService=createResidentServiceRequest($db,2,'visitor',['visitor_name'=>'Tenant guest','details'=>'Tenant visit','start_date'=>$today]);
+    $tenantService=fixtureCreateResidentServiceRequest($db,2,'visitor',['visitor_name'=>'Tenant guest','details'=>'Tenant visit','start_date'=>$today]);
     tenantCheck(is_int($tenantService), 'tenant can create their own visitor registration');
-    tenantRejects(fn()=>createResidentServiceRequest($db,2,'permit',['permit_type'=>'Renovation','details'=>'Kitchen work','start_date'=>$today]), 'tenant cannot bypass permit page through service helper');
+    tenantRejects(fn()=>fixtureCreateResidentServiceRequest($db,2,'permit',['permit_type'=>'Renovation','details'=>'Kitchen work','start_date'=>$today]), 'tenant cannot bypass permit page through service helper');
     putenv('CONDO_TENANT_VISITORS=0');
-    tenantRejects(fn()=>createResidentServiceRequest($db,2,'visitor',['visitor_name'=>'Disabled guest','details'=>'Visit','start_date'=>$today]), 'disabled tenant visitor workflow rejects service helper call');
+    tenantRejects(fn()=>fixtureCreateResidentServiceRequest($db,2,'visitor',['visitor_name'=>'Disabled guest','details'=>'Visit','start_date'=>$today]), 'disabled tenant visitor workflow rejects service helper call');
     putenv('CONDO_TENANT_VISITORS=1');
     tenantActor($db,7); tenantCheck(decideResidentServiceRequest($db,$tenantService,'approved',''), 'management approves tenant visitor registration');
     $tenantPass=$db->query('SELECT access_token FROM resident_service_requests WHERE id='.$tenantService)->fetch_assoc()['access_token'];
@@ -252,7 +253,7 @@ try {
     tenantCheck(getResidentServicePass($db,$tenantService,$tenantPass)===null, 'tenant visitor pass becomes unusable immediately when owner access ends');
     $db->query('UPDATE users SET is_active=1 WHERE id=1');
     tenantActor($db,1);
-    $ownerService=createResidentServiceRequest($db,1,'visitor',['visitor_name'=>'Owner guest','details'=>'Owner visit','start_date'=>$today]);
+    $ownerService=fixtureCreateResidentServiceRequest($db,1,'visitor',['visitor_name'=>'Owner guest','details'=>'Owner visit','start_date'=>$today]);
     $db->query("INSERT INTO parking_slots(slot_code,slot_type,status,assigned_user_id,assigned_unit) VALUES('TENANT-OWNER-1','resident','occupied',1,'0101'),('TENANT-OWNER-3','resident','occupied',3,'0102')");
     $ownerSlot=(int)$db->insert_id; $otherSlot=$ownerSlot+1;
     $db->query("INSERT INTO bookings(user_id,amenity,booking_date,booking_time,status) VALUES(1,'Swimming Pool',DATE_ADD(CURRENT_DATE(),INTERVAL 1 DAY),'10:00','confirmed'),(2,'Swimming Pool',DATE_ADD(CURRENT_DATE(),INTERVAL 1 DAY),'11:00','confirmed')");
@@ -278,7 +279,7 @@ try {
     tenantRequest('superadmin/residents.php',7,['action'=>'end_tenancy','resident_id'=>1,'unit_number'=>'0101']);
     tenantCheck(residentContext($db,1)['approved'] && residentContext($db,9)['approved'] && (int)$db->query('SELECT assigned_user_id FROM parking_slots WHERE id='.$ownerSlot)->fetch_assoc()['assigned_user_id']===1, 'forged End occupancy owner target leaves owner, linked tenant and standing slot unchanged');
     tenantActor($db,9);
-    $endingVisitor=createResidentServiceRequest($db,9,'visitor',['visitor_name'=>'Ending tenant guest','details'=>'Tenant visit','start_date'=>$today]);
+    $endingVisitor=fixtureCreateResidentServiceRequest($db,9,'visitor',['visitor_name'=>'Ending tenant guest','details'=>'Tenant visit','start_date'=>$today]);
     $db->query("INSERT INTO parking_requests(user_id,request_type,vehicle_plate,start_date,end_date,status,visitor_registration_id) VALUES(9,'visitor','TENANT9',CURRENT_DATE(),CURRENT_DATE(),'pending',".$endingVisitor.")");
     $endingParking=(int)$db->insert_id;
     $db->query("INSERT INTO remember_tokens(user_id,selector,validator_hash,expires_at) VALUES(9,'tenant-ending-fixture','fixture',DATE_ADD(NOW(),INTERVAL 1 DAY))");

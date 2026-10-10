@@ -84,7 +84,7 @@
       resultLabel.textContent = label(verification.verification_result).toUpperCase();
       result.textContent = typeLabel(verification.qr_type);
       resultMessage.textContent = verification.message;
-      const fields = {'Visitor / Requester':verification.subject_name || verification.requester_name,'Unit':verification.unit_number,'Pass / Permit':verification.pass_number};
+      const fields = {'Visitor / Requester':verification.subject_name || verification.requester_name,'Unit':verification.unit_number,'Pass / Permit':verification.pass_number,'Visit date':verification.visit_date,'Purpose':verification.visit_purpose,'Number of visitors':verification.visitor_count,'Identity verification':verification.identity_status ? label(verification.identity_status) : '', 'Vehicle plate':verification.vehicle_plate,'Vehicle':verification.vehicle_description,'Parking approval':verification.parking_status ? label(verification.parking_status) : ''};
       Object.entries(fields).forEach(([name,value]) => {
         if(!value) return;
         const div = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd');

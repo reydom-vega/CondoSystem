@@ -428,10 +428,21 @@ CREATE TABLE `resident_service_requests` (
   `gate_data` longtext DEFAULT NULL,
   `qr_token_hash` char(64) DEFAULT NULL,
   `updated_at` datetime DEFAULT NULL,
+  `identity_status` enum('pending','verified','rejected') NOT NULL DEFAULT 'pending',
+  `id_type` varchar(30) DEFAULT NULL,
+  `id_number_last4` varchar(4) DEFAULT NULL,
+  `id_document_name` varchar(64) DEFAULT NULL,
+  `id_document_mime` varchar(20) DEFAULT NULL,
+  `id_uploaded_at` datetime DEFAULT NULL,
+  `identity_reviewed_by` int(11) DEFAULT NULL,
+  `identity_reviewed_at` datetime DEFAULT NULL,
+  `identity_review_note` varchar(500) DEFAULT NULL,
+  `id_deleted_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `access_token` (`access_token`),
   KEY `user_id` (`user_id`,`request_kind`,`status`),
   KEY `request_kind` (`request_kind`,`start_date`,`end_date`),
+  KEY `ix_visitor_identity` (`request_kind`,`identity_status`,`end_date`),
   CONSTRAINT `resident_service_requests_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -505,3 +516,36 @@ CREATE TABLE `permit_items` (
   KEY `request_id` (`request_id`),
   CONSTRAINT `permit_items_ibfk_1` FOREIGN KEY (`request_id`) REFERENCES `resident_service_requests` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Vehicle lookup and reviewed vehicle violation reports (2026.10.11.1)
+-- Additive upgrade for the project's MariaDB 10.4+ deployment.
+-- Existing citations, financial statuses and bill references are retained.
+-- Prefer: php scripts/migrate_vehicle_violations.php --apply (validates and records version).
+ALTER TABLE violations
+  MODIFY user_id INT NULL DEFAULT NULL,
+  MODIFY status ENUM('warning_issued','unpaid','paid','disputed','waived') NULL DEFAULT 'warning_issued',
+  ADD COLUMN IF NOT EXISTS vehicle_id INT NULL,
+  ADD COLUMN IF NOT EXISTS visitor_registration_id INT NULL,
+  ADD COLUMN IF NOT EXISTS parking_request_id INT NULL,
+  ADD COLUMN IF NOT EXISTS parking_slot_id INT NULL,
+  ADD COLUMN IF NOT EXISTS observed_plate VARCHAR(20) NULL,
+  ADD COLUMN IF NOT EXISTS observed_plate_normalized VARCHAR(20) GENERATED ALWAYS AS (REGEXP_REPLACE(UPPER(observed_plate), '[^A-Z0-9]', '')) STORED,
+  ADD COLUMN IF NOT EXISTS registration_source VARCHAR(20) NULL,
+  ADD COLUMN IF NOT EXISTS vehicle_snapshot LONGTEXT NULL,
+  ADD COLUMN IF NOT EXISTS account_name_snapshot VARCHAR(100) NULL,
+  ADD COLUMN IF NOT EXISTS unit_snapshot VARCHAR(30) NULL,
+  ADD COLUMN IF NOT EXISTS incident_at DATETIME NULL,
+  ADD COLUMN IF NOT EXISTS report_remarks TEXT NULL,
+  ADD COLUMN IF NOT EXISTS review_status ENUM('legacy','pending','approved','rejected') NOT NULL DEFAULT 'legacy',
+  ADD COLUMN IF NOT EXISTS reviewed_by INT NULL,
+  ADD COLUMN IF NOT EXISTS reviewed_at DATETIME NULL,
+  ADD COLUMN IF NOT EXISTS responsibility_note TEXT NULL;
+CREATE INDEX IF NOT EXISTS ix_violation_vehicle ON violations (vehicle_id,incident_at,id);
+CREATE INDEX IF NOT EXISTS ix_violation_visitor ON violations (visitor_registration_id,incident_at,id);
+CREATE INDEX IF NOT EXISTS ix_violation_plate ON violations (observed_plate_normalized,incident_at,id);
+CREATE INDEX IF NOT EXISTS ix_violation_review ON violations (review_status,id);
+CREATE INDEX IF NOT EXISTS ix_violation_slot ON violations (parking_slot_id,incident_at,id);
+ALTER TABLE parking_slots ADD COLUMN IF NOT EXISTS lookup_plate VARCHAR(20) GENERATED ALWAYS AS (REGEXP_REPLACE(UPPER(vehicle_plate), '[^A-Z0-9]', '')) STORED;
+ALTER TABLE parking_requests ADD COLUMN IF NOT EXISTS lookup_plate VARCHAR(20) GENERATED ALWAYS AS (REGEXP_REPLACE(UPPER(vehicle_plate), '[^A-Z0-9]', '')) STORED;
+CREATE INDEX IF NOT EXISTS ix_lookup_plate ON parking_slots (lookup_plate);
+CREATE INDEX IF NOT EXISTS ix_lookup_plate ON parking_requests (lookup_plate);

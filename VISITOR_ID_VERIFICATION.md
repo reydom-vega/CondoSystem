@@ -1,0 +1,19 @@
+Visitor ID verification extends the existing `resident_service_requests` table. Visit approval and identity approval are separate. Admin, Superadmin and Security review IDs from Visitor Registrations. An approved visit with Verified identity and any linked parking approval can produce an active QR pass. Replacing or rejecting an ID revokes previous visitor QR tokens. Existing records remain Pending for identity until a resident uploads an ID and staff verifies it. Existing visitor logs and checked-in visits are retained.
+
+Run `php scripts/migrate_visitor_identity.php --apply` for an existing installation, or the full `php scripts/migrate.php --apply`. Both are repeatable. Fresh installations use `database.sql` and the full migration. No existing visitor is automatically verified.
+
+Set `CONDO_VISITOR_ID_STORAGE` to an absolute directory outside every public document root, writable by the PHP service account and the scheduled cleanup account. The local default is `condo_private/<application-hash>/visitor_ids` alongside `htdocs`, outside it. Public application paths, parent path segments and symlinks into public storage are rejected. Files use random names and are delivered only by the authenticated `visitor_id_document.php` endpoint. Apply operating-system permissions so only those service accounts and backup administrators can read the directory, especially on Windows where Unix chmod does not set ACLs.
+
+Uploads require a matching JPG/JPEG, PNG or WEBP filename, server-detected MIME, image dimensions, complete image container, at most 5 MB, and at most 40 million pixels. Filenames supplied by visitors are never stored. Image processing is not required. The optional ID number is discarded except for its last four characters. Only authorized reviewers see that reference; QR pages, scanner responses and scan history contain no ID image, document path or number. One ID is collected for the named visitor/group representative, matching the existing group registration model.
+
+`CONDO_VISITOR_ID_RETENTION_DAYS` defaults to 30, accepts 1–365, and applies to existing documents as well as new ones. Documents become inaccessible after that many full days following the visit date. Schedule this command daily with cron or Windows Task Scheduler:
+
+```text
+C:\xampp\php\php.exe C:\xampp\htdocs\CondoSystem3\scripts\purge_visitor_ids.php --apply
+```
+
+Run without `--apply` (or with `--dry-run`) to report eligible records without deletion. Cleanup deletes expired ID images and optional number references while preserving visit/log/verification history. It also removes unreferenced random ID files older than 24 hours after account deletion, failed replacement cleanup or a process crash. Deletion failures produce a failing exit status and are retried on the next run. Use the same storage setting and filesystem permissions for web PHP and the cleanup process. Keep private backups under the same retention policy; this worker cannot remove copies held in backups. Do not put ID numbers in review notes.
+
+The current XAMPP CLI is PHP 8.2.12; the implementation uses PHP features supported by PHP 8.3. PHP must enable mysqli, fileinfo and mbstring, uploads of at least 5 MB, and a multipart request limit above 5 MB. Server validation is authoritative; browser checks provide immediate feedback.
+
+Validation: `php scripts/test_visitor_identity.php` exercises real HTTP multipart uploads and protected routes with a disposable database and private temporary storage. For browser checks run it with `--preview`, then run `node scripts/test_visitor_identity_browser.cjs <printed-preview-URL>`; finish the PHP preview with Enter to delete its database and documents. Existing authorization, resident workflow, tenant policy, vehicle violation, property pass, QR history and UI route suites remain compatible through explicit visitor ID fixtures. These fixtures are never used by production code.

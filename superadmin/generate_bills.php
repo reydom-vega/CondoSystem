@@ -110,7 +110,13 @@ unset($_SESSION['billing_success']);
 $residentsResult = $connection->query("SELECT id, full_name, unit_number FROM users WHERE role = 'resident' AND is_verified = 1 AND is_active=1 AND status='approved' AND (account_type IS NULL OR TRIM(account_type)='' OR LOWER(TRIM(account_type))='resident owner') ORDER BY unit_number ASC");
 $residents = $residentsResult ? $residentsResult->fetch_all(MYSQLI_ASSOC) : [];
 
-$defaultDueDate = date('Y-m-d');
+$billingToday = new DateTimeImmutable('today');
+$nextBillingMonth = $billingToday->modify('first day of next month');
+$defaultDueDate = $nextBillingMonth->setDate(
+    (int)$nextBillingMonth->format('Y'),
+    (int)$nextBillingMonth->format('m'),
+    min((int)$billingToday->format('d'), (int)$nextBillingMonth->format('t'))
+)->format('Y-m-d');
 $bulkChargeOptions = STANDARD_CHARGE_CATEGORIES;
 $historySearch = trim($_GET['history_search'] ?? '');
 $historyStatus = $_GET['history_status'] ?? 'all';

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/visitor_identity_fixture.php';
 /** Real MySQL and loopback HTTP; disposable data only. */
 if(PHP_SAPI!=='cli') exit;
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
@@ -22,7 +23,7 @@ try {
     ensureQrScanHistorySchema($db); $legacy=$db->query('SELECT * FROM qr_scan_logs WHERE id=1')->fetch_assoc();
     scanCheck($legacy['event_time_utc']==='2026-09-30 16:00:00','legacy local timestamp converted to UTC');
     scanCheck(!str_contains($legacy['scanned_content'],'secret-legacy-token') && $legacy['verification_result']==='unknown','legacy IDs retained but tokens redacted without invented outcomes');
-    scanActor(2,'resident'); $visitorId=createResidentServiceRequest($db,2,'visitor',['visitor_name'=>'Family Guest','visitor_count'=>'3','details'=>'Family visit','start_date'=>date('Y-m-d')]);
+    scanActor(2,'resident'); $visitorId=fixtureCreateResidentServiceRequest($db,2,'visitor',['visitor_name'=>'Family Guest','visitor_count'=>'3','details'=>'Family visit','start_date'=>date('Y-m-d')]);
     scanActor(5,'security'); scanCheck(decideResidentServiceRequest($db,$visitorId,'approved','Welcome'),'security approves visitor fixture'); $visitor=gateRequest($db,$visitorId); $visitorUrl=residentServicePassUrl($visitor);
     $uuid=scanUuid(); $event=recordQrVerification($db,$visitorUrl,$uuid); $scanId=$event['id'];
     scanCheck($event['verification']['valid'] && $event['verification']['qr_type']==='visitor','visitor verification recorded');
@@ -45,7 +46,7 @@ try {
     $invalidRow=$db->query('SELECT * FROM qr_scan_logs WHERE id='.$invalid['id'])->fetch_assoc();
     scanCheck($invalidRow['reference_id']===null && $invalidRow['subject_name']==='' && $invalidRow['unit_number']==='','forged token has no unrelated identity association');
     $unknown=recordQrVerification($db,'https://unknown.invalid/token=private',scanUuid()); scanCheck(!$unknown['verification']['valid'],'unknown QR attempt stored safely');
-    scanActor(2,'resident'); $expired=createResidentServiceRequest($db,2,'visitor',['visitor_name'=>'Expired Guest','details'=>'Old visit','start_date'=>date('Y-m-d')]);
+    scanActor(2,'resident'); $expired=fixtureCreateResidentServiceRequest($db,2,'visitor',['visitor_name'=>'Expired Guest','details'=>'Old visit','start_date'=>date('Y-m-d')]);
     $db->query("UPDATE resident_service_requests SET status='approved',start_date=CURDATE()-INTERVAL 1 DAY,end_date=CURDATE()-INTERVAL 1 DAY WHERE id=$expired");
     scanActor(5,'security'); $expiredEvent=recordQrVerification($db,residentServicePassUrl(gateRequest($db,$expired)),scanUuid()); scanCheck($expiredEvent['verification']['verification_result']==='expired','expired visitor scan stored');
     scanActor(2,'resident'); $propertyId=savePropertyGateRequest($db,['direction'=>'exit','purpose'=>'Repair / Return','details'=>'Repair appliance','start_date'=>date('Y-m-d'),'start_time'=>'00:00','end_time'=>'23:59','items'=>[['item_name'=>'Refrigerator','category'=>'Appliance','quantity'=>'1']]]);
@@ -61,7 +62,7 @@ try {
     scanActor(2,'resident'); $cancelledId=savePropertyGateRequest($db,['direction'=>'entry','purpose'=>'Personal Property Transfer','start_date'=>date('Y-m-d'),'start_time'=>'00:00','end_time'=>'23:59','items'=>[['item_name'=>'Chair','category'=>'Furniture','quantity'=>'1']]]);
     scanActor(4,'admin'); gateTransition($db,$cancelledId,'approved'); $cancelledUrl=gatePassUrl(gateRequest($db,$cancelledId)); gateTransition($db,$cancelledId,'cancelled');
     scanCheck(recordQrVerification($db,$cancelledUrl,scanUuid())['verification']['verification_result']==='cancelled','cancelled property scan recorded accurately');
-    scanActor(2,'resident'); $rollbackVisitor=createResidentServiceRequest($db,2,'visitor',['visitor_name'=>'Rollback Guest','details'=>'Rollback test','start_date'=>date('Y-m-d')]);
+    scanActor(2,'resident'); $rollbackVisitor=fixtureCreateResidentServiceRequest($db,2,'visitor',['visitor_name'=>'Rollback Guest','details'=>'Rollback test','start_date'=>date('Y-m-d')]);
     scanActor(5,'security'); decideResidentServiceRequest($db,$rollbackVisitor,'approved',''); $rollbackRow=gateRequest($db,$rollbackVisitor);
     $countBefore=(int)$db->query('SELECT COUNT(*) AS n FROM visitor_logs')->fetch_assoc()['n'];
     $db->query("CREATE TRIGGER qr_action_failure BEFORE INSERT ON qr_scan_logs FOR EACH ROW BEGIN IF NEW.scan_action='check_in' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Injected action history failure'; END IF; END");

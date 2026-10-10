@@ -27,17 +27,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 gateTransition($db, $id, substr($action, 5), $_POST);
             }
             logAudit('update', 'resident_service_request', $id, $action);
+        } elseif ($staffServices && $serviceKind === 'visitor' && $action === 'review_identity') {
+            if (!reviewVisitorIdentity($db, $id, (string)($_POST['identity_decision'] ?? ''), trim((string)($_POST['identity_review_note'] ?? '')), (string)($_POST['identity_version'] ?? ''))) throw new InvalidArgumentException('Identity review could not be saved. Reload and review the current ID document; include a reason when rejecting it.');
         } elseif ($staffServices) {
             if (!decideResidentServiceRequest($db, $id, (string)($_POST['decision'] ?? ''), trim((string)($_POST['admin_notes'] ?? '')))) throw new InvalidArgumentException('The request cannot be updated. It may already be processed or expired.');
             logAudit($_POST['decision'] === 'approved' ? 'approve' : 'reject', 'resident_service_request', $id);
+        } elseif ($action === 'replace_identity' && $serviceKind === 'visitor') {
+            replaceVisitorIdentity($db, $id, $_POST, $_FILES);
         } elseif ($action === 'cancel') {
             if (!cancelResidentServiceRequest($db, (int)$_SESSION['user_id'], $id, $serviceKind)) throw new InvalidArgumentException('This request can no longer be cancelled.');
             logAudit('cancel', 'resident_service_request', $id);
         } else {
-            $id = $serviceKind === 'visitor' ? registerVisitorWithParking($db, (int)$_SESSION['user_id'], $_POST) : createResidentServiceRequest($db, (int)$_SESSION['user_id'], $serviceKind, $_POST);
+            $id = $serviceKind === 'visitor' ? registerVisitorWithParking($db, (int)$_SESSION['user_id'], $_POST, $_FILES) : createResidentServiceRequest($db, (int)$_SESSION['user_id'], $serviceKind, $_POST);
             logAudit('create', 'resident_service_request', $id, $serviceKind . ' registration');
         }
-        setFlash('success', !$staffServices && $action === 'create' && $serviceKind === 'visitor' ? (($_POST['needs_parking'] ?? '') === '1' ? 'Visitor registered and linked parking request submitted for review.' : 'Visitor registered successfully. Security will review your request.') : 'Request saved successfully.');
+        setFlash('success', !$staffServices && $action === 'create' && $serviceKind === 'visitor' ? 'Visitor registered. Identity, visit approval and any requested parking must be approved before a QR pass is available.' : 'Request saved successfully.');
         redirect($staffServices ? 'service_requests.php?kind=' . $serviceKind : ($serviceKind === 'visitor' ? 'visitors.php' : 'permits.php'));
     } catch (InvalidArgumentException $e) { $error = $e->getMessage(); }
     catch (Throwable $e) { error_log($e->getMessage()); $error = 'Unable to save your request. Please try again.'; }
@@ -87,10 +91,11 @@ if ($serviceKind === 'permit' && isset($_GET['request_id'])) {
 <?php else: ?>
 <?php if (!$staffServices && $ready): ?>
 <section class="service-panel"><h2><?= $serviceKind === 'visitor' ? 'Register an expected visitor' : 'Request a permit' ?></h2><p><?= $serviceKind === 'visitor' ? ('Tell security who is visiting your unit and when.' . ($canRequestParking ? ' If your guest brings a vehicle, submit their parking request here too.' : ' Visitor parking is disabled for your account type.')) : 'Management reviews your request. An approved permit authorizes only the activity and dates shown.' ?></p>
-<form method="post" class="service-form"><?= workflowCsrfField() ?>
+<form method="post" enctype="multipart/form-data" class="service-form" data-visitor-id-form><?= workflowCsrfField() ?>
 <?php if ($serviceKind === 'visitor'): ?>
 <label class="field-label" for="visitor_name">Visitor / group representative name<input id="visitor_name" name="visitor_name" maxlength="120" value="<?= serviceValue('visitor_name') ?>" placeholder="Guest's full name" autocomplete="off" required></label><label class="field-label" for="visitor_contact">Contact number (optional)<input id="visitor_contact" name="visitor_contact" maxlength="30" type="tel" value="<?= serviceValue('visitor_contact') ?>" placeholder="e.g. 0917 123 4567" autocomplete="off"></label>
 <label class="field-label" for="visitor_count">Number of visitors<input id="visitor_count" name="visitor_count" type="number" min="1" max="65535" step="1" value="<?= serviceValue('visitor_count', '1') ?>" aria-describedby="visitorCountHelp" required><small id="visitorCountHelp">Total people visiting, including the named visitor.</small></label>
+<?php $identityFieldPrefix = 'new-visitor'; include __DIR__ . '/visitor_identity_fields.php'; ?>
 <?php else: ?><label class="field-label" for="permit_type">Permit type<select id="permit_type" name="permit_type" required><?php foreach (RESIDENT_PERMIT_TYPES as $type): ?><option <?= ($_POST['permit_type'] ?? '') === $type ? 'selected' : '' ?>><?= serviceEscape($type) ?></option><?php endforeach; ?></select></label><?php endif; ?>
 <label class="field-label" for="service_start_date"><?= $serviceKind === 'visitor' ? 'Visit date' : 'Start date' ?><input id="service_start_date" name="start_date" type="date" min="<?= date('Y-m-d') ?>" value="<?= serviceValue('start_date') ?>" required></label>
 <?php if ($serviceKind === 'permit'): ?><label class="field-label" for="service_end_date">End date<input id="service_end_date" name="end_date" type="date" min="<?= date('Y-m-d') ?>" value="<?= serviceValue('end_date') ?>" required></label><?php endif; ?>
@@ -103,10 +108,34 @@ if ($serviceKind === 'permit' && isset($_GET['request_id'])) {
 <?php foreach ($requests as $request): ?><article class="service-request"><div class="service-request-heading"><h3>#<?= (int)$request['id'] ?> · <?= serviceEscape($request['request_kind'] === 'visitor' ? $request['visitor_name'] : $request['permit_type']) ?></h3><span class="service-status service-status-<?= serviceEscape($request['status']) ?>"><?= serviceEscape(ucfirst(str_replace('_', ' ', $request['status']))) ?><?= $request['end_date'] < date('Y-m-d') ? ' · expired' : '' ?></span></div>
 <p class="service-request-meta"><?= serviceEscape($request['start_date']) ?><?= $request['start_date'] !== $request['end_date'] ? ' to ' . serviceEscape($request['end_date']) : '' ?> · Unit <?= serviceEscape($request['unit_number']) ?><?php if ($staffServices): ?> · <?= serviceEscape($request['full_name']) ?><?php endif; ?></p>
 <?php if ($request['request_kind'] === 'visitor'): ?><p class="service-request-count">Number of visitors: <strong><?= (int)$request['visitor_count'] ?></strong></p><?php endif; ?>
+<?php if ($serviceKind === 'visitor'): ?>
+<section class="visitor-identity-summary" aria-label="Identity verification">
+    <p>Identity verification: <span class="service-status service-status-<?= serviceEscape($request['identity_status'] === 'verified' ? 'approved' : $request['identity_status']) ?>"><?= serviceEscape(ucfirst($request['identity_status'])) ?></span><?php if ($request['id_type']): ?> · <?= serviceEscape($request['id_type']) ?><?php endif; ?></p>
+    <?php if ($request['identity_review_note']): ?><p>Identity review note: <?= serviceEscape($request['identity_review_note']) ?></p><?php endif; ?>
+    <?php if (empty($request['id_document_name'])): ?><p><?= $request['id_deleted_at'] ? 'The ID document has been deleted under the retention policy.' : 'An ID document is required before this visitor can receive an active QR pass.' ?></p><?php endif; ?>
+    <?php if ($staffServices && canAccess('visitors.identity.review') && $request['id_document_name'] && !visitorIdExpired($request)): ?>
+        <a class="service-btn service-btn-secondary" href="../visitor_id_document.php?request_id=<?= (int)$request['id'] ?>" target="_blank" rel="noopener noreferrer">Review ID document</a>
+        <?php if ($request['id_number_last4']): ?><p>ID reference ending: •••• <?= serviceEscape($request['id_number_last4']) ?></p><?php endif; ?>
+        <?php if (in_array($request['status'], ['pending','approved'], true) && $request['end_date'] >= date('Y-m-d')): ?>
+        <form method="post" class="service-actions visitor-identity-review"><?= workflowCsrfField() ?><input type="hidden" name="action" value="review_identity"><input type="hidden" name="request_id" value="<?= (int)$request['id'] ?>"><input type="hidden" name="identity_version" value="<?= visitorIdentityVersion($request) ?>">
+            <label for="identity-note-<?= (int)$request['id'] ?>">Identity review note (required for rejection)</label><input id="identity-note-<?= (int)$request['id'] ?>" name="identity_review_note" maxlength="500" placeholder="Give a reason if the ID cannot be verified">
+            <button name="identity_decision" value="verified">Verify identity</button><button class="service-btn-danger" name="identity_decision" value="rejected">Reject identity</button>
+        </form><?php endif; ?>
+    <?php elseif (!$staffServices && in_array($request['status'], ['pending','approved'], true) && $request['end_date'] >= date('Y-m-d')): ?>
+        <details class="visitor-identity-replace"><summary><?= $request['id_document_name'] ? 'Submit a replacement ID' : 'Submit required ID' ?></summary>
+            <p>A replacement must be reviewed again. Any previous QR code is revoked.</p>
+            <form method="post" enctype="multipart/form-data" class="service-form" data-visitor-id-form><?= workflowCsrfField() ?><input type="hidden" name="action" value="replace_identity"><input type="hidden" name="request_id" value="<?= (int)$request['id'] ?>">
+                <?php $identityFieldPrefix = 'visitor-' . (int)$request['id']; include __DIR__ . '/visitor_identity_fields.php'; ?>
+                <div class="service-wide service-submit"><button type="submit">Submit ID for review</button></div>
+            </form>
+        </details>
+    <?php endif; ?>
+</section>
+<?php endif; ?>
 <p class="service-request-description"><?= serviceEscape($request['details']) ?></p><?php if ($request['admin_notes']): ?><p>Review note: <?= serviceEscape($request['admin_notes']) ?></p><?php endif; ?>
 <div class="service-request-actions"><?php if ($serviceKind === 'visitor' && $canRequestParking): ?><?php $visitorParking = $linkedParking[(int)$request['id']] ?? null; ?><?php if ($visitorParking): ?><p class="service-parking-status">Parking: <strong><?= serviceEscape(ucfirst($visitorParking['status'])) ?></strong> · <?= serviceEscape($visitorParking['vehicle_plate']) ?> <a class="service-btn service-btn-secondary" href="parking.php#parking-request-<?= (int)$visitorParking['id'] ?>">View parking request</a></p><?php endif; ?><?php if (!$staffServices && (!$visitorParking || in_array($visitorParking['status'], ['cancelled','rejected'], true)) && in_array($request['status'], ['pending','approved','checked_in'], true) && $request['end_date'] >= date('Y-m-d')): ?><p><a class="service-btn service-btn-secondary" href="parking.php?visitor_id=<?= (int)$request['id'] ?>#visitorParking">Request parking for this visitor</a></p><?php endif; ?><?php endif; ?>
-<?php if (in_array($request['status'], ['approved','checked_in','checked_out'], true)): ?><a class="service-btn service-btn-secondary" href="<?= serviceEscape(residentServicePassUrl($request)) ?>">View access pass</a><?php endif; ?>
-<?php if ($staffServices && $request['status'] === 'pending' && $request['end_date'] >= date('Y-m-d')): ?><form method="post" class="service-actions"><?= workflowCsrfField() ?><input type="hidden" name="request_id" value="<?= (int)$request['id'] ?>"><input name="admin_notes" maxlength="500" placeholder="Review note"><button name="decision" value="approved">Approve</button><button name="decision" value="rejected">Reject</button></form>
+<?php if (in_array($request['status'], ['approved','checked_in','checked_out'], true) && ($serviceKind !== 'visitor' || visitorAccessApprovalsComplete($db, $request) || in_array($request['status'], ['checked_in','checked_out'], true))): ?><a class="service-btn service-btn-secondary" href="<?= serviceEscape(residentServicePassUrl($request)) ?>">View access pass</a><?php elseif ($serviceKind === 'visitor' && in_array($request['status'], ['pending','approved'], true)): ?><p class="service-parking-status">QR pass awaiting identity, visit and any parking approvals.</p><?php endif; ?>
+<?php if ($staffServices && $request['status'] === 'pending' && $request['end_date'] >= date('Y-m-d')): ?><form method="post" class="service-actions"><?= workflowCsrfField() ?><input type="hidden" name="request_id" value="<?= (int)$request['id'] ?>"><input name="admin_notes" maxlength="500" placeholder="Visit review note"><button name="decision" value="approved">Approve visit</button><button name="decision" value="rejected">Reject visit</button></form>
 <?php elseif (!$staffServices && in_array($request['status'], ['pending','approved'], true)): ?><form method="post" class="service-actions"><?= workflowCsrfField() ?><input type="hidden" name="action" value="cancel"><input type="hidden" name="request_id" value="<?= (int)$request['id'] ?>"><button type="submit" class="service-btn service-btn-danger">Cancel request</button></form><?php endif; ?>
 </div></article><?php endforeach; ?></section>
 <?php endif; ?></main></div>

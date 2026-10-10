@@ -14,6 +14,45 @@ $connection = connectDb();
 ensureVisitorLogsTable($connection);
 ensureVisitorLogColumns($connection);
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireWorkflowCsrf();
+    $action = $_POST['action'] ?? '';
+    $actorId = (int)$_SESSION['user_id'];
+    try {
+        if ($action === 'checkin') {
+            $visitorName = trim($_POST['visitor_name'] ?? '');
+            $visitorContact = trim($_POST['visitor_contact'] ?? '');
+            $unitNumber = trim($_POST['unit_number'] ?? '');
+            $purpose = trim($_POST['purpose'] ?? '');
+            if ($visitorName === '' || $unitNumber === '') {
+                setFlash('error', 'Visitor name and unit number are required.');
+            } else {
+                $visitorId = logVisitorIn($connection, $visitorName, $visitorContact, $unitNumber, $purpose, $actorId);
+                if ($visitorId !== false) {
+                    logAudit('checkin', 'visitor', $visitorId, 'Logged in visitor '.$visitorName.' for unit '.$unitNumber);
+                    setFlash('success', htmlspecialchars($visitorName).' has been logged in.');
+                } else {
+                    setFlash('error', 'Could not log the visitor in. Please try again.');
+                }
+            }
+        } elseif ($action === 'checkout') {
+            $visitorId = (int)($_POST['visitor_log_id'] ?? 0);
+            if ($visitorId > 0 && logVisitorOut($connection, $visitorId, $actorId)) {
+                logAudit('checkout', 'visitor', $visitorId, 'Checked out visitor entry #'.$visitorId);
+                setFlash('success', 'Visitor checked out.');
+            } else {
+                setFlash('error', 'Could not check out that visitor.');
+            }
+        } else {
+            setFlash('error', 'Invalid visitor log action.');
+        }
+    } catch (Throwable $error) {
+        error_log('Manual visitor log failed: '.$error->getMessage());
+        setFlash('error', 'Could not update the visitor log. Please try again.');
+    }
+    redirect('visitorlog.php');
+}
+
 $search = trim($_GET['search'] ?? '');
 $statusFilter = $_GET['status'] ?? 'all';
 
@@ -44,6 +83,8 @@ $visitors = array_values(array_filter($allVisitors, function (array $visitor) us
 }));
 
 $activeCount = countActiveVisitors($connection);
+$activeVisitors = getActiveVisitors($connection);
+$flash = getFlash();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -75,11 +116,41 @@ $activeCount = countActiveVisitors($connection);
             </header>
 
             <section class="unit-page-head">
-                <div><h2>Visitor Log</h2><p>Read-only view of every visitor logged in or out by Security. Check-in and check-out are handled from the Security section.</p></div>
+                <div><h2>Visitor Log</h2><p>Log visitors in or out and review visitor activity.</p></div>
                 <div class="unit-summary"><span><?php echo $activeCount; ?> Currently Inside</span><span><?php echo count($visitors); ?> of <?php echo count($allVisitors); ?> shown</span></div>
             </section>
 
+            <?php if ($flash): ?><div class="alert <?php echo $flash['type'] === 'error' ? 'error' : 'success'; ?>" role="status"><?php echo $flash['message']; ?></div><?php endif; ?>
+
+            <section class="visitor-log-workspace" aria-label="Visitor check-in and check-out">
+                <div class="unit-management-panel">
+                    <h3 class="section-title">Log a Visitor In</h3>
+                    <form method="post" action="visitorlog.php" class="visitor-form"><?php echo workflowCsrfField(); ?>
+                        <input type="hidden" name="action" value="checkin">
+                        <div class="field"><label for="visitorName">Visitor name</label><input id="visitorName" name="visitor_name" maxlength="120" placeholder="e.g. Juan Dela Cruz" required></div>
+                        <div class="field"><label for="visitorContact">Contact number (optional)</label><input id="visitorContact" name="visitor_contact" maxlength="30" placeholder="e.g. 09171234567"></div>
+                        <div class="field"><label for="visitorUnit">Unit to visit</label><input id="visitorUnit" name="unit_number" maxlength="20" placeholder="e.g. 12A" required></div>
+                        <div class="field"><label for="visitorPurpose">Purpose (optional)</label><input id="visitorPurpose" name="purpose" maxlength="150" placeholder="e.g. Delivery, family visit"></div>
+                        <button type="submit">Log Visitor In</button>
+                    </form>
+                </div>
+                <div class="unit-management-panel">
+                    <h3 class="section-title">Currently Inside (<?php echo $activeCount; ?>)</h3>
+                    <?php if (!$activeVisitors): ?><p class="bookings-empty">No visitors currently checked in.</p><?php else: ?>
+                    <div class="unit-table-wrap"><table class="unit-table">
+                        <thead><tr><th>Visitor</th><th>Unit</th><th>Time In</th><th>Action</th></tr></thead>
+                        <tbody><?php foreach ($activeVisitors as $visitor): ?><tr>
+                            <td><strong><?php echo htmlspecialchars($visitor['visitor_name']); ?></strong><br><small><?php echo (int)$visitor['visitor_count']; ?> visitor(s)</small><?php if ($visitor['purpose']): ?><br><?php echo htmlspecialchars($visitor['purpose']); ?><?php endif; ?></td>
+                            <td><?php echo htmlspecialchars($visitor['unit_number']); ?></td>
+                            <td><?php echo htmlspecialchars(date('M j, g:i A', strtotime($visitor['time_in']))); ?></td>
+                            <td><form method="post" action="visitorlog.php"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="checkout"><input type="hidden" name="visitor_log_id" value="<?php echo (int)$visitor['id']; ?>"><button type="submit" class="visitor-checkout-btn">Check Out</button></form></td>
+                        </tr><?php endforeach; ?></tbody>
+                    </table></div><?php endif; ?>
+                </div>
+            </section>
+
             <section class="unit-management-panel">
+                <h3 class="section-title">Visitor History</h3>
                 <form class="unit-filters" method="get" action="visitorlog.php">
                     <label for="visitorSearch">Search</label>
                     <input id="visitorSearch" type="search" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Visitor name, unit, contact...">

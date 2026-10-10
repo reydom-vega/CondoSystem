@@ -16,8 +16,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $message = 'Check-in refused. Verify the approval, visit date, and current check-in status.';
     $pass = getResidentServicePass($db, $id, $token);
 }
-$valid = $pass['status'] === 'approved' && $pass['start_date'] <= date('Y-m-d') && $pass['end_date'] >= date('Y-m-d');
+$identityRequired = $pass['request_kind'] === 'visitor';
+$approvalsComplete = !$identityRequired || visitorAccessApprovalsComplete($db, $pass);
+$valid = $pass['status'] === 'approved' && $approvalsComplete && $pass['start_date'] <= date('Y-m-d') && $pass['end_date'] >= date('Y-m-d');
 $label = $valid ? 'VALID' : ($pass['start_date'] > date('Y-m-d') && $pass['status'] === 'approved' ? 'NOT YET VALID' : strtoupper(str_replace('_',' ',$pass['status'])));
+if ($identityRequired && $pass['status'] === 'approved' && !$approvalsComplete) $label = !visitorIdentityVerified($pass) ? 'IDENTITY ' . strtoupper($pass['identity_status']) : 'PARKING APPROVAL REQUIRED';
 if ($pass['end_date'] < date('Y-m-d')) $label = 'EXPIRED';
 function passEscape($value): string { return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8'); }
 $isVisitorPass = $pass['request_kind'] === 'visitor';
@@ -55,7 +58,7 @@ if ($label === 'EXPIRED') {
 } elseif ($pass['status'] === 'cancelled') {
     $securityInstruction = 'This pass has been cancelled and cannot be used for entry.';
 }
-$showQr = in_array($pass['status'], ['approved','checked_in','checked_out'], true);
+$showQr = $approvalsComplete && in_array($pass['status'], ['approved','checked_in','checked_out'], true);
 $visitorFields = [
     ['clipboard', 'Reference number', '#' . $id],
     ['dashboard', 'Unit number', $pass['unit_number']],
@@ -63,7 +66,16 @@ $visitorFields = [
     [$isVisitorPass ? 'residents' : 'file-text', $isVisitorPass ? 'Visitor name' : 'Permit type', $pass['visitor_name'] ?: $pass['permit_type']],
     ['file-text', $isVisitorPass ? 'Purpose of visit' : 'Purpose / details', $pass['details']],
 ];
-if ($isVisitorPass) $visitorFields[] = ['users', 'Number of visitors', (string)(int)$pass['visitor_count']];
+if ($isVisitorPass) {
+    $visitorFields[] = ['users', 'Number of visitors', (string)(int)$pass['visitor_count']];
+    $visitorFields[] = ['shield', 'Identity verification', ucfirst($pass['identity_status'])];
+    $visitorVehicle = visitorPassVehicle($db, $id);
+    if ($visitorVehicle) {
+        $visitorFields[] = ['parking', 'Vehicle plate', $visitorVehicle['vehicle_plate']];
+        $visitorFields[] = ['parking', 'Vehicle information', $visitorVehicle['vehicle_description'] ?: 'Not provided'];
+        $visitorFields[] = ['parking', 'Parking approval', ucfirst($visitorVehicle['status'])];
+    }
+}
 ?>
 <!doctype html>
 <html lang="en">

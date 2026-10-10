@@ -31,18 +31,21 @@ function requestLinkedVisitorParking(mysqli $db, int $userId, int $visitorId, ar
     } catch (Throwable $e) { $db->rollback(); throw $e; }
 }
 
-function registerVisitorWithParking(mysqli $db, int $userId, array $input): int {
+function registerVisitorWithParking(mysqli $db, int $userId, array $input, array $files = []): int {
+    if ($userId !== (int)($_SESSION['user_id'] ?? 0) || !canAccess('resident.visitors.register')) throw new InvalidArgumentException('Visitor registration is not available for your account.');
     if (!ensureResidentServicesTables($db) || !ensureParkingTables($db)) throw new RuntimeException('Visitor storage is unavailable.');
     $policy = getParkingPolicy($db);
-    $db->begin_transaction();
+    $identity = visitorIdentityInput($input);
+    $upload = storeVisitorId($files['valid_id'] ?? []);
     try {
-        $id = createResidentServiceRequest($db, $userId, 'visitor', $input);
+        $db->begin_transaction();
+        $id = insertResidentServiceRequest($db, $userId, 'visitor', $input, $identity + $upload);
         if (($input['needs_parking'] ?? '') === '1') {
             $date = trim((string)($input['start_date'] ?? ''));
             insertLinkedVisitorParking($db, $userId, $id, (string)($input['vehicle_plate'] ?? ''), (string)($input['vehicle_description'] ?? ''), $date, $date, $policy);
         }
         $db->commit(); return $id;
-    } catch (Throwable $e) { $db->rollback(); throw $e; }
+    } catch (Throwable $e) { $db->rollback(); removeVisitorIdFile($upload['name']); throw $e; }
 }
 
 function cancelResidentServiceRequest(mysqli $db, int $userId, int $id, string $kind): bool {

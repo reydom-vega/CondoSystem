@@ -26,15 +26,22 @@ function ensureResidentServicesTables(mysqli $db): bool {
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")) return false;
     $column = $db->query("SHOW COLUMNS FROM resident_service_requests LIKE 'visitor_count'");
-    return $column && ($column->num_rows > 0 || $db->query("ALTER TABLE resident_service_requests ADD visitor_count SMALLINT UNSIGNED NOT NULL DEFAULT 1 AFTER visitor_contact") === true) && ensurePropertyGateSchema($db);
+    return $column && ($column->num_rows > 0 || $db->query("ALTER TABLE resident_service_requests ADD visitor_count SMALLINT UNSIGNED NOT NULL DEFAULT 1 AFTER visitor_contact") === true) && ensurePropertyGateSchema($db) && ensureVisitorIdentitySchema($db);
 }
 
-function createResidentServiceRequest(mysqli $db, int $userId, string $kind, array $input): int {
+function createResidentServiceRequest(mysqli $db, int $userId, string $kind, array $input, array $files = []): int {
+    return $kind === 'visitor' ? registerVisitorWithParking($db, $userId, $input, $files)
+        : insertResidentServiceRequest($db, $userId, $kind, $input);
+}
+
+/** Internal insert; visitor callers must supply the stored upload, inside a transaction. */
+function insertResidentServiceRequest(mysqli $db, int $userId, string $kind, array $input, ?array $identity = null): int {
     if ($kind === 'permit' && ($input['permit_type'] ?? '') === 'Property Gate Pass') {
         if ($userId !== (int)($_SESSION['user_id'] ?? 0)) throw new InvalidArgumentException('Requester does not match your account.');
         return savePropertyGateRequest($db, $input);
     }
     if (!in_array($kind, ['visitor', 'permit'], true)) throw new InvalidArgumentException('Unknown request type.');
+    if ($kind === 'visitor' && (!$identity || empty($identity['name']) || empty($identity['type']))) throw new InvalidArgumentException('A valid ID is required for visitor registration.');
     if (!residentUserHasPermission($db,$userId,$kind==='visitor' ? 'resident.visitors.register' : 'resident.permits.request')) throw new InvalidArgumentException('This request type is not available for your resident account.');
     $start = trim((string)($input['start_date'] ?? ''));
     $end = trim((string)($input['end_date'] ?? '')) ?: $start;
@@ -61,8 +68,11 @@ function createResidentServiceRequest(mysqli $db, int $userId, string $kind, arr
     $owner->execute();
     if (!$owner->get_result()->fetch_assoc()) throw new InvalidArgumentException('An approved resident account with an assigned unit is required.');
     $token = bin2hex(random_bytes(32));
-    $stmt = $db->prepare('INSERT INTO resident_service_requests (user_id, request_kind, permit_type, visitor_name, visitor_contact, visitor_count, details, start_date, end_date, access_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-    $stmt->bind_param('issssissss', $userId, $kind, $type, $name, $contact, $visitorCount, $details, $start, $end, $token);
+    $idType = $identity['type'] ?? null; $last4 = $identity['last4'] ?? null;
+    $document = $identity['name'] ?? null; $mime = $identity['mime'] ?? null;
+    $uploadedAt = $kind === 'visitor' ? gmdate('Y-m-d H:i:s') : null;
+    $stmt = $db->prepare('INSERT INTO resident_service_requests (user_id, request_kind, permit_type, visitor_name, visitor_contact, visitor_count, details, start_date, end_date, access_token,id_type,id_number_last4,id_document_name,id_document_mime,id_uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt->bind_param('issssisssssssss', $userId, $kind, $type, $name, $contact, $visitorCount, $details, $start, $end, $token, $idType, $last4, $document, $mime, $uploadedAt);
     if (!$stmt->execute()) throw new RuntimeException('Could not save the request.');
     return (int)$db->insert_id;
 }
@@ -133,7 +143,7 @@ function checkInRegisteredVisitor(mysqli $db, int $id, string $token): bool {
         if (!$row || !hash_equals($row['access_token'], $token) || $row['request_kind'] !== 'visitor' || $row['status'] !== 'approved' || $row['resident_status'] !== 'approved' || !(int)$row['is_active'] || !(int)$row['resident_verified'] || $row['resident_role'] !== 'resident' || trim((string)$row['unit_number']) === '' || $row['start_date'] > date('Y-m-d') || $row['end_date'] < date('Y-m-d')) {
             $db->rollback(); return false;
         }
-        if (!(residentContext($db,(int)$row['user_id'])['approved'] ?? false)) { $db->rollback(); return false; }
+        if (!(residentContext($db,(int)$row['user_id'])['approved'] ?? false) || !visitorAccessApprovalsComplete($db, $row, true)) { $db->rollback(); return false; }
         $logId = logVisitorIn($db, $row['visitor_name'], $row['visitor_contact'] ?? '', $row['unit_number'], substr($row['details'], 0, 150), (int)$_SESSION['user_id'], (int)$row['visitor_count']);
         if (!$logId) throw new RuntimeException('Visitor log could not be saved.');
         $update = $db->prepare("UPDATE resident_service_requests SET status = 'checked_in', visitor_log_id = ? WHERE id = ?");

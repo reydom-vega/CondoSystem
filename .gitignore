@@ -6,6 +6,7 @@ config.local.php
 *.log
 *.sql
 !/database.sql
+!/migrations/2026_10_11_vehicle_violations.sql
 *.bak
 *.zip
 

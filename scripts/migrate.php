@@ -38,6 +38,7 @@ try {
         if ($function($db) === false) throw new RuntimeException('A schema update did not complete.');
     }
     $step = 'access storage';
+    visitorIdRetentionDays(); visitorIdStorageDirectory(true);
     $db->query("CREATE TABLE IF NOT EXISTS access_signing_keys (key_name VARCHAR(30) PRIMARY KEY, key_value CHAR(64) NOT NULL) ENGINE=InnoDB");
     $key = bin2hex(random_bytes(32));
     $seed = $db->prepare("INSERT IGNORE INTO access_signing_keys (key_name,key_value) VALUES ('parking',?)");

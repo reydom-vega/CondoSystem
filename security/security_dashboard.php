@@ -154,7 +154,6 @@ function statusClass($status) {
                 <div class="admin-panel recent-panel">
                     <div class="recent-panel-head">
                         <h2>Recent Visitors</h2>
-                        <a href="visitor_log.php">View all →</a>
                     </div>
                     <?php if (empty($recentVisitors)): ?>
                         <p class="recent-empty">No visitor activity yet.</p>

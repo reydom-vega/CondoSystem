@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/visitor_identity_fixture.php';
 /** Integration checks use a disposable database; existing condo data is untouched. */
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 $server = new mysqli(getenv('CONDO_DB_HOST') ?: 'localhost', getenv('CONDO_DB_USER') ?: 'root', getenv('CONDO_DB_PASS') ?: '');
@@ -48,14 +49,14 @@ try {
     $today = date('Y-m-d');
     $tomorrow = date('Y-m-d', strtotime('+1 day'));
     $input = ['visitor_name'=>'Guest One','visitor_contact'=>'123','visitor_count'=>'5','details'=>'Family visit','start_date'=>$today];
-    $visitorId = createResidentServiceRequest($db,1,'visitor',$input);
+    $visitorId = fixtureCreateResidentServiceRequest($db,1,'visitor',$input);
     checkWorkflow((int)$db->query('SELECT visitor_count FROM resident_service_requests WHERE id='.$visitorId)->fetch_assoc()['visitor_count'] === 5, 'group visitor count persists');
     foreach (['0', '-1', '1.5', 'abc', '', '65536', ['2']] as $invalidCount) {
-        expectWorkflowRejection(fn()=>createResidentServiceRequest($db,1,'visitor',array_merge($input,['visitor_count'=>$invalidCount])), 'invalid group visitor count rejected');
+        expectWorkflowRejection(fn()=>fixtureCreateResidentServiceRequest($db,1,'visitor',array_merge($input,['visitor_count'=>$invalidCount])), 'invalid group visitor count rejected');
     }
-    $permitId = createResidentServiceRequest($db,1,'permit',['permit_type'=>'Renovation','details'=>'Kitchen work','start_date'=>$today,'end_date'=>$tomorrow]);
-    expectWorkflowRejection(fn()=>createResidentServiceRequest($db,1,'visitor',array_merge($input,['visitor_name'=>''])), 'visitor name required');
-    expectWorkflowRejection(fn()=>createResidentServiceRequest($db,1,'permit',['permit_type'=>'Unknown','details'=>'Work','start_date'=>$today]), 'permit type allowlist');
+    $permitId = fixtureCreateResidentServiceRequest($db,1,'permit',['permit_type'=>'Renovation','details'=>'Kitchen work','start_date'=>$today,'end_date'=>$tomorrow]);
+    expectWorkflowRejection(fn()=>fixtureCreateResidentServiceRequest($db,1,'visitor',array_merge($input,['visitor_name'=>''])), 'visitor name required');
+    expectWorkflowRejection(fn()=>fixtureCreateResidentServiceRequest($db,1,'permit',['permit_type'=>'Unknown','details'=>'Work','start_date'=>$today]), 'permit type allowlist');
     checkWorkflow(count(getResidentServiceRequests($db,'visitor',2)) === 0, 'resident isolation');
     workflowTestActor(3,'security');
     checkWorkflow(!decideResidentServiceRequest($db,$permitId,'approved',''), 'security cannot approve permits');
@@ -139,6 +140,12 @@ try {
     $request2 = (int)$db->query('SELECT MAX(id) AS id FROM parking_requests')->fetch_assoc()['id'];
     checkWorkflow(!decideParkingRequest($request1,'approved',2,''), 'visitor cannot receive resident slot');
     checkWorkflow(decideParkingRequest($request1,'approved',null,''), 'parking pass automatically receives an inventory slot');
+    checkWorkflow(setParkingSlotStatus(1,'occupied'), 'reserved visitor slot can be marked occupied');
+    checkWorkflow($db->query('SELECT status FROM parking_slots WHERE id=1')->fetch_assoc()['status']==='occupied', 'reserved visitor occupancy persists');
+    checkWorkflow(setParkingSlotStatus(1,'occupied'), 'saving occupied status again succeeds for a reserved slot');
+    checkWorkflow(verifyAccessScan($db,parkingPassUrl($request1))['valid'], 'occupied visitor slot keeps its approved parking pass valid');
+    checkWorkflow(!setParkingSlotStatus(1,'maintenance'), 'reserved occupied slot cannot be placed under maintenance');
+    checkWorkflow(setParkingSlotStatus(1,'available'), 'visitor slot can be marked available after departure without cancelling its reservation');
     checkWorkflow(!decideParkingRequest($request2,'approved',1,''), 'overlapping parking reservation rejected');
     checkWorkflow(!decideParkingRequest($request2,'approved',null,''), 'auto allocation refuses when visitor inventory is fully reserved');
     checkWorkflow(getParkingPass($request1,'forged') === null, 'forged parking signature rejected');
@@ -210,17 +217,17 @@ try {
     $newOrder=getLatestParkingStickerOrder(1);
     checkWorkflow(count(getStickerVehicles($db,(int)$newOrder['id']))===1 && (int)getStickerVehicles($db,(int)$newOrder['id'])[0]['id']===$pendingVehicleId,'resident sticker form creates vehicle-linked order');
     $combinedInput = ['visitor_name'=>'Guest With Car','visitor_contact'=>'123','details'=>'Family visit with vehicle','start_date'=>$today,'needs_parking'=>'1','vehicle_plate'=>'LINK123','vehicle_description'=>'Blue sedan'];
-    $combinedId = registerVisitorWithParking($db,1,$combinedInput);
+    $combinedId = fixtureRegisterVisitorWithParking($db,1,$combinedInput);
     $linked = $db->query('SELECT * FROM parking_requests WHERE visitor_registration_id = ' . $combinedId)->fetch_assoc();
     checkWorkflow($linked && (int)$linked['user_id'] === 1 && $linked['start_date'] === $today && $linked['end_date'] === $today, 'combined registration links same-day parking');
     checkWorkflow($linked['vehicle_plate'] === 'LINK123', 'linked vehicle data persisted');
     expectWorkflowRejection(fn()=>requestLinkedVisitorParking($db,1,$combinedId,['vehicle_plate'=>'SECOND','start_date'=>$today]), 'duplicate linked request refused');
     expectWorkflowRejection(fn()=>requestLinkedVisitorParking($db,2,$combinedId,['vehicle_plate'=>'FOREIGN','start_date'=>$today]), 'another resident cannot link visitor parking');
     $visitorCount = (int)$db->query('SELECT COUNT(*) AS n FROM resident_service_requests')->fetch_assoc()['n'];
-    expectWorkflowRejection(fn()=>registerVisitorWithParking($db,1,array_merge($combinedInput,['vehicle_plate'=>''])), 'combined invalid vehicle rejected');
+    expectWorkflowRejection(fn()=>fixtureRegisterVisitorWithParking($db,1,array_merge($combinedInput,['vehicle_plate'=>''])), 'combined invalid vehicle rejected');
     checkWorkflow((int)$db->query('SELECT COUNT(*) AS n FROM resident_service_requests')->fetch_assoc()['n'] === $visitorCount, 'invalid vehicle rolls back registration');
     $db->query("CREATE TRIGGER reject_linked_parking BEFORE INSERT ON parking_requests FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Simulated parking failure'");
-    try { registerVisitorWithParking($db,1,$combinedInput); throw new RuntimeException('FAILED: parking failure was not raised'); } catch (mysqli_sql_exception $e) { checkWorkflow(true,'combined storage failure surfaced'); }
+    try { fixtureRegisterVisitorWithParking($db,1,$combinedInput); throw new RuntimeException('FAILED: parking failure was not raised'); } catch (mysqli_sql_exception $e) { checkWorkflow(true,'combined storage failure surfaced'); }
     checkWorkflow((int)$db->query('SELECT COUNT(*) AS n FROM resident_service_requests')->fetch_assoc()['n'] === $visitorCount, 'parking storage failure rolls back registration');
     $db->query('DROP TRIGGER reject_linked_parking');
     workflowTestActor(3,'security');
@@ -234,12 +241,12 @@ try {
     checkWorkflow(cancelResidentServiceRequest($db,1,$combinedId,'visitor'), 'resident cancels combined registration');
     checkWorkflow($db->query('SELECT status FROM parking_requests WHERE id = ' . (int)$linked['id'])->fetch_assoc()['status'] === 'cancelled', 'registration cancellation cancels parking');
     checkWorkflow(getParkingPass((int)$linked['id'],parkingPassSignature((int)$linked['id'])) === null, 'cancelled linked parking pass refused');
-    $rejectedId = registerVisitorWithParking($db,1,$combinedInput);
+    $rejectedId = fixtureRegisterVisitorWithParking($db,1,$combinedInput);
     workflowTestActor(3,'security');
     checkWorkflow(decideResidentServiceRequest($db,$rejectedId,'rejected','Visit declined'), 'visitor rejected');
     checkWorkflow($db->query('SELECT status FROM parking_requests WHERE visitor_registration_id = ' . $rejectedId)->fetch_assoc()['status'] === 'cancelled', 'rejection cancels linked parking');
     workflowTestActor(1,'resident');
-    $eligibleId = registerVisitorWithParking($db,1,['visitor_name'=>'Eligible Guest','details'=>'Tomorrow visit','start_date'=>$tomorrow]);
+    $eligibleId = fixtureRegisterVisitorWithParking($db,1,['visitor_name'=>'Eligible Guest','details'=>'Tomorrow visit','start_date'=>$tomorrow]);
     expectWorkflowRejection(fn()=>requestLinkedVisitorParking($db,1,$eligibleId,['vehicle_plate'=>'WRONGDAY','start_date'=>$today,'end_date'=>$today]), 'parking period must contain visit date');
     $existingLinkId = requestLinkedVisitorParking($db,1,$eligibleId,['vehicle_plate'=>'EXIST123','start_date'=>$tomorrow]);
     checkWorkflow($existingLinkId > 0, 'parking page links existing registration');
@@ -250,12 +257,13 @@ try {
     checkWorkflow($existingLinkId > 0, 'resident can request parking again after cancellation');
     require_once __DIR__.'/test_vehicle_upload.php';
     testVehicleUploadWorkflow($db);
-    registerVisitorWithParking($db,1,['visitor_name'=>'Dropdown Guest','details'=>'Tomorrow visit','start_date'=>$tomorrow]);
+    fixtureRegisterVisitorWithParking($db,1,['visitor_name'=>'Dropdown Guest','details'=>'Tomorrow visit','start_date'=>$tomorrow]);
     $submittedVisitor = ['visitor_name'=>'Submitted Guest','details'=>'From resident form','start_date'=>$tomorrow,'needs_parking'=>'1','vehicle_plate'=>'FORM123'];
     postWorkflowFixture('resident/visitors.php',$submittedVisitor);
     $submitted = $db->query("SELECT r.id, p.id AS parking_id FROM resident_service_requests r JOIN parking_requests p ON p.visitor_registration_id = r.id WHERE r.visitor_name = 'Submitted Guest'")->fetch_assoc();
-    checkWorkflow($submitted && $submitted['parking_id'] > 0, 'visitor page POST creates registration and linked parking');
+    checkWorkflow(!$submitted, 'visitor page POST without mandatory ID creates no registration or parking');
     postWorkflowFixture('resident/visitors.php',['visitor_name'=>'Parking Page Guest','details'=>'Parking requested later','start_date'=>$tomorrow]);
+    fixtureCreateResidentServiceRequest($db,1,'visitor',['visitor_name'=>'Parking Page Guest','details'=>'Parking requested later','start_date'=>$tomorrow]);
     $parkingPageVisitorId = (int)$db->query("SELECT id FROM resident_service_requests WHERE visitor_name = 'Parking Page Guest'")->fetch_assoc()['id'];
     postWorkflowFixture('resident/parking.php',['form_action'=>'visitor_request','visitor_registration_id'=>$parkingPageVisitorId,'vehicle_plate'=>'PAGE123','start_date'=>$tomorrow,'end_date'=>$tomorrow]);
     $pageParking = $db->query('SELECT id FROM parking_requests WHERE visitor_registration_id = ' . $parkingPageVisitorId)->fetch_assoc();
@@ -265,7 +273,7 @@ try {
     postWorkflowFixture('resident/parking.php',['form_action'=>'cancel_visitor_request','request_id'=>$pageParking['id']]);
     checkWorkflow($db->query('SELECT status FROM parking_requests WHERE id = ' . (int)$pageParking['id'])->fetch_assoc()['status'] === 'cancelled', 'parking cancellation form updates request');
     $errorHtml = postWorkflowFixture('resident/visitors.php',array_merge($submittedVisitor,['visitor_name'=>'Sticky Guest','vehicle_plate'=>'']));
-    checkWorkflow(str_contains($errorHtml,'value="Sticky Guest"') && str_contains($errorHtml,'Enter a plate number'), 'validation preserves visitor input and shows error');
+    checkWorkflow(str_contains($errorHtml,'value="Sticky Guest"') && str_contains($errorHtml,'Choose a valid ID type'), 'mandatory identity validation preserves visitor input and shows error');
     foreach (['resident/visitors.php','resident/permits.php','resident/parking.php','resident/vehicles.php','resident/book_amenity.php','security/scanner.php','superadmin/service_requests.php','superadmin/registeredvehicles.php','superadmin/parking_configuration.php','superadmin/parking.php','superadmin/bookingrequest.php','resident_service_pass.php'] as $page) {
         $process = proc_open([PHP_BINARY,__DIR__ . '/render_workflow_page.php',$page], [1=>['pipe','w'],2=>['pipe','w']], $pipes);
         $html = stream_get_contents($pipes[1]); $errors = stream_get_contents($pipes[2]);

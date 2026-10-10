@@ -1,8 +1,8 @@
 <?php
 /**
  * Visitor / guest log feature module.
- * Lets security staff log a visitor in at the gate/lobby and check them
- * out later. Follows the same self-contained pattern as parking.php and
+ * Supports management's manual visitor log and verified gate check-ins and
+ * check-outs. Follows the same self-contained pattern as parking.php and
  * violations.php: one ensureXTable() bootstrap function plus small,
  * focused helpers that pages call directly.
  */

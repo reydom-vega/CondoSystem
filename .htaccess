@@ -1,4 +1,5 @@
 Options -Indexes
+DirectoryIndex index.php
 
 # Configuration, repository metadata, backups and operational tools are never
 # public resources. PHP includes continue to work because this is HTTP-only.

@@ -22,11 +22,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'issue') {
         requireCapability('violations.issue');
+        $isVehicleReport = trim((string)($_POST['registration_source'] ?? '')) !== '';
         $targetUserId = (int)($_POST['user_id'] ?? 0);
         $violationType = trim($_POST['violation_type'] ?? '');
         $description = trim($_POST['description'] ?? '');
         $location = trim($_POST['location'] ?? '');
-        $penaltyType = 'fine';
+        $penaltyType = $isVehicleReport ? (string)($_POST['penalty_type'] ?? 'fine') : 'fine';
         $fineAmount = (float)($_POST['fine_amount'] ?? 0);
         if (isset($fineRates[$violationType])) {
             $fineAmount = (float)$fineRates[$violationType];
@@ -53,9 +54,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if ($targetUserId <= 0 || $violationType === '') {
+        if (!$isVehicleReport && ($targetUserId <= 0 || $violationType === '')) {
             $errors[] = 'Please choose a resident and a violation type.';
-        } elseif ($fineAmount <= 0) {
+        } elseif (!$isVehicleReport && $fineAmount <= 0) {
             $errors[] = 'Enter a fine amount greater than zero.';
         } elseif ($evidenceError !== '') {
             $errors[] = $evidenceError;
@@ -75,13 +76,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if (empty($errors)) {
-                $violationId = issueViolation($targetUserId, $violationType, $description, $penaltyType, $fineAmount, $dueDate, (int)$_SESSION['user_id'], $location ?: null, $evidencePath);
+                try {
+                    $violationId = $isVehicleReport ? submitVehicleViolationReport($connection, $_POST, $evidencePath)
+                        : issueViolation($targetUserId, $violationType, $description, $penaltyType, $fineAmount, $dueDate, (int)$_SESSION['user_id'], $location ?: null, $evidencePath);
+                } catch (InvalidArgumentException $error) { $errors[]=$error->getMessage(); $violationId=false; }
+                catch (Throwable $error) { error_log('Vehicle report failed: '.$error->getMessage()); $errors[]='Could not save the report. Please try again.'; $violationId=false; }
                 if ($violationId) {
+                    if ($isVehicleReport) {
+                        $success = 'Vehicle violation report #'.$violationId.' saved as Pending Review. No billing charge was created.';
+                    } else {
                     logAudit('issue', 'violation', $violationId, $violationType . ' issued to user #' . $targetUserId . ' with fine ₱' . number_format($fineAmount, 2));
                     $notifyResult = notifyResidentOfViolation($violationId);
                     $success = 'Violation fine recorded and added to the resident\'s bill.';
                     $success .= ' Email notice: ' . ($notifyResult['email_queued'] ? 'queued' : 'unavailable')
                         . '. SMS notice: ' . ($notifyResult['sms_queued'] ? 'queued' : 'unavailable') . '.';
+                    }
                 } else {
                     if ($evidencePath !== null) {
                         @unlink($evidenceDirectory . '/' . $evidencePath);
@@ -94,6 +103,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
+    } elseif ($action === 'review_vehicle_report') {
+        requireCapability('violations.review');
+        try {
+            $reviewId=(int)($_POST['violation_id'] ?? 0);
+            $decision=(string)($_POST['decision'] ?? '');
+            if (reviewVehicleViolationReport($connection,$reviewId,$decision,$_POST)) {
+                $success=$decision==='approve' ? 'Report approved. Any configured fine was billed exactly once to the verified account\'s billing owner.' : 'Report rejected. No billing charge was created.';
+                if ($decision==='approve') {
+                    try { notifyResidentOfViolation($reviewId); }
+                    catch (Throwable $noticeError) { error_log('Approved vehicle violation notice unavailable: '.$noticeError->getMessage()); $success.=' The notice could not be queued; the approval was saved.'; }
+                }
+            } else $errors[]='This report has already been reviewed or is no longer available. Reload the page.';
+        } catch (InvalidArgumentException $error) { $errors[]=$error->getMessage(); }
+        catch (Throwable $error) { error_log('Vehicle review failed: '.$error->getMessage()); $errors[]='The review could not be saved. No partial charge was committed.'; }
     } elseif ($action === 'resolve') {
         requireCapability('violations.review');
         $violationId = (int)($_POST['violation_id'] ?? 0);
@@ -111,6 +134,7 @@ $residentsResult = $connection->query("SELECT id, full_name, unit_number FROM us
 $residents = $residentsResult ? $residentsResult->fetch_all(MYSQLI_ASSOC) : [];
 $violations = getAllViolations($connection);
 $statusLabels = ['warning_issued' => 'Warning', 'unpaid' => 'Unpaid', 'paid' => 'Paid', 'disputed' => 'Disputed', 'waived' => 'Waived'];
+$statusLabels['pending']='Pending Review'; $statusLabels['rejected']='Report rejected';
 $allViolationCount = count($violations);
 $violationSummary = [
     'open_count' => 0,
@@ -136,7 +160,7 @@ if (!isset($statusLabels[$violationStatus])) {
 }
 if ($violationSearch !== '' || $violationStatus !== 'all') {
     $violations = array_values(array_filter($violations, static function (array $violation) use ($violationSearch, $violationStatus, $statusLabels): bool {
-        if ($violationStatus !== 'all' && $violation['status'] !== $violationStatus) {
+        if ($violationStatus !== 'all' && ($violation['status'] ?? $violation['review_status']) !== $violationStatus) {
             return false;
         }
         if ($violationSearch === '') {
@@ -154,7 +178,8 @@ if ($violationSearch !== '' || $violationStatus !== 'all') {
             (string)($violation['dispute_reason'] ?? ''),
             (string)($violation['payment_id'] ?? ''),
             !empty($violation['payment_id']) ? 'DUES-' . (int)$violation['payment_id'] : '',
-            (string)($statusLabels[$violation['status']] ?? $violation['status'] ?? ''),
+            (string)($statusLabels[$violation['status'] ?? $violation['review_status']] ?? ''),
+            (string)($violation['observed_plate'] ?? ''),
         ]);
 
         return stripos($searchableText, $violationSearch) !== false;
@@ -169,6 +194,7 @@ $commonTypes = array_keys($fineRates);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celandine Residences</title>
     <link rel="stylesheet" href="../styles.css?v=<?php echo filemtime(__DIR__ . '/../styles.css'); ?>">
+    <link rel="stylesheet" href="../assets/css/vehicle-violations.css?v=<?= filemtime(__DIR__.'/../assets/css/vehicle-violations.css') ?>">
 <?php renderPortalUiHead(); ?>
 </head>
 <body class="portal-ui dashboard-page admin-page">
@@ -194,19 +220,22 @@ $commonTypes = array_keys($fineRates);
             <?php if ($success): ?><div class="alert success"><?php echo htmlspecialchars($success); ?></div><?php endif; ?>
             <?php if (!empty($errors)): ?><div class="alert error"><ul><?php foreach ($errors as $error): ?><li><?php echo htmlspecialchars($error); ?></li><?php endforeach; ?></ul></div><?php endif; ?>
 
+            <?php include __DIR__.'/../includes/violation_vehicle_ui.php'; ?>
             <section class="unit-management-panel violation-create-panel">
                 <h3 class="section-title">Issue a Violation</h3>
                 <form method="post" id="violationForm" enctype="multipart/form-data" data-confirm="Issue this violation and add its fine to the resident's bill?" data-confirm-title="Issue violation" data-confirm-action="Issue violation"><?php echo workflowCsrfField(); ?>
                     <input type="hidden" name="action" value="issue">
+                    <?php include __DIR__.'/../includes/violation_vehicle_fields.php'; ?>
                     <div class="violation-form-grid">
                         <div class="violation-field">
-                            <label>Resident</label>
-                            <select name="user_id" required>
+                            <label for="violationResident" id="violationResidentLabel">Resident</label>
+                            <select name="user_id" id="violationResident" required>
                                 <option value="">Select resident…</option>
                                 <?php foreach ($residents as $resident): ?>
                                     <option value="<?php echo (int)$resident['id']; ?>">Unit <?php echo htmlspecialchars($resident['unit_number']); ?> — <?php echo htmlspecialchars($resident['full_name']); ?></option>
                                 <?php endforeach; ?>
                             </select>
+                            <small id="vehicleResidentHint" hidden>Reference only. Management confirms the responsible account during review.</small>
                         </div>
                         <div class="violation-field">
                             <label>Violation Type</label>
@@ -221,7 +250,7 @@ $commonTypes = array_keys($fineRates);
 
                     <div class="violation-field violation-description">
                         <label>Description / Evidence Notes</label>
-                        <textarea name="description" rows="2" placeholder="What happened, when, any evidence notes..."></textarea>
+                        <textarea name="description" rows="2" maxlength="5000" placeholder="What happened, when, any evidence notes..."></textarea>
                     </div>
 
                     <div class="violation-form-grid violation-evidence-grid">
@@ -233,7 +262,6 @@ $commonTypes = array_keys($fineRates);
                             <label>Evidence Photo</label>
                             <div class="violation-evidence-control">
                                 <input type="file" name="evidence_photo" accept="image/jpeg,image/png,image/webp">
-                                <button type="submit">Issue Violation</button>
                             </div>
                             <small>JPG, PNG, or WebP, up to 5 MB</small>
                         </div>
@@ -243,7 +271,8 @@ $commonTypes = array_keys($fineRates);
                     <div class="violation-field fine-field" id="fineAmountField">
                         <label>Fine Amount (₱)</label>
                         <input type="number" step="0.01" min="0.01" name="fine_amount" placeholder="0.00" required>
-                        <small>Configured violation types use their listed rate. Enter an amount for a custom type.</small>
+                        <small id="violationFineHint">Configured violation types use their listed rate. Enter an amount for a custom type.</small>
+                        <button type="submit">Issue Violation</button>
                     </div>
 
                     <div class="violation-rate-wrap">
@@ -303,15 +332,16 @@ $commonTypes = array_keys($fineRates);
                                     <td><?php echo htmlspecialchars($violation['unit_number']); ?></td>
                                     <td><?php echo htmlspecialchars($violation['violation_type']); ?></td>
                                     <td><?php echo !empty($violation['description']) ? nl2br(htmlspecialchars($violation['description'])) : '—'; ?><?php if ($violation['status'] === 'disputed' && !empty($violation['dispute_reason'])): ?><small class="violation-table-note">Dispute: <?php echo htmlspecialchars($violation['dispute_reason']); ?></small><?php endif; ?></td>
-                                    <td><?php echo htmlspecialchars(date('M j, Y g:i A', strtotime($violation['created_at']))); ?></td>
+                                    <td><?php echo htmlspecialchars(date('M j, Y g:i A', strtotime($violation['incident_at'] ?: $violation['created_at']))); ?></td>
                                     <td><?php echo htmlspecialchars($violation['location'] ?? '—'); ?></td>
                                     <td><?php if (!empty($violation['evidence_path'])): ?><a href="../violation_evidence.php?id=<?php echo (int)$violation['id']; ?>" target="_blank" rel="noopener">View photo</a><?php else: ?>—<?php endif; ?></td>
                                     <td><?php echo $violation['penalty_type'] === 'fine' ? '₱' . number_format((float)$violation['fine_amount'], 2) : '—'; ?></td>
                                     <td><?php echo !empty($violation['due_date']) ? htmlspecialchars(date('M j, Y', strtotime($violation['due_date']))) : '—'; ?></td>
-                                    <td><span class="status-pill status-<?php echo htmlspecialchars($violation['status']); ?>"><?php echo htmlspecialchars($statusLabels[$violation['status']] ?? $violation['status']); ?></span></td>
+                                    <td><span class="status-pill status-<?= htmlspecialchars($violation['status'] ?? $violation['review_status']) ?>"><?= htmlspecialchars($statusLabels[$violation['status'] ?? $violation['review_status']] ?? '') ?></span><?php if ($violation['observed_plate']): ?><small class="violation-table-note"><?= htmlspecialchars($violation['observed_plate']) ?></small><?php endif; ?></td>
                                     <td><?php echo !empty($violation['payment_id']) ? 'DUES-' . (int)$violation['payment_id'] : '—'; ?></td>
                                     <td><?php echo !empty($violation['admin_remarks']) ? nl2br(htmlspecialchars($violation['admin_remarks'])) : '—'; ?></td>
                                     <td>
+                                        <?php if (canAccess('vehicles.read')): ?><button type="button" class="btn-small btn-neutral" data-vehicle-violation-details="<?= (int)$violation['id'] ?>"><?= $violation['review_status']==='pending' && canAccess('violations.review') ? 'Review report' : 'View details' ?></button><?php endif; ?>
                                         <?php if (canAccess('violations.review') && in_array($violation['status'], ['unpaid', 'disputed'], true)): ?>
                                             <div class="violation-actions">
                                             <?php if ($violation['status'] === 'disputed'): ?>
@@ -353,6 +383,7 @@ $commonTypes = array_keys($fineRates);
         const violationTypeInput = document.querySelector('input[name="violation_type"]');
         const fineAmountInput = document.querySelector('input[name="fine_amount"]');
         const violationFineRates = <?php echo json_encode($fineRates, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        window.vehicleViolationFineRates = violationFineRates;
         function syncFineRate() {
             const rate = violationFineRates[violationTypeInput.value.trim()];
             if (rate !== undefined) {
@@ -371,5 +402,6 @@ $commonTypes = array_keys($fineRates);
         violationTypeInput.addEventListener('change', syncFineRate);
         syncFineRate();
     </script>
+    <script defer src="../js/vehicle-violations.js?v=<?= filemtime(__DIR__.'/../js/vehicle-violations.js') ?>"></script>
 </body>
 </html>

@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <a class="login-back-button" href="homepage.php" data-screen-transition>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
-                <span>Back to Home</span>
+                <span>Back to Homepage</span>
             </a>
             <h1>Welcome</h1>
             <p class="subtitle">Enter your credentials to access your portal</p>

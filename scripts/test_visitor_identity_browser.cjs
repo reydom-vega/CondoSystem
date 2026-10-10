@@ -1,0 +1,87 @@
+/* Uses only test_visitor_identity.php --preview's disposable database and accounts. */
+const {spawn}=require('node:child_process');
+const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),net=require('node:net');
+const base=process.argv[2];
+if(!/^http:\/\/127\.0\.0\.1:\d+\/CondoSystem3\/$/.test(base||''))throw Error('Pass the disposable UI fixture URL.');
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+(async()=>{
+ const manifest=await(await fetch(base+'__manifest')).json();
+ if(!manifest.some(entry=>entry.path==='resident/visitors.php'))throw Error('Resident/tenant fixture unavailable.');
+ const port=await new Promise(resolve=>{const server=net.createServer();server.listen(0,'127.0.0.1',()=>{const value=server.address().port;server.close(()=>resolve(value));});});
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'condo-visitor-identity-'));
+ const chrome=spawn('C:/Program Files/Google/Chrome/Application/chrome.exe',['--headless','--no-sandbox',`--remote-debugging-port=${port}`,`--user-data-dir=${directory}`,'about:blank'],{windowsHide:true,stdio:'ignore'});
+ let socket;const report={checks:[],errors:[],screenshots:directory};
+ try{
+  let target;
+  for(let i=0;i<100;i++){try{target=(await(await fetch(`http://127.0.0.1:${port}/json`)).json()).find(tab=>tab.type==='page');if(target)break;}catch{}await sleep(100);}
+  if(!target)throw Error('Chrome unavailable');
+  socket=new WebSocket(target.webSocketDebuggerUrl);await new Promise(resolve=>socket.onopen=resolve);
+  let number=0;const calls=new Map();
+  socket.onmessage=event=>{const message=JSON.parse(event.data),call=calls.get(message.id);if(call){calls.delete(message.id);clearTimeout(call.timer);message.error?call.reject(message.error):call.resolve(message.result);}if(message.method==='Runtime.exceptionThrown')report.errors.push(message.params.exceptionDetails.exception?.description||message.params.exceptionDetails.text);};
+  const send=(method,params={})=>new Promise((resolve,reject)=>{const id=++number,timer=setTimeout(()=>{calls.delete(id);reject(Error('Timeout: '+method));},20000);calls.set(id,{resolve,reject,timer});socket.send(JSON.stringify({id,method,params}));});
+  const ev=async expression=>{const result=await send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(result.exceptionDetails)throw Error(result.exceptionDetails.exception?.description||result.exceptionDetails.text);return result.result.value;};
+  const until=async expression=>{for(let i=0;i<100;i++){if(await ev(expression))return;await sleep(100);}throw Error('Timed out: '+expression);};
+  const check=async(expression,label)=>{if(!await ev(expression))throw Error(label);report.checks.push(label);console.log('PASS '+label);};
+  const shot=async name=>{const result=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(directory,name+'.png'),Buffer.from(result.data,'base64'));};
+  await send('Page.enable');await send('Runtime.enable');
+  await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1050,deviceScaleFactor:1,mobile:false});
+
+  const go=async(actor,pathname)=>{
+   await ev('window.residentUiNavigating=true');
+   await send('Page.navigate',{url:base+pathname+(pathname.includes('?')?'&':'?')+'fixture_actor='+actor});
+   await until("!window.residentUiNavigating && document.readyState==='complete' && !!window.CelandineUi");await sleep(250);
+  };
+  const setFile=async(name,type,size)=>ev("(()=>{const form=document.querySelector('form[data-visitor-id-form]'),input=form.querySelector('[name=valid_id]'),data=new DataTransfer(),bytes="+(size?'new Uint8Array('+size+')':"Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jwXcAAAAASUVORK5CYII='),c=>c.charCodeAt(0))")+";data.items.add(new File([bytes],"+JSON.stringify(name)+",{type:"+JSON.stringify(type)+"}));input.files=data.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()");
+  await go(1,'resident/visitors.php');
+  await check("(()=>{const form=document.querySelector('[data-visitor-id-form]');return form.enctype==='multipart/form-data' && form.querySelector('[name=id_type]').required && form.querySelector('[name=valid_id]').required && !form.querySelector('[name=id_number]').required;})()",'Identity fields have required type and upload, optional number');
+  await check("document.querySelector('[name=id_type]').options.length===7 && document.querySelector('.visitor-id-privacy').textContent.includes('30 days')",'All six ID options and retention privacy notice appear');
+  await setFile('document.pdf','application/pdf');
+  await check("document.querySelector('[name=valid_id]').validationMessage.includes('JPG, PNG or WEBP')",'Browser rejects unsupported image types');
+  await setFile('large.png','image/png',5*1024*1024+1);
+  await check("document.querySelector('[name=valid_id]').validationMessage.includes('5 MB')",'Browser rejects files over 5 MB');
+  await setFile('valid.png','image/png');
+  await ev("const form=document.querySelector('[data-visitor-id-form]');form.querySelector('[name=visitor_name]').value='Browser Upload Visitor';form.querySelector('[name=start_date]').value=new Date().toLocaleDateString('en-CA');form.querySelector('[name=details]').value='Browser verified visit';form.querySelector('[name=id_type]').value='National ID'");
+  await check("document.querySelector('[data-visitor-id-form]').checkValidity()",'Valid image and registration fields pass browser validation');
+  await shot('resident-desktop');
+  await ev("window.residentUiNavigating=true;document.querySelector('[data-visitor-id-form]').requestSubmit()");
+  await until("!window.residentUiNavigating && document.readyState==='complete' && !!document.querySelector('.alert.success')");
+  await check("[...document.querySelectorAll('.service-request')].some(row=>row.textContent.includes('Browser Upload Visitor') && row.textContent.includes('Pending'))",'Browser multipart submission creates a pending identity registration');
+  for(const width of [390,320]) {
+   await send('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:true});
+   await go(2,'resident/visitors.php');
+   await check("document.documentElement.scrollWidth<=innerWidth+2 && document.querySelector('[name=valid_id]').getBoundingClientRect().right<=innerWidth",'Resident and tenant upload UI fits '+width+'px');
+   if(width===390)await shot('tenant-mobile');
+  }
+  await send('Emulation.setDeviceMetricsOverride',{width:1366,height:900,deviceScaleFactor:1,mobile:false});
+  await go(4,'superadmin/service_requests.php?kind=visitor');
+  await check("[...document.querySelectorAll('.visitor-identity-summary')].some(row=>row.textContent.includes('Review ID document') && row.querySelector('[value=verified]'))",'Admin sees protected document link and identity review controls');
+  await shot('admin-review');
+  const incident=await ev("[...document.querySelectorAll('.service-request')].find(row=>row.textContent.includes('Browser Upload Visitor')).querySelector('[name=request_id]').value");
+  await ev('window.residentUiNavigating=true');
+  await send('Page.navigate',{url:base+'visitor_id_document.php?request_id='+incident+'&fixture_actor=4'});
+  await until("!window.residentUiNavigating && document.readyState==='complete' && !!document.querySelector('img')");
+  await check("document.querySelector('img').naturalWidth>0",'Protected ID image renders for an authorized reviewer');
+  await go(4,'superadmin/service_requests.php?kind=visitor');
+  await ev("[...document.querySelectorAll('.service-request')].find(row=>row.textContent.includes('Browser Upload Visitor')).querySelector('[name=identity_decision][value=rejected]').click()");
+  await check("[...document.querySelectorAll('.service-request')].find(row=>row.textContent.includes('Browser Upload Visitor')).querySelector('[name=identity_review_note]').validationMessage.includes('reason')",'Rejecting an ID requires a reason in the browser');
+  await ev("window.residentUiNavigating=true;[...document.querySelectorAll('.service-request')].find(row=>row.textContent.includes('Browser Upload Visitor')).querySelector('[name=identity_decision][value=verified]').click()");
+  await until("!window.residentUiNavigating && document.readyState==='complete' && !!document.querySelector('.alert.success')");
+  await check("[...document.querySelectorAll('.service-request')].find(row=>row.textContent.includes('Browser Upload Visitor')).textContent.includes('Verified')",'Admin can verify identity from the existing registration page');
+  await ev("const row=[...document.querySelectorAll('.service-request')].find(row=>row.textContent.includes('Browser Upload Visitor')),button=row.querySelector('[name=decision][value=approved]');window.residentUiNavigating=true;button.form.requestSubmit(button)");
+  await until("!window.residentUiNavigating && document.readyState==='complete' && !!document.querySelector('.alert.success')");
+  await go(1,'resident/visitors.php');
+  const passUrl=await ev("[...document.querySelectorAll('.service-request')].find(row=>row.textContent.includes('Browser Upload Visitor')).querySelector('a[href*=resident_service_pass]').href");
+  await go(1,passUrl.slice(base.length));
+  await check("!!document.querySelector('#serviceQr') && document.querySelector('.visitor-pass-details').textContent.includes('Verified') && !document.body.textContent.includes('ID reference ending') && !document.querySelector('img[src*=visitor_id_document]')",'Approved pass shows verification without ID documents or numbers');
+  await go(5,'security/scanner.php');
+  await ev("document.querySelector('#manualScan').value="+JSON.stringify(passUrl)+";document.querySelector('#manualScanForm').requestSubmit()");
+  await until("document.querySelector('#scanResultCard').dataset.state==='valid'");
+  await check("document.querySelector('#scanResultFields').textContent.includes('Browser Upload Visitor') && document.querySelector('#scanResultFields').textContent.includes('Identity verificationVerified') && document.querySelector('#scanResultFields').textContent.includes('Browser verified visit')",'Scanner renders visitor name, purpose and identity status');
+  await shot('security-scan');
+  await send('Emulation.setDeviceMetricsOverride',{width:390,height:1000,deviceScaleFactor:1,mobile:true});
+  await go(5,'superadmin/service_requests.php?kind=visitor');
+  await check("document.documentElement.scrollWidth<=innerWidth+2 && !!document.querySelector('.visitor-identity-review')",'Security identity review fits mobile');
+  if(report.errors.length)throw Error(report.errors.join('\n'));
+  console.log('Passed '+report.checks.length+' visitor identity browser checks. Screenshots: '+directory);
+ }finally{fs.writeFileSync(path.join(directory,'report.json'),JSON.stringify(report,null,2));socket?.close();chrome.kill();}
+})().catch(error=>{console.error(error);process.exitCode=1;});

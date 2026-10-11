@@ -442,8 +442,8 @@ a:hover {
 }
 
 .split-card .brand-icon {
-  width: 18px;
-  height: 18px;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
 }
 
@@ -612,8 +612,8 @@ body.dashboard-page {
 }
 
 .sidebar-brand .brand-icon {
-  width: 24px;
-  height: 24px;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
 }
 

@@ -19,6 +19,7 @@ putenv('CONDO_PAYMONGO_SECRET_KEY=sk_test_fixture'); putenv('CONDO_PAYMONGO_WEBH
 $_SERVER['PHP_SELF']=$_SERVER['SCRIPT_NAME']='/CondoSystem3/scripts/test_pool_reservations.php'; $_SERVER['HTTP_HOST']='localhost'; $_SERVER['REQUEST_METHOD']='GET';
 require_once __DIR__.'/../config.php';
 require_once __DIR__.'/../includes/resident_accounts.php';
+require_once __DIR__.'/../includes/amenity_workspace.php';
 $checks=0; $http=null; $cookie=null; $httpLog=null;
 function poolCheck(bool $value,string $name):void { global $checks; if(!$value) throw new RuntimeException('FAILED: '.$name); $checks++; }
 function poolReject(callable $action,string $name,string $class=InvalidArgumentException::class):void { try{$action();}catch(Throwable $e){if($e instanceof $class){poolCheck(true,$name);return;}throw $e;}throw new RuntimeException('FAILED: '.$name); }
@@ -100,12 +101,33 @@ try {
     poolCheck($db->query('SELECT status FROM payments WHERE id='.$billId)->fetch_assoc()['status']==='rejected','unpaid cancellation voids dedicated charge');
     poolActor(4); decideAmenityBooking($db,$rollback,'approved'); $cash=(int)poolRow($db,$rollback)['payment_id']; $db->query("UPDATE payments SET payment_method='cash' WHERE id=$cash");
     poolActor(6); poolCheck(confirmCashBillPayment($db,$cash) && poolRow($db,$rollback)['status']==='confirmed','authorized cash receipt confirms pool booking');
+    poolCheck(count(array_filter(functionHallAvailability($db,$tomorrow)['slots'],fn($slot)=>$slot['status']==='available'))===15,'free hall date offers all arrival times');
+    $calendar = functionHallCalendarAvailability($db, substr($tomorrow, 0, 7));
+    poolCheck(array_column($calendar['days'], 'status', 'date')[$tomorrow] === 'available', 'pool bookings do not occupy a hall calendar day');
+    poolCheck(count(functionHallCalendarAvailability($db,'2028-02')['days'])===29 && functionHallCalendarAvailability($db,'2028-02')['first_weekday']===2,'hall calendar handles leap-year February and weekday alignment');
+    poolCheck(count(functionHallCalendarAvailability($db,'2027-02')['days'])===28 && count(functionHallCalendarAvailability($db,'2026-12')['days'])===31,'hall calendar uses the correct month length');
+    foreach(['2026-13','2026-00','2026-2','not-a-month','0000-01'] as $invalidMonth) poolReject(fn()=>functionHallCalendarAvailability($db,$invalidMonth),'calendar rejects invalid month '.$invalidMonth);
     $hall=poolCreate($db,1,$tomorrow,'08:00',1,50,'Function Hall'); poolActor(2);
+    poolCheck(functionHallAvailability($db,$tomorrow)['fully_booked'] && count(array_filter(functionHallAvailability($db,$tomorrow)['slots'],fn($slot)=>$slot['status']==='booked'))===15,'pending hall request blocks the entire date in availability');
+    poolCheck(array_column(functionHallCalendarAvailability($db,substr($tomorrow,0,7))['days'],'status','date')[$tomorrow]==='booked','pending hall reservation marks one calendar day Booked');
     poolReject(fn()=>createAmenityBooking($db,2,'Function Hall',$tomorrow,'10:00',20),'Function Hall retains exclusive full-day pending hold');
     poolActor(4); poolCheck(decideAmenityBooking($db,$hall,'approved') && poolRow($db,$hall)['status']==='confirmed' && poolRow($db,$hall)['payment_id']===null,'Function Hall approval behavior retained without new automatic bill');
+    poolCheck(functionHallAvailability($db,$tomorrow)['fully_booked'],'approved hall reservation stays unavailable');
+    decideAmenityBooking($db,$hall,'cancelled');
+    poolCheck(!functionHallAvailability($db,$tomorrow)['fully_booked'],'hall cancellation releases the full-day hold');
+    poolCheck(array_column(functionHallCalendarAvailability($db,substr($tomorrow,0,7))['days'],'status','date')[$tomorrow]==='available','cancellation releases the hall calendar day');
+    $rejectedHall=poolCreate($db,1,$tomorrow,'09:00',1,20,'Function Hall');poolActor(4);decideAmenityBooking($db,$rejectedHall,'rejected','Event cannot proceed');
+    poolCheck(!functionHallAvailability($db,$tomorrow)['fully_booked'],'hall rejection releases the full-day hold');
+    poolReject(fn()=>functionHallAvailability($db,'2026-02-30'),'hall availability validates the date');
+    poolCheck(amenityBookingIsHistory(poolRow($db,$hall)) && amenityBookingIsHistory(poolRow($db,$rejectedHall)),'cancelled and rejected future hall reservations belong to history');
     // Completed historical periods remain occupied for their original hours.
     $historyDate=date('Y-m-d',strtotime('-1 day'));
     $db->query("INSERT INTO bookings(user_id,amenity,booking_date,booking_time,end_time,status,duration_hours) VALUES(1,'Swimming Pool','$historyDate','09:00','12:00','completed',3)");
+    poolCheck(amenityBookingIsHistory(poolRow($db,(int)$db->insert_id)),'completed past booking belongs to history');
+    poolCheck(!amenityBookingIsHistory(poolRow($db,$rollback)),'future active booking remains in current reservations');
+    $db->query("INSERT INTO bookings(user_id,amenity,booking_date,booking_time,end_time,status) VALUES(1,'Function Hall','$historyDate','09:00','21:00','confirmed')");
+    poolCheck(amenityBookingIsHistory(poolRow($db,(int)$db->insert_id)) && functionHallAvailability($db,$historyDate)['fully_booked'],'past hall reservation is historical and retains its original schedule hold');
+    poolCheck(array_column(functionHallCalendarAvailability($db,substr($historyDate,0,7))['days'],'status','date')[$historyDate]==='booked' && array_column(functionHallCalendarAvailability($db,'2020-01')['days'],'status','date')['2020-01-01']==='past','hall calendar distinguishes historical reservations from unbooked past days');
     poolCheck(array_column(poolAvailability($db,$historyDate,2)['slots'],null,'start')['08:00']['status']==='booked','completed original hours are not reusable');
     foreach(amenityCatalog() as $name=>$entry) poolCheck(count(amenityImages($entry['slug']))===1,'existing local image found: '.$name);
     poolCheck(amenityImages('../config.php')===[],'catalogue image path allowlist');
@@ -128,6 +150,14 @@ try {
     poolCheck($xp->query('//article[contains(@class,"amenity-card")]')->length===9 && $xp->query('//article[contains(@class,"amenity-card")]//button[@data-open-booking]')->length===2,'all nine amenity cards, seven view-only');
     foreach($xp->query('//form[translate(@method,"POST","post")="post"]') as $form) poolCheck($xp->query('.//input[@name="csrf_token"]',$form)->length===1,'rendered booking CSRF token');
     [$status,$body]=$request('api/amenity_bookings.php?date='.$next.'&duration=2',2); $data=json_decode($body,true); poolCheck($status===200 && isset($data['slots']) && !str_contains($body,'Tenant Two') && !str_contains($body,'payment_id'),'availability endpoint scoped and identity-free');
+    [$status,$body]=$request('api/amenity_bookings.php?amenity=Function%20Hall&date='.$tomorrow,2);$data=json_decode($body,true);
+    poolCheck($status===200 && $data['reservation_type']==='full_day' && count($data['slots'])===15 && !str_contains($body,'Owner One') && !str_contains($body,'user_id'),'hall API uses full-day schedule without exposing personal information');
+    [$status,$body]=$request('api/amenity_bookings.php?amenity=Function%20Hall&month='.substr($tomorrow,0,7),4);$data=json_decode($body,true);
+    poolCheck($status===200 && isset($data['days']) && !isset($data['slots']) && !str_contains($body,'Owner One') && !str_contains($body,'user_id'),'hall monthly endpoint returns dates without arrival times or identities');
+    [$status]=$request('api/amenity_bookings.php?amenity=Function%20Hall&month=2026-13',4);poolCheck($status===422,'hall monthly endpoint validates the month');
+    [$status]=$request('api/amenity_bookings.php?amenity=Function%20Hall&month='.substr($tomorrow,0,7),5);poolCheck($status===403,'hall monthly endpoint retains staff authorization');
+    [$status]=$request('api/amenity_bookings.php?amenity=Playground&date='.$next,2);poolCheck($status===422,'availability API rejects unsupported amenities');
+    [$status]=$request('api/amenity_bookings.php?amenity=Function%20Hall&date='.$next,5);poolCheck($status===403,'unauthorized staff cannot browse hall availability');
     [$status]=$request('api/amenity_bookings.php?date='.$next,5); poolCheck($status===403,'unauthorized staff cannot browse pool schedule');
     $input=['action'=>'create','amenity'=>'Swimming Pool','booking_date'=>date('Y-m-d',strtotime('+4 days')),'booking_time'=>'10:00','duration_hours'=>'2','attendees'=>'1','total_fee'=>'0.01','hourly_rate'=>'0.01','user_id'=>3,'unit_number'=>'9999'];
     [$status]=$request('api/amenity_bookings.php',2,$input+['csrf_token'=>'invalid']); poolCheck($status===403,'invalid CSRF rejected');

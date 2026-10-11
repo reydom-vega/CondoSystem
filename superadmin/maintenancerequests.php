@@ -1,5 +1,6 @@
 <?php
 require_once '../config.php';
+require_once '../includes/maintenance_workspace.php';
 
 if (!isLoggedIn()) {
     redirect('../login.php');
@@ -100,14 +101,13 @@ if ($tableReady) {
             }
         }
     }
-    $sql = "SELECT m.*, u.full_name, u.username, u.unit_number FROM maintenance_requests m INNER JOIN users u ON u.id = m.user_id WHERE (? = 'all' OR m.status = ?) AND (? = '' OR u.full_name LIKE ? OR u.username LIKE ? OR u.unit_number LIKE ? OR m.issue_type LIKE ? OR CAST(m.id AS CHAR) LIKE ? OR CONCAT('MR-', LPAD(m.id, 5, '0')) LIKE ?) ORDER BY m.created_at DESC";
+    $sql = "SELECT m.*, u.full_name, u.username, u.unit_number FROM maintenance_requests m INNER JOIN users u ON u.id = m.user_id WHERE (? = '' OR u.full_name LIKE ? OR u.username LIKE ? OR u.unit_number LIKE ? OR m.issue_type LIKE ? OR CAST(m.id AS CHAR) LIKE ? OR CONCAT('MR-', LPAD(m.id, 5, '0')) LIKE ?) ORDER BY m.created_at DESC";
     $query = $connection->prepare($sql);
-    $effectiveStatus = in_array($statusFilter, $statuses, true) ? $statusFilter : 'all';
     $needle = '%' . $search . '%';
     $requestIdSearch = preg_match('/\AMR-(\d+)\z/i', $search, $idMatch) ? ltrim($idMatch[1], '0') : $search;
     $requestIdNeedle = '%' . ($requestIdSearch === '' ? '0' : $requestIdSearch) . '%';
     $requestCodeNeedle = '%' . strtoupper($search) . '%';
-    $query->bind_param('sssssssss', $effectiveStatus, $effectiveStatus, $search, $needle, $needle, $needle, $needle, $requestIdNeedle, $requestCodeNeedle);
+    $query->bind_param('sssssss', $search, $needle, $needle, $needle, $needle, $requestIdNeedle, $requestCodeNeedle);
     $query->execute();
     $requests = $query->get_result()->fetch_all(MYSQLI_ASSOC);
     $selectedId = (int)($_GET['view'] ?? 0);
@@ -118,6 +118,14 @@ if ($tableReady) {
         }
     }
 }
+$tabs = ['requests' => 'Requests', 'history' => 'History'];
+$requestGroups = ['requests' => [], 'history' => []];
+foreach ($requests as $request) $requestGroups[maintenanceWorkspaceIsHistory($request) ? 'history' : 'requests'][] = $request;
+$selected = $selectedRequest;
+$defaultTab = in_array($statusFilter, ['closed', 'rejected', 'cancelled'], true) ? 'history' : 'requests';
+$activeTab = maintenanceWorkspaceActiveTab($tabs, $selected, $defaultTab);
+$historyStatuses = ['closed', 'rejected', 'cancelled'];
+$activeStatuses = array_values(array_diff($statuses, $historyStatuses));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -127,6 +135,8 @@ if ($tableReady) {
     <title>Celandine Residences - Maintenance Requests</title>
     <link rel="stylesheet" href="../styles.css">
 <?php renderPortalUiHead(); ?>
+    <link rel="stylesheet" href="../assets/css/maintenance-workspace.css">
+    <script src="../assets/js/maintenance-workspace.js" defer></script>
 </head>
 <body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
@@ -141,42 +151,24 @@ if ($tableReady) {
             <?php if ($errors): ?><div class="alert error"><ul><?php foreach ($errors as $error): ?><li><?php echo htmlspecialchars($error); ?></li><?php endforeach; ?></ul></div><?php endif; ?>
             <section class="unit-page-head"><div><h2>Maintenance Requests</h2><p>Review, approve, and track resident maintenance requests.</p></div></section>
 
-            <?php if ($selectedRequest): ?>
-                <section class="maintenance-admin-detail">
-                    <div class="maintenance-admin-detail-head"><div><span class="dash-subtitle">REQUEST DETAILS</span><h2>Maintenance Request #<?php echo maintenanceRequestCode((int)$selectedRequest['id']); ?></h2></div><span class="maintenance-status-badge status-<?php echo htmlspecialchars($selectedRequest['status']); ?>"><?php echo htmlspecialchars(maintenanceStatusLabel($selectedRequest['status'])); ?></span></div>
-                    <dl class="maintenance-admin-detail-grid"><div><dt>Resident</dt><dd><?php echo htmlspecialchars($selectedRequest['username']); ?> (<?php echo htmlspecialchars($selectedRequest['full_name']); ?>)</dd></div><div><dt>Unit</dt><dd><?php echo htmlspecialchars($selectedRequest['unit_number']); ?></dd></div><div><dt>Issue</dt><dd><?php echo htmlspecialchars($selectedRequest['issue_type']); ?></dd></div><div><dt>Location</dt><dd><?php echo htmlspecialchars($selectedRequest['location'] ?? 'Not specified'); ?></dd></div><div><dt>Date Submitted</dt><dd><?php echo htmlspecialchars(date('M j, Y', strtotime($selectedRequest['created_at']))); ?></dd></div><div><dt>Priority</dt><dd><?php echo htmlspecialchars(ucfirst($selectedRequest['urgency'] ?? 'normal')); ?></dd></div><div class="maintenance-admin-wide"><dt>Description</dt><dd><?php echo nl2br(htmlspecialchars($selectedRequest['description'])); ?></dd></div><?php if (!empty($selectedRequest['preferred_date'])): ?><div><dt>Preferred Schedule</dt><dd><?php echo htmlspecialchars(date('M j, Y', strtotime($selectedRequest['preferred_date']))); ?></dd></div><?php endif; ?><?php if (!empty($selectedRequest['completion_note'])): ?><div class="maintenance-admin-wide"><dt>Completion Notes</dt><dd><?php echo nl2br(htmlspecialchars($selectedRequest['completion_note'])); ?></dd></div><?php endif; ?></dl>
-                    <div class="maintenance-admin-evidence"><?php foreach (['evidence_path' => 'Submitted Photo', 'before_photo_path' => 'Before Photo', 'after_photo_path' => 'After Photo'] as $field => $label): ?><?php if (!empty($selectedRequest[$field])): ?><a href="../maintenance_evidence.php?id=<?php echo (int)$selectedRequest['id']; ?>&amp;field=<?php echo rawurlencode($field); ?>" target="_blank" rel="noopener"><img src="../maintenance_evidence.php?id=<?php echo (int)$selectedRequest['id']; ?>&amp;field=<?php echo rawurlencode($field); ?>" alt="<?php echo htmlspecialchars($label); ?>"><span><?php echo htmlspecialchars($label); ?></span></a><?php endif; ?><?php endforeach; ?></div>
-                    <div class="maintenance-admin-actions">
-                        <a class="maintenance-back-button" href="maintenancerequests.php?status=<?php echo rawurlencode($statusFilter); ?>&amp;search=<?php echo rawurlencode($search); ?>">Back to requests</a>
-                        <?php if ($selectedRequest['status'] === 'pending' && canAccess('maintenance.review')): ?>
-                            <form method="post" data-confirm="Approve maintenance request <?php echo htmlspecialchars(maintenanceRequestCode((int)$selectedRequest['id']), ENT_QUOTES, 'UTF-8'); ?>?" data-confirm-title="Approve maintenance request" data-confirm-action="Approve"><?php echo workflowCsrfField(); ?><input type="hidden" name="request_id" value="<?php echo (int)$selectedRequest['id']; ?>"><button class="maintenance-admin-button approve" name="action" value="approve">Approve</button></form>
-                            <form method="post" data-confirm="Reject maintenance request <?php echo htmlspecialchars(maintenanceRequestCode((int)$selectedRequest['id']), ENT_QUOTES, 'UTF-8'); ?>? This cannot be undone." data-confirm-title="Reject maintenance request" data-confirm-action="Reject"><?php echo workflowCsrfField(); ?><input type="hidden" name="request_id" value="<?php echo (int)$selectedRequest['id']; ?>"><button class="maintenance-admin-button reject" name="action" value="reject">Reject</button></form>
-                        <?php elseif ($selectedRequest['status'] === 'approved' || $selectedRequest['status'] === 'reopened'): ?>
-                            <form method="post"><?php echo workflowCsrfField(); ?><input type="hidden" name="request_id" value="<?php echo (int)$selectedRequest['id']; ?>"><button class="maintenance-admin-button approve" name="action" value="<?php echo $selectedRequest['status'] === 'reopened' ? 'reopen_start' : 'start'; ?>">Start Work</button></form>
-                        <?php endif; ?>
-                    </div>
-                    <?php if ($selectedRequest['status'] === 'in_progress'): ?>
-                        <form method="post" enctype="multipart/form-data" class="maintenance-complete-form"><?php echo workflowCsrfField(); ?>
-                            <input type="hidden" name="request_id" value="<?php echo (int)$selectedRequest['id']; ?>">
-                            <input type="hidden" name="action" value="complete">
-                            <label class="field-label">Completion Notes (optional)<textarea name="completion_note" rows="3" placeholder="Describe the work completed and verification..."></textarea></label>
-                            <div class="maintenance-photo-fields"><label class="field-label">Before Photo (optional)<input type="file" name="before_photo" accept="image/jpeg,image/png,image/webp"></label><label class="field-label">After Photo (optional)<input type="file" name="after_photo" accept="image/jpeg,image/png,image/webp"></label></div>
-                            <button class="maintenance-admin-button approve" type="submit">Mark Completed</button>
-                        </form>
-                    <?php endif; ?>
+            <div class="maintenance-workspace">
+            <?php renderMaintenanceWorkspaceTabs($tabs, $activeTab, [
+                'requests' => array_sum(array_intersect_key($statusCounts, array_flip($activeStatuses))),
+                'history' => array_sum(array_intersect_key($statusCounts, array_flip($historyStatuses))),
+            ]); ?>
+            <?php foreach ($requestGroups as $tabKey => $tabRequests): ?>
+                <section <?php echo maintenanceWorkspacePanelAttributes($tabKey, $activeTab); ?>>
+                    <p class="maintenance-tab-description"><?php echo $tabKey === 'history' ? 'Successful, rejected, and cancelled requests.' : 'Review requests, track work, and follow up on completed work awaiting resident confirmation.'; ?></p>
+                    <?php
+                    $panelStatuses = $tabKey === 'history' ? $historyStatuses : $activeStatuses;
+                    $panelStatus = in_array($statusFilter, $panelStatuses, true) ? $statusFilter : 'all';
+                    $requests = array_values(array_filter($tabRequests, static fn(array $request): bool => $panelStatus === 'all' || $request['status'] === $panelStatus));
+                    $selectedRequest = $selected && (maintenanceWorkspaceIsHistory($selected) ? 'history' : 'requests') === $tabKey ? $selected : null;
+                    require '../includes/staff_maintenance_records.php';
+                    ?>
                 </section>
-            <?php endif; ?>
-
-            <section class="maintenance-status-overview" aria-label="Request counts by status">
-                <?php foreach ($statuses as $status): ?><a href="maintenancerequests.php?status=<?php echo rawurlencode($status); ?>" class="maintenance-status-summary"><span><?php echo htmlspecialchars(maintenanceStatusLabel($status)); ?></span><strong><?php echo $statusCounts[$status]; ?></strong></a><?php endforeach; ?>
-            </section>
-
-            <section class="unit-management-panel maintenance-admin-panel">
-                <form class="unit-filters maintenance-admin-filters" method="get" action="maintenancerequests.php"><label for="requestStatus">Status</label><select id="requestStatus" name="status"><option value="all" <?php echo $statusFilter === 'all' ? 'selected' : ''; ?>>All statuses</option><?php foreach ($statuses as $status): ?><option value="<?php echo htmlspecialchars($status); ?>" <?php echo $statusFilter === $status ? 'selected' : ''; ?>><?php echo htmlspecialchars(maintenanceStatusLabel($status)); ?></option><?php endforeach; ?></select><label class="maintenance-search-label" for="requestSearch">Search</label><input type="search" id="requestSearch" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Resident, unit, request ID, issue"><button type="submit">Filter</button></form>
-                <div class="unit-table-wrap"><table class="unit-table maintenance-admin-table"><thead><tr><th>Request ID</th><th>Resident</th><th>Unit</th><th>Issue</th><th>Description</th><th>Date Submitted</th><th>Priority</th><th>Status</th><th>Action</th></tr></thead><tbody>
-                    <?php if (!$requests): ?><tr><td colspan="9" class="unit-empty">No maintenance requests found.</td></tr><?php else: foreach ($requests as $request): ?><tr><td><strong><?php echo maintenanceRequestCode((int)$request['id']); ?></strong></td><td><strong><?php echo htmlspecialchars($request['username']); ?></strong><small><?php echo htmlspecialchars($request['full_name']); ?></small></td><td><?php echo htmlspecialchars($request['unit_number']); ?></td><td><?php echo htmlspecialchars($request['issue_type']); ?></td><td class="request-description"><?php echo htmlspecialchars($request['description']); ?></td><td><?php echo htmlspecialchars(date('M j, Y', strtotime($request['created_at']))); ?></td><td><span class="maintenance-urgency urgency-<?php echo htmlspecialchars($request['urgency'] ?? 'normal'); ?>"><?php echo htmlspecialchars(ucfirst($request['urgency'] ?? 'normal')); ?></span></td><td><span class="maintenance-status-badge status-<?php echo htmlspecialchars($request['status']); ?>"><?php echo htmlspecialchars(maintenanceStatusLabel($request['status'])); ?></span></td><td><a class="maintenance-view-link" href="maintenancerequests.php?status=<?php echo rawurlencode($statusFilter); ?>&amp;search=<?php echo rawurlencode($search); ?>&amp;view=<?php echo (int)$request['id']; ?>">View</a></td></tr><?php endforeach; endif; ?>
-                </tbody></table></div>
-            </section>
+            <?php endforeach; ?>
+            </div>
         </main>
     </div>
     <script>

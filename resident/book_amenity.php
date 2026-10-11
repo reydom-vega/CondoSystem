@@ -1,5 +1,6 @@
 <?php
 require_once '../config.php';
+require_once '../includes/amenity_workspace.php';
 if (!isLoggedIn()) redirect('../login.php');
 if (isAdmin()) redirect(buildUrl(dashboardPathForRole()));
 requireApproval();
@@ -21,7 +22,7 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
             createAmenityBooking($connection,(int)$_SESSION['user_id'],trim((string)($_POST['amenity'] ?? '')),trim((string)($_POST['booking_date'] ?? '')),trim((string)($_POST['booking_time'] ?? '')),$guests,$duration);
             trackEvent('booking_created',(string)$_POST['amenity'].' on '.(string)$_POST['booking_date'],(int)$_SESSION['user_id']);
         }
-        setFlash('success','Reservation saved successfully.'); redirect('book_amenity.php#yourBookings');
+        setFlash('success','Reservation saved successfully.'); redirect('book_amenity.php#' . (($_POST['action'] ?? '') === 'cancel' ? 'bookingHistory' : 'yourBookings'));
     } catch(AmenityScheduleConflict $error) { $conflict=true; $errors[]=$error->getMessage(); }
     catch(InvalidArgumentException $error) { $errors[]=$error->getMessage(); }
     catch(Throwable $error) { error_log($error->getMessage()); $errors[]='Unable to save your reservation. Please try again.'; }
@@ -29,6 +30,8 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
 $bookingFlash=getFlash();
 $query=$connection->prepare('SELECT b.*,p.status AS payment_status,p.paymongo_checkout_id FROM bookings b LEFT JOIN payments p ON p.id=b.payment_id WHERE b.user_id=? ORDER BY b.booking_date DESC,b.booking_time DESC,b.id DESC');
 $query->bind_param('i',$_SESSION['user_id']); $query->execute(); $bookings=$query->get_result()->fetch_all(MYSQLI_ASSOC);
+$bookingGroups = ['yourBookings' => [], 'bookingHistory' => []];
+foreach ($bookings as $booking) $bookingGroups[amenityBookingIsHistory($booking) ? 'bookingHistory' : 'yourBookings'][] = $booking;
 $catalog=amenityCatalog();
 $escape=static fn($value)=>htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');
 ?>
@@ -104,7 +107,8 @@ $escape=static fn($value)=>htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');
             </section>
             <nav class="amenity-view-nav" aria-label="Amenity views" hidden>
                 <button type="button" id="amenityExploreTab" data-amenity-view="exploreAmenities" aria-controls="exploreAmenities">Explore amenities</button>
-                <button type="button" id="amenityBookingsTab" data-amenity-view="yourBookings" aria-controls="yourBookings">My reservations <span class="amenity-count"><?= count($bookings) ?></span></button>
+                <button type="button" id="amenityBookingsTab" data-amenity-view="yourBookings" aria-controls="yourBookings">My reservations <span class="amenity-count"><?= count($bookingGroups['yourBookings']) ?></span></button>
+                <button type="button" id="amenityPastBookingsTab" data-amenity-view="bookingHistory" aria-controls="bookingHistory">History <span class="amenity-count"><?= count($bookingGroups['bookingHistory']) ?></span></button>
             </nav>
             <section id="exploreAmenities" aria-labelledby="amenityExploreHeading">
             <div class="amenity-section-heading amenity-reservable-heading"><div><h2 class="amenity-section-title" id="amenityExploreHeading">Find your next reservation</h2><p>Choose a space below. Every request is subject to admin approval.</p></div><span class="amenity-section-count">2 reservable amenities</span></div>
@@ -133,24 +137,9 @@ $escape=static fn($value)=>htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');
             <?php endforeach; ?>
             </div>
             </section>
-            <section class="amenity-booking-history" id="yourBookings" aria-labelledby="amenityHistoryHeading"><h2 class="amenity-section-title" id="amenityHistoryHeading">My reservations</h2><p>Pending requests do not hold pool hours. Approved and paid reservations keep their schedule reserved.</p>
-            <?php if(!$bookings): ?><div class="amenity-empty"><h3>No reservations yet</h3><p>Choose the Swimming Pool or Function Hall to plan your next visit.</p><a class="service-btn service-btn-secondary" href="#exploreAmenities" data-amenity-view-link>Explore amenities</a></div><?php endif; ?>
-            <?php foreach($bookings as $booking):
-                $future=$booking['booking_date'].' '.$booking['booking_time']>date('Y-m-d H:i:s');
-                $review=$booking['payment_id'] && ($booking['payment_status']==='paid' || $booking['paymongo_checkout_id']);
-            ?>
-                <article class="amenity-history-card"><div><span class="amenity-kicker">BOOKING #<?= (int)$booking['id'] ?></span><h3><?= $escape($booking['amenity']) ?></h3><p><?= $escape(date('F j, Y',strtotime($booking['booking_date']))) ?> &middot; <?= $escape(date('g:i A',strtotime($booking['booking_time']))) ?><?= $booking['end_time']?' - '.$escape(date('g:i A',strtotime($booking['end_time']))):'' ?></p><p>Unit <?= $escape($booking['unit_number']) ?> &middot; <?= (int)$booking['attendees'] ?> <?= (int)$booking['attendees']===1?'guest':'guests' ?><?= $booking['duration_hours']?' · '.(int)$booking['duration_hours'].' '.((int)$booking['duration_hours']===1?'hour':'hours'):'' ?></p></div>
-                <div class="amenity-history-status"><span class="amenity-status amenity-status-<?= $escape($booking['status']) ?>"><?= $escape(ucfirst($booking['status'])) ?></span><strong>&#8369;<?= number_format((float)$booking['total_fee'],2) ?></strong><span><?= $booking['payment_id']?'Payment: '.$escape($booking['payment_status']==='rejected'?'Voided':($booking['payment_status']==='pending'?'Unpaid':ucfirst($booking['payment_status']))):'No automatic bill issued' ?></span></div>
-                <div class="amenity-history-actions">
-                <?php if($booking['rejection_reason'] || $booking['cancellation_note']): ?><p class="amenity-history-note"><?= $escape($booking['rejection_reason'] ?: $booking['cancellation_note']) ?></p><?php endif; ?>
-                <?php if($future && in_array($booking['status'],['pending','approved','confirmed'],true)): ?>
-                    <?php if($review): ?><p class="amenity-history-note">Contact PMO to review cancellation and any payment or refund.</p><?php else: ?><form method="post"><?= workflowCsrfField() ?><input type="hidden" name="action" value="cancel"><input type="hidden" name="booking_id" value="<?= (int)$booking['id'] ?>"><button class="service-btn service-btn-danger" type="submit">Cancel reservation</button></form><?php endif; ?>
-                <?php endif; ?>
-                <?php if($booking['payment_id'] && in_array($booking['payment_status'],['pending','overdue'],true)): ?><a href="payments.php" class="service-btn service-btn-secondary">View unit bill</a><?php endif; ?>
-                </div>
-                </article>
+            <?php foreach ($bookingGroups as $viewKey => $bookings): ?>
+                <?php require '../includes/resident_amenity_records.php'; ?>
             <?php endforeach; ?>
-            </section>
             <dialog id="amenityBookingDialog" class="amenity-dialog" aria-labelledby="amenityBookingTitle">
                 <div class="amenity-dialog-heading"><div><p class="amenity-kicker">REQUEST A RESERVATION</p><h2 id="amenityBookingTitle">Swimming Pool reservation</h2></div><button class="service-btn service-btn-secondary" type="button" data-close-amenity aria-label="Close reservation dialog">Close</button></div>
                 <div data-booking-pane="swimming-pool">

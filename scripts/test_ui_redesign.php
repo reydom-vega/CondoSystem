@@ -54,6 +54,10 @@ try {
       (2,'Noise Complaint','Tenant fine is under review.','Unit 0101','fine',500,'disputed',6,NULL,NOW(),'Please review this report.',DATE_ADD(CURDATE(),INTERVAL 1 MONTH))");
     uiActor($db,6);
     $bill=createBill(1,[['category'=>'Association Dues','description'=>'UI fixture bill','amount'=>1250]],date('Y-m-01'),date('Y-m-t'),date('Y-m-d',strtotime('+15 days')));
+    // Current bills, tenant-owned parking and completed history for billing UI checks.
+    $paidBill=createBill(1,[['category'=>'Water','description'=>'Completed fixture statement','amount'=>425]],null,null,date('Y-m-d'));
+    $db->query("UPDATE payments SET status='paid',payment_method='cash',payment_channel='cash',paid_at=NOW() WHERE id=".(int)$paidBill);
+    createBill(2,[['category'=>'Parking','description'=>'Tenant personal parking fixture','amount'=>175]],null,null,date('Y-m-d',strtotime('+7 days')));
     uiActor($db,1);
     $tomorrow=date('Y-m-d',strtotime('+1 day'));
     createAmenityBooking($db,1,'Swimming Pool',$tomorrow,'08:00',5,2);
@@ -71,6 +75,9 @@ try {
             if($actor===1) $add('resident/payment_return.php?payment_id='.$bill,$actor,$label);
         } else foreach(staffSidebarLinks() as [$path]) $add($path,$actor,$label);
     }
+    foreach ([1,2] as $actor) $add('resident/vehicles.php',$actor,'Legacy vehicle bookmark');
+    foreach ([4,6] as $actor) foreach (['registeredvehicles.php','parkinginventory.php'] as $page) $add('superadmin/'.$page,$actor,'Legacy parking bookmark');
+    $add('superadmin/parking_configuration.php',6,'Parking configuration bookmark');
     $add('maintenance/maintenancerequests.php',8,'Maintenance');
     $visitorRow=$db->query('SELECT * FROM resident_service_requests WHERE id='.$visitor)->fetch_assoc();
     $add('resident_service_pass.php?id='.$visitor.'&token='.$visitorRow['access_token'],1,'Visitor QR pass');
@@ -104,5 +111,12 @@ try {
     if(is_resource($http)) {proc_terminate($http);proc_close($http);}
     if($log && is_file($log)) unlink($log);
     if(!preg_match('/^condo_ui_test_[a-f0-9]{12}$/D',$database)) throw new RuntimeException('Unsafe fixture cleanup.');
+    // Browser tests can submit real multipart vehicle registrations to this fixture.
+    if (isset($db) && $db->query("SHOW TABLES LIKE 'vehicles'")->num_rows) {
+        foreach ($db->query('SELECT or_cr_path,vehicle_photo_path FROM vehicles')->fetch_all(MYSQLI_ASSOC) as $vehicle) {
+            removeUnusedVehicleUpload($vehicle['or_cr_path']);
+            removeUnusedVehicleUpload($vehicle['vehicle_photo_path']);
+        }
+    }
     $server->query("DROP DATABASE `$database`");
 }

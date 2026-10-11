@@ -1,5 +1,6 @@
 <?php
 require_once '../config.php';
+require_once __DIR__ . '/../includes/violation_workspace.php';
 
 if (!isLoggedIn()) {
     redirect('../login.php');
@@ -186,6 +187,12 @@ if ($violationSearch !== '' || $violationStatus !== 'all') {
     }));
 }
 $commonTypes = array_keys($fineRates);
+$violationTabs = ['issue' => 'Issue a Violation'];
+if (canAccess('vehicles.read')) $violationTabs['lookup'] = 'Vehicle & Parking Lookup';
+$violationTabs['history'] = 'History';
+$activeTab = $_GET['tab'] ?? ((isset($_GET['search']) || isset($_GET['status'])) ? 'history' : 'issue');
+if ($_SERVER['REQUEST_METHOD'] === 'POST') $activeTab = ($_POST['action'] ?? '') === 'issue' ? 'issue' : 'history';
+if (!is_string($activeTab) || !isset($violationTabs[$activeTab])) $activeTab = 'issue';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -196,6 +203,8 @@ $commonTypes = array_keys($fineRates);
     <link rel="stylesheet" href="../styles.css?v=<?php echo filemtime(__DIR__ . '/../styles.css'); ?>">
     <link rel="stylesheet" href="../assets/css/vehicle-violations.css?v=<?= filemtime(__DIR__.'/../assets/css/vehicle-violations.css') ?>">
 <?php renderPortalUiHead(); ?>
+    <link rel="stylesheet" href="../assets/css/violation-workspace.css?v=<?php echo (int)filemtime(__DIR__ . '/../assets/css/violation-workspace.css'); ?>">
+    <script src="../assets/js/violation-workspace.js?v=<?php echo (int)filemtime(__DIR__ . '/../assets/js/violation-workspace.js'); ?>" defer></script>
 </head>
 <body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
@@ -205,7 +214,7 @@ $commonTypes = array_keys($fineRates);
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-        <main class="dashboard-main">
+        <main class="dashboard-main violation-workspace">
             <header class="dash-header">
                 <div class="dash-header-left"><button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button><div><span class="dash-subtitle">CELANDINE RESIDENCES</span><h1 class="dash-title">Violation Management</h1></div></div>
                 <div class="dash-header-right">
@@ -220,8 +229,8 @@ $commonTypes = array_keys($fineRates);
             <?php if ($success): ?><div class="alert success"><?php echo htmlspecialchars($success); ?></div><?php endif; ?>
             <?php if (!empty($errors)): ?><div class="alert error"><ul><?php foreach ($errors as $error): ?><li><?php echo htmlspecialchars($error); ?></li><?php endforeach; ?></ul></div><?php endif; ?>
 
-            <?php include __DIR__.'/../includes/violation_vehicle_ui.php'; ?>
-            <section class="unit-management-panel violation-create-panel">
+            <?php renderViolationWorkspaceTabs($violationTabs, $activeTab, ['history' => $allViolationCount]); ?>
+            <section class="unit-management-panel violation-create-panel" <?php echo violationWorkspacePanelAttributes('issue', $activeTab); ?>>
                 <h3 class="section-title">Issue a Violation</h3>
                 <form method="post" id="violationForm" enctype="multipart/form-data" data-confirm="Issue this violation and add its fine to the resident's bill?" data-confirm-title="Issue violation" data-confirm-action="Issue violation"><?php echo workflowCsrfField(); ?>
                     <input type="hidden" name="action" value="issue">
@@ -288,7 +297,8 @@ $commonTypes = array_keys($fineRates);
                 </form>
             </section>
 
-            <section class="unit-management-panel violation-history-panel">
+            <?php include __DIR__.'/../includes/violation_vehicle_ui.php'; ?>
+            <section class="unit-management-panel violation-history-panel" <?php echo violationWorkspacePanelAttributes('history', $activeTab); ?>>
                 <div class="violation-history-heading">
                     <h3 class="section-title">Violation History</h3>
                     <span class="violation-search-count"><?php echo count($violations); ?> of <?php echo $allViolationCount; ?> records</span>
@@ -300,6 +310,7 @@ $commonTypes = array_keys($fineRates);
                     <div class="violation-history-stat violation-history-stat-paid"><span>Paid fines</span><strong>₱<?php echo number_format($violationSummary['paid_amount'], 2); ?></strong></div>
                 </div>
                 <form class="violation-search" method="get" action="violations.php">
+                    <input type="hidden" name="tab" value="history">
                     <div class="violation-search-field">
                         <label for="violationSearch">Search records</label>
                         <input id="violationSearch" type="search" name="search" value="<?php echo htmlspecialchars($violationSearch); ?>" placeholder="Resident, unit, type, location, ID, or payment reference">
@@ -314,7 +325,7 @@ $commonTypes = array_keys($fineRates);
                         </select>
                     </div>
                     <button type="submit">Search</button>
-                    <?php if ($violationSearch !== '' || $violationStatus !== 'all'): ?><a href="violations.php" class="violation-search-reset">Clear</a><?php endif; ?>
+                    <?php if ($violationSearch !== '' || $violationStatus !== 'all'): ?><a href="violations.php?tab=history" class="violation-search-reset">Clear</a><?php endif; ?>
                 </form>
                 <?php if (empty($violations)): ?>
                     <p class="bookings-empty"><?php echo $violationSearch !== '' ? 'No violations match your search.' : 'No violations recorded yet.'; ?></p>
@@ -341,6 +352,7 @@ $commonTypes = array_keys($fineRates);
                                     <td><?php echo !empty($violation['payment_id']) ? 'DUES-' . (int)$violation['payment_id'] : '—'; ?></td>
                                     <td><?php echo !empty($violation['admin_remarks']) ? nl2br(htmlspecialchars($violation['admin_remarks'])) : '—'; ?></td>
                                     <td>
+                                        <div class="violation-row-actions">
                                         <?php if (canAccess('vehicles.read')): ?><button type="button" class="btn-small btn-neutral" data-vehicle-violation-details="<?= (int)$violation['id'] ?>"><?= $violation['review_status']==='pending' && canAccess('violations.review') ? 'Review report' : 'View details' ?></button><?php endif; ?>
                                         <?php if (canAccess('violations.review') && in_array($violation['status'], ['unpaid', 'disputed'], true)): ?>
                                             <div class="violation-actions">
@@ -357,7 +369,8 @@ $commonTypes = array_keys($fineRates);
                                                     <button type="submit" name="decision" value="waive" class="btn-small btn-approve">Waive</button>
                                                 </form>
                                             </div>
-                                        <?php else: ?>—<?php endif; ?>
+                                        <?php elseif (!canAccess('vehicles.read')): ?>—<?php endif; ?>
+                                        </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

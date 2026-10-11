@@ -3,6 +3,9 @@
 if (PHP_SAPI!=='cli-server' || !preg_match('/^condo_gate_test_[a-f0-9]{12}$/D',getenv('CONDO_DB_NAME') ?: '') || !in_array($_SERVER['REMOTE_ADDR'] ?? '',['127.0.0.1','::1'],true)) { http_response_code(404); exit; }
 $path=parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH);
 $root=dirname(__DIR__);
+if (in_array($path, ['/CondoSystem3/celandine.svg', '/CondoSystem3/celandine-favicon.svg'], true)) {
+    header('Content-Type: image/svg+xml'); readfile($root.'/'.basename($path)); exit;
+}
 $assets=['/CondoSystem3/amenities.css','/CondoSystem3/js/amenities.js','/CondoSystem3/services.css','/CondoSystem3/resident.css','/CondoSystem3/styles.css','/CondoSystem3/security.css','/CondoSystem3/scanner.css','/CondoSystem3/js/qr-scanner.js','/CondoSystem3/js/permit-requests.js','/CondoSystem3/js/services-menu.js','/CondoSystem3/js/profile-menu.js','/CondoSystem3/js/notification-menu.js'];
 if (in_array($path,$assets,true)) {
     $file=$root.substr($path,strlen('/CondoSystem3'));

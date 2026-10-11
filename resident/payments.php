@@ -1,5 +1,6 @@
 <?php
 require_once '../config.php';
+require_once __DIR__ . '/../includes/billing_workspace.php';
 
 if (!isLoggedIn()) {
     redirect('../login.php');
@@ -80,6 +81,12 @@ $success = $canPay && !empty($_SESSION['billing_cash_selected']);
 unset($_SESSION['billing_cash_selected']);
 $openBills = getResidentVisibleBills($connection,$userId);
 $billHistory = getResidentVisibleBills($connection,$userId,true);
+$activeTab = billingWorkspaceActiveTab();
+$outstandingTotal = array_sum(array_column($openBills, 'amount'));
+$paidTotal = array_sum(array_column($billHistory, 'amount'));
+$dueDates = array_filter(array_column($openBills, 'due_date'));
+sort($dueDates);
+$nextDueDate = $dueDates[0] ?? null;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -89,6 +96,8 @@ $billHistory = getResidentVisibleBills($connection,$userId,true);
     <title>Celandine Residences - <?php echo htmlspecialchars($billingTitle); ?></title>
     <link rel="stylesheet" href="../resident.css?v=<?php echo (int)filemtime(__DIR__ . '/../resident.css'); ?>">
 <?php renderPortalUiHead(); ?>
+    <link rel="stylesheet" href="../assets/css/billing-workspace.css?v=<?php echo (int)filemtime(__DIR__ . '/../assets/css/billing-workspace.css'); ?>">
+    <script src="../assets/js/billing-workspace.js?v=<?php echo (int)filemtime(__DIR__ . '/../assets/js/billing-workspace.js'); ?>" defer></script>
 </head>
 <body class="portal-ui dashboard-page">
 
@@ -107,7 +116,7 @@ $billHistory = getResidentVisibleBills($connection,$userId,true);
 
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-        <main class="dashboard-main">
+        <main class="dashboard-main billing-workspace resident-billing-workspace">
             <header class="dash-header">
                 <div class="dash-header-left">
                     <button class="btn-icon-menu" id="menuToggle" aria-label="Menu">
@@ -158,15 +167,23 @@ $billHistory = getResidentVisibleBills($connection,$userId,true);
                 <div class="alert">You pay for parking requested through your account. Unit dues and other shared bills are handled by the unit owner.</div>
             <?php endif; ?>
 
-            <div class="billing-overview-grid">
-                <section class="billing-overview-column billing-statements-column">
-                    <h3 class="section-title">Statement of Account</h3>
+            <p class="billing-intro">Review your itemized bills, choose a payment method, and find receipts for completed payments.</p>
+            <div class="billing-summary">
+                <div class="billing-summary-card"><span>Outstanding balance</span><strong>&#8369;<?php echo number_format($outstandingTotal, 2); ?></strong><small><?php echo count($openBills); ?> unpaid statement<?php echo count($openBills) === 1 ? '' : 's'; ?> visible to your account</small></div>
+                <div class="billing-summary-card"><span>Next due date</span><strong><?php echo $nextDueDate ? htmlspecialchars(date('M j, Y', strtotime($nextDueDate))) : 'All caught up'; ?></strong><small><?php echo $nextDueDate ? 'Earliest due date among your unpaid statements' : 'You have no outstanding statements'; ?></small></div>
+                <div class="billing-summary-card"><span>Recent completed payments</span><strong><?php echo count($billHistory); ?></strong><small>&#8369;<?php echo number_format($paidTotal, 2); ?> shown in History</small></div>
+            </div>
+            <?php renderBillingWorkspaceTabs($activeTab, count($openBills), count($billHistory)); ?>
+                <section class="billing-overview-column billing-statements-column" <?php echo billingWorkspacePanelAttributes('billing', $activeTab); ?>>
+                    <div class="billing-section-head"><div><h2>Statement of Account</h2><p>Review each charge and its due date before paying.</p></div></div>
+                    <div class="billing-statement-list">
                     <?php if (empty($openBills)): ?>
-                        <div class="soa-card"><p class="billing-muted">You're all caught up — no outstanding bills right now.</p></div>
+                        <div class="billing-empty"><strong>You're all caught up</strong><p>No outstanding bills right now. Your completed payments are available in History.</p></div>
                     <?php else: foreach ($openBills as $bill): ?>
                     <div class="soa-card">
                     <div class="soa-head">
                         <div>
+                            <span class="billing-bill-reference">Statement DUES-<?php echo (int)$bill['id']; ?></span>
                             <strong><?php echo $unitNumber; ?></strong>
                             <?php if ($bill['billing_period_start']): ?>
                                 <div class="billing-period">Billing Period: <?php echo htmlspecialchars(date('M j', strtotime($bill['billing_period_start'])) . ' – ' . date('M j, Y', strtotime($bill['billing_period_end'] ?: $bill['billing_period_start']))); ?></div>
@@ -190,6 +207,7 @@ $billHistory = getResidentVisibleBills($connection,$userId,true);
                         <?php echo workflowCsrfField(); ?>
                         <input type="hidden" name="form_action" value="pay_bill">
                         <input type="hidden" name="bill_id" value="<?php echo (int)$bill['id']; ?>">
+                        <p class="billing-payment-label">Choose a payment method</p>
                         <?php foreach ($paymentMethods as $index => $method): ?>
                             <label class="payment-method-item<?php echo $index === 0 ? ' selected' : ''; ?>">
                                 <input type="radio" name="payment_method" value="<?php echo htmlspecialchars($method['id']); ?>" <?php echo $index === 0 ? 'checked' : ''; ?>>
@@ -202,15 +220,18 @@ $billHistory = getResidentVisibleBills($connection,$userId,true);
                         <?php endforeach; ?>
                         <button type="submit" class="proceed-payment-btn">Pay ₱<?php echo number_format((float)$bill['amount'], 2); ?></button>
                     </form>
+                    <?php else: ?>
+                        <p class="billing-owner-note">Payment is handled by the account responsible for this statement. You can review its charges and payment status here.</p>
                     <?php endif; ?>
                     </div>
                     <?php endforeach; endif; ?>
+                    </div>
                 </section>
 
-                <section class="billing-overview-column billing-history-column">
-                    <h3 class="section-title">Payment History</h3>
+                <section class="billing-overview-column billing-history-column" <?php echo billingWorkspacePanelAttributes('history', $activeTab); ?>>
+                    <div class="billing-section-head"><div><h2>Payment History</h2><p>Expand a completed payment to view its charges and available receipt.</p></div></div>
                     <?php if (empty($billHistory)): ?>
-                        <div class="billing-side-empty">No completed payments yet.</div>
+                        <div class="billing-empty"><strong>No completed payments yet</strong><p>Payments appear here once they have been confirmed.</p></div>
                     <?php else: foreach ($billHistory as $bill): ?>
                     <details class="history-item">
                         <summary>
@@ -236,8 +257,6 @@ $billHistory = getResidentVisibleBills($connection,$userId,true);
                     </details>
                     <?php endforeach; endif; ?>
                 </section>
-            </div>
-
         </main>
 
     </div>

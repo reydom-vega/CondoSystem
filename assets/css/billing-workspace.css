@@ -1,0 +1,53 @@
+/* Segmented navigation matches resident amenities and Parking & Vehicles. */
+.portal-ui .billing-tabs { display:flex; gap:8px; margin:0 0 28px; padding:5px; width:fit-content; max-width:100%; border:1px solid #3b4559; border-radius:11px; background:#131a28; }
+.portal-ui .billing-tabs [role=tab] { display:flex; align-items:center; justify-content:center; gap:9px; min-height:42px; padding:10px 18px; border:1px solid transparent; border-radius:7px; background:transparent; color:#b5bfd0; font:600 14px/1.4 Inter,"Segoe UI",sans-serif; text-decoration:none; box-shadow:none; }
+.portal-ui .billing-tabs [aria-selected=true] { background:#303044; border-color:#716047; color:#ffe1ac; }
+.portal-ui .billing-tabs [role=tab]:hover { color:#fff; }
+.portal-ui .billing-tabs [role=tab]:focus-visible { outline:2px solid #fbbf24; outline-offset:3px; }
+.billing-tab-count { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; min-width:23px; height:23px; padding:0 5px; border-radius:6px; background:#ffffff12; font-size:11px; }
+.billing-workspace [data-billing-panel][hidden] { display:none !important; }
+.billing-workspace [data-billing-panel] { min-width:0; }
+.portal-ui .billing-intro { margin:0 0 24px; color:var(--text-muted); line-height:1.7; }
+.portal-ui .billing-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; margin:0 0 26px; }
+.portal-ui .billing-summary-card { display:flex; flex-direction:column; gap:9px; padding:22px; border:1px solid var(--border-color,#344056); border-radius:14px; background:var(--surface-card,#1a1e2c); min-width:0; }
+.portal-ui .billing-summary-card > span { color:#b5bfd0; font-size:13px; }
+.portal-ui .billing-summary-card > strong { color:#fff; font-size:clamp(21px,2.2vw,29px); line-height:1.3; overflow-wrap:anywhere; }
+.portal-ui .billing-summary-card:first-child > strong { color:#fbbf24; }
+.portal-ui .billing-summary-card > small { color:#aebdd2; font-size:12px; line-height:1.6; }
+.portal-ui .billing-section-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; margin:0 0 20px; }
+.portal-ui .billing-section-head h2 { margin:0; font-size:20px; }
+.portal-ui .billing-section-head p { margin:5px 0 0; color:#aebdd2; font-size:14px; line-height:1.6; }
+.portal-ui .billing-statement-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; gap:22px; }
+.portal-ui .billing-workspace .billing-statements-column .soa-card { margin:0; padding:24px; border:1px solid var(--border-color,#344056); border-radius:14px; background:var(--surface-card,#1a1e2c); min-width:0; }
+.portal-ui .billing-workspace .soa-head { padding-bottom:18px; border-bottom:1px solid var(--border-color,#344056); gap:12px; }
+.portal-ui .billing-bill-reference { display:block; margin-bottom:6px; color:#b5bfd0; font-size:12px; font-weight:500; }
+.portal-ui .billing-workspace .billing-period { margin-top:5px; line-height:1.6; }
+.portal-ui .billing-workspace .soa-items { table-layout:fixed; }
+.portal-ui .billing-workspace .soa-items td:first-child { width:65%; overflow-wrap:anywhere; }
+.portal-ui .billing-workspace .soa-items td:last-child { width:35%; }
+.portal-ui .billing-workspace .soa-total-row td { font-size:18px; padding-top:18px; }
+.portal-ui .billing-payment-label { margin:20px 0 12px; font-size:14px; font-weight:600; color:#e5e7eb; }
+.portal-ui .billing-workspace .payment-method-item { min-height:74px; padding:13px; gap:12px; }
+.portal-ui .billing-workspace .payment-method-desc { line-height:1.6; }
+.portal-ui .billing-workspace .proceed-payment-btn { min-height:46px; margin-top:8px; }
+.portal-ui .billing-owner-note { margin:16px 0 0; padding:12px 14px; border-radius:8px; background:#131a28; color:#b5bfd0; font-size:13px; line-height:1.6; }
+.portal-ui .billing-empty { grid-column:1/-1; padding:36px 24px; border:1px dashed #3b4559; border-radius:14px; background:#131a28; text-align:center; }
+.portal-ui .billing-empty strong { display:block; margin-bottom:8px; color:#e5e7eb; font-size:17px; }
+.portal-ui .billing-empty p { margin:0; color:#b5bfd0; line-height:1.7; }
+.portal-ui .billing-workspace .billing-history-column .history-item { padding:22px; border-radius:14px; }
+.portal-ui .billing-workspace .history-payment-meta { gap:18px; padding:18px; margin-top:20px; }
+.portal-ui .billing-workspace .history-payment-meta strong { font-size:14px; line-height:1.6; }
+.portal-ui .billing-workspace .history-receipt-link { min-height:40px; padding:8px 14px; font-size:13px; }
+.portal-ui .billing-workspace .history-items { overflow-wrap:anywhere; }
+.portal-ui .billing-workspace .payment-management-panel { min-width:0; }
+@media(max-width:1100px) { .portal-ui .billing-statement-list { grid-template-columns:minmax(0,1fr); } }
+@media(max-width:700px) {
+  .portal-ui .billing-tabs { width:100%; gap:3px; margin-bottom:24px; }
+  .portal-ui .billing-tabs [role=tab] { flex:1 1 0; min-width:0; padding:9px 8px; gap:6px; font-size:12px; }
+  .portal-ui .billing-summary { grid-template-columns:minmax(0,1fr); gap:12px; }
+  .portal-ui .billing-summary-card { padding:18px; }
+  .portal-ui .billing-workspace .billing-statements-column .soa-card,.portal-ui .billing-workspace .billing-history-column .history-item { padding:18px; }
+  .portal-ui .billing-workspace .payment-method-icon { display:none; }
+  .portal-ui .billing-workspace .history-payment-meta { grid-template-columns:minmax(0,1fr); padding:14px; }
+}
+@media print { .billing-tabs { display:none !important; } }

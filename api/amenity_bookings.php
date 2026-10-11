@@ -14,7 +14,14 @@ try {
     };
     $text=static function(mixed $value):string { if(!is_string($value)) throw new InvalidArgumentException('Invalid form value.'); return trim($value); };
     if($_SERVER['REQUEST_METHOD']==='GET') {
-        echo json_encode(poolAvailability($db,$text($_GET['date'] ?? ''),$integer($_GET['duration'] ?? 1,'duration')),JSON_THROW_ON_ERROR); exit;
+        $amenity = $text($_GET['amenity'] ?? 'Swimming Pool');
+        if (!in_array($amenity, ['Swimming Pool', 'Function Hall'], true)) throw new InvalidArgumentException('Choose a reservable amenity.');
+        if ($amenity === 'Function Hall' && isset($_GET['month'])) {
+            echo json_encode(functionHallCalendarAvailability($db, $text($_GET['month'])), JSON_THROW_ON_ERROR); exit;
+        }
+        $date = $text($_GET['date'] ?? '');
+        $availability = $amenity === 'Function Hall' ? functionHallAvailability($db, $date) : poolAvailability($db, $date, $integer($_GET['duration'] ?? 1, 'duration'));
+        echo json_encode($availability, JSON_THROW_ON_ERROR); exit;
     }
     if($_SERVER['REQUEST_METHOD']!=='POST') { http_response_code(405); header('Allow: GET, POST'); echo json_encode(['success'=>false,'error'=>'Method not supported.']); exit; }
     $input=json_decode(file_get_contents('php://input'),true);

@@ -1,5 +1,6 @@
 <?php
-require_once '../config.php';
+require_once __DIR__.'/../config.php';
+require_once __DIR__.'/../includes/parking_workspace.php';
 
 if (!isLoggedIn()) {
     redirect('../login.php');
@@ -8,7 +9,7 @@ if (isAdmin()) {
     redirect(isSecurity() ? '../security/security_dashboard.php' : (isMaintenance() ? '../maintenance/maintenance_dashboard.php' : '../admin/admin_dashboard.php'));
 }
 requireApproval();
-if (!residentHasPermission('resident.parking.request') && !residentHasPermission('resident.stickers.order')) {
+if (!residentHasPermission('resident.parking.request') && !residentHasPermission('resident.stickers.order') && !residentHasPermission('resident.vehicles.register')) {
     requireResidentPermission('resident.parking.request');
 }
 
@@ -29,7 +30,7 @@ $stickerSuccess = '';
 $parkingFlash = getFlash();
 if ($parkingFlash) $success = (string)$parkingFlash['message'];
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== 'register_vehicle') {
     requireWorkflowCsrf();
     $formAction = $_POST['form_action'] ?? 'parking_request';
 
@@ -43,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $existingStickerOrder = getLatestParkingStickerOrder($userId);
         if ($stickerError === '' && $existingStickerOrder && $existingStickerOrder['claim_status'] !== 'issued' && $existingStickerOrder['status'] !== 'cancelled') {
-            $stickerError = 'You already have a sticker order in progress. Check its status below.';
+            $stickerError = 'You already have a sticker order in progress. Check its status in Requests.';
         } elseif ($stickerError === '') {
             $billId = purchaseParkingStickers($connection, $userId, $stickerQuantity, $stickerVehicleIds);
             if ($billId) redirect('payments.php');
@@ -55,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (cancelVisitorParkingRequest($connection, $userId, $requestId)) {
             logAudit('cancel', 'parking_request', $requestId, 'Resident cancelled visitor parking');
             setFlash('success', 'Parking request cancelled. Your visitor registration remains active.');
-            redirect('parking.php#parking-request-' . $requestId);
+            redirect('parking.php?tab=requests#parking-request-' . $requestId);
         }
         $errors[] = 'This parking request can no longer be cancelled.';
     } elseif ($formAction === 'visitor_request') {
@@ -66,18 +67,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $requestId = requestLinkedVisitorParking($connection, $userId, $visitorId, $_POST);
             logAudit('create', 'parking_request', $requestId, 'Linked visitor registration #' . $visitorId);
             setFlash('success', 'Parking request submitted for your registered visitor. Security will review the visit and assign a parking slot.');
-            redirect('parking.php#parking-request-' . $requestId);
+            redirect('parking.php?tab=requests#parking-request-' . $requestId);
         } catch (InvalidArgumentException $e) { $errors[] = $e->getMessage(); }
         catch (Throwable $e) { error_log($e->getMessage()); $errors[] = 'Unable to submit visitor parking. Please try again.'; }
     } else {
         $errors[] = 'Unknown parking action. Refresh the page and try again.';
     }
 }
-$latestStickerOrder = residentHasPermission('resident.stickers.order') ? getLatestParkingStickerOrder($userId) : null;
+$myStickerRequests = residentHasPermission('resident.stickers.order') ? getParkingStickerOrdersForUser($userId) : [];
+$latestStickerOrder = $myStickerRequests[0] ?? null;
 ensureStickerVehicleLinks($connection);
 $eligibleStickerVehicles = residentHasPermission('resident.stickers.order') ? getEligibleStickerVehicles($connection,$userId) : [];
-$latestStickerVehicles = $latestStickerOrder ? getStickerVehicles($connection,(int)$latestStickerOrder['id']) : [];
+$stickerRequestVehicles = [];
+foreach ($myStickerRequests as $stickerRequest) $stickerRequestVehicles[(int)$stickerRequest['id']] = getStickerVehicles($connection,(int)$stickerRequest['id']);
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'register_vehicle') requireResidentPermission('resident.vehicles.register');
+$parkingTabs = parkingWorkspaceTabs(true);
+$parkingActiveTab = parkingWorkspaceActiveTab($parkingTabs, $parkingDefaultTab ?? 'parking');
+$parkingVehiclesContent = isset($parkingTabs['vehicles']) ? parkingWorkspaceModule('resident-vehicles') : '';
 $myRequests = residentHasPermission('resident.parking.request') ? getParkingRequestsForUser($userId) : [];
 $activeParkingVisitors = [];
 foreach ($myRequests as $request) {
@@ -94,10 +101,12 @@ function parkingFormValue(string $field, string $default = ''): string { return 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences - Parking</title>
+    <title>Celandine Residences - Parking &amp; Vehicles</title>
     <link rel="stylesheet" href="../resident.css">
     <link rel="stylesheet" href="../services.css?v=<?php echo filemtime(__DIR__ . '/../services.css'); ?>">
 <?php renderPortalUiHead(); ?>
+<link rel="stylesheet" href="../assets/css/parking-workspace.css?v=<?= filemtime(__DIR__.'/../assets/css/parking-workspace.css') ?>">
+<script defer src="../assets/js/parking-workspace.js?v=<?= filemtime(__DIR__.'/../assets/js/parking-workspace.js') ?>"></script>
 </head>
 <body class="portal-ui dashboard-page">
 
@@ -114,7 +123,7 @@ function parkingFormValue(string $field, string $default = ''): string { return 
 
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-        <main class="dashboard-main">
+        <main class="dashboard-main parking-workspace resident-parking-workspace">
             <header class="dash-header">
                 <div class="dash-header-left">
                     <button class="btn-icon-menu" id="menuToggle" aria-label="Menu">
@@ -122,7 +131,7 @@ function parkingFormValue(string $field, string $default = ''): string { return 
                     </button>
                     <div>
                         <span class="dash-subtitle">CELANDINE RESIDENCES</span>
-                        <h1 class="dash-title">Parking</h1>
+                        <h1 class="dash-title">Parking &amp; Vehicles</h1>
                     </div>
                 </div>
                 <div class="dash-header-right">
@@ -152,11 +161,13 @@ function parkingFormValue(string $field, string $default = ''): string { return 
                 </div>
             </header>
 
+            <?php renderParkingWorkspaceTabs($parkingTabs, $parkingActiveTab, ['requests'=>count($myRequests)+count($myStickerRequests)]); ?>
             <?php if ($success): ?><div class="alert success"><strong>Submitted!</strong> <?php echo htmlspecialchars($success); ?></div><?php endif; ?>
             <?php if (!empty($errors)): ?><div class="alert error"><ul><?php foreach ($errors as $error): ?><li><?php echo htmlspecialchars($error); ?></li><?php endforeach; ?></ul></div><?php endif; ?>
             <?php if ($stickerError !== ''): ?><div class="alert error"><?php echo htmlspecialchars($stickerError); ?></div><?php endif; ?>
             <?php if ($stickerSuccess !== ''): ?><div class="alert success"><?php echo htmlspecialchars($stickerSuccess); ?></div><?php endif; ?>
 
+            <?php if (isset($parkingTabs['parking'])): ?><section <?= parkingWorkspacePanelAttributes('parking', $parkingActiveTab) ?>>
             <?php include __DIR__ . '/../includes/resident_sticker_panel.php'; ?>
 
             <?php if (residentHasPermission('resident.parking.request')): ?>
@@ -164,7 +175,7 @@ function parkingFormValue(string $field, string $default = ''): string { return 
                 <h3 class="section-title">Visitor Parking</h3>
                 <p class="amenity-desc">Choose your registered visitor and add their vehicle. The parking period must include their visit date and can cover up to <?php echo (int)$parkingPolicy['visitor_max_days']; ?> days, including the start date. A parking pass requires an approved visitor registration and an assigned slot.</p>
                 <?php if (residentHasPermission('resident.visitors.register')): ?><div class="service-button-row"><a class="service-btn" href="visitors.php?needs_parking=1">Register visitor with parking</a><a class="service-btn service-btn-secondary" href="visitors.php">Manage visitor registrations</a></div><?php endif; ?>
-                <?php if (!$parkingVisitors): ?><div class="service-empty-state"><p>No eligible visitors need a parking request. Register a visitor first, or check your existing requests below.</p><?php if (residentHasPermission('resident.visitors.register')): ?><a class="service-btn service-btn-secondary" href="visitors.php?needs_parking=1">Register visitor &amp; request parking</a><?php endif; ?></div><?php else: ?>
+                <?php if (!$parkingVisitors): ?><div class="service-empty-state"><p>No eligible visitors need a parking request. Register a visitor first, or check your existing requests in the Requests tab.</p><?php if (residentHasPermission('resident.visitors.register')): ?><a class="service-btn service-btn-secondary" href="visitors.php?needs_parking=1">Register visitor &amp; request parking</a><?php endif; ?></div><?php else: ?>
                 <form method="POST" action="parking.php#visitorParking" class="visitor-parking-form"><?php echo workflowCsrfField(); ?>
                     <input type="hidden" name="form_action" value="visitor_request">
                     <div class="parking-field service-wide"><label class="field-label" for="visitor_registration_id">Registered visitor</label><select class="form-date" id="visitor_registration_id" name="visitor_registration_id" required><option value="">Select a visitor</option><?php foreach ($parkingVisitors as $visitor): ?><option value="<?php echo (int)$visitor['id']; ?>" data-visit-date="<?php echo htmlspecialchars($visitor['start_date']); ?>" <?php echo (int)$visitor['id'] === $selectedVisitorId ? 'selected' : ''; ?>><?php echo htmlspecialchars($visitor['visitor_name'] . ' · ' . date('M j, Y', strtotime($visitor['start_date'])) . ' · ' . ucfirst($visitor['status'])); ?></option><?php endforeach; ?></select></div>
@@ -190,33 +201,10 @@ function parkingFormValue(string $field, string $default = ''): string { return 
                 <?php endif; ?>
             </section>
 
-            <section class="bookings-section">
-                <h3 class="section-title">Your Parking Requests</h3>
-                <?php if (empty($myRequests)): ?>
-                    <p class="bookings-empty">You have no parking requests yet.</p>
-                <?php else: ?>
-                    <?php foreach ($myRequests as $request): ?>
-                        <div class="booking-item" id="parking-request-<?php echo (int)$request['id']; ?>">
-                            <?php echo systemIconFromGlyph('🚗', 'booking-icon'); ?>
-                            <div class="booking-content">
-                                <h4><?php echo $request['request_type'] === 'resident_assignment' ? 'Resident Slot Request' : 'Visitor Parking'; ?> — <?php echo htmlspecialchars($request['vehicle_plate']); ?></h4>
-                                <p>
-                                    <?php if (!empty($request['visitor_name'])): ?><a href="visitors.php"><?php echo htmlspecialchars($request['visitor_name']); ?></a> · Visitor <?php echo htmlspecialchars(str_replace('_', ' ', $request['visitor_status'])); ?> · <?php endif; ?>
-                                    <?php echo htmlspecialchars(date('M j, Y', strtotime($request['start_date']))); ?>
-                                    <?php if ($request['end_date']): ?> to <?php echo htmlspecialchars(date('M j, Y', strtotime($request['end_date']))); ?><?php endif; ?>
-                                    <?php if ($request['status'] === 'approved' && !empty($request['slot_code'])): ?> · Slot <?php echo htmlspecialchars($request['slot_code']); ?><?php endif; ?>
-                                </p>
-                            </div>
-                            <span class="badge badge-success unit-status <?php echo htmlspecialchars($request['status']); ?>"><?php echo htmlspecialchars(ucfirst($request['status'])); ?></span>
-                            <?php if ($request['request_type'] === 'visitor' && $request['status'] === 'approved' && (empty($request['visitor_registration_id']) || in_array($request['visitor_status'], ['approved','checked_in'], true))): ?>
-                                <a href="../parking_pass.php?request_id=<?php echo (int)$request['id']; ?>&amp;signature=<?php echo htmlspecialchars(parkingPassSignature((int)$request['id'])); ?>" class="service-btn service-btn-secondary">Download QR Pass</a>
-                            <?php endif; ?>
-                            <?php if ($request['request_type'] === 'visitor' && in_array($request['status'], ['pending','approved'], true)): ?><form method="post" action="parking.php"><?php echo workflowCsrfField(); ?><input type="hidden" name="form_action" value="cancel_visitor_request"><input type="hidden" name="request_id" value="<?php echo (int)$request['id']; ?>"><button type="submit" class="service-btn service-btn-danger">Cancel parking</button></form><?php endif; ?>
-                        </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </section>
             <?php endif; ?>
+            </section><?php endif; ?>
+            <?php if (isset($parkingTabs['vehicles'])): ?><section <?= parkingWorkspacePanelAttributes('vehicles', $parkingActiveTab) ?>><?= $parkingVehiclesContent ?></section><?php endif; ?>
+            <?php if (isset($parkingTabs['requests'])): ?><section <?= parkingWorkspacePanelAttributes('requests', $parkingActiveTab) ?>><?php include __DIR__.'/../includes/resident_parking_requests.php'; ?></section><?php endif; ?>
         </main>
 
     </div>

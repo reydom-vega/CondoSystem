@@ -117,6 +117,17 @@ try {
     ensureMessagesTable($db); ensureAnnouncementsTable($db); ensureViolationsTable($db); ensureRememberTokensTable($db);
 
     $owner = residentContext($db, 1); $tenant = residentContext($db, 2); $legacy = residentContext($db, 5);
+    foreach ([1 => 'Unit Owner', 2 => 'Tenant', 5 => 'Unit Owner', 14 => 'Resident'] as $accountId => $badgeLabel) {
+        $dashboard = tenantRequest('resident/dashboard.php', $accountId);
+        $document = new DOMDocument(); libxml_use_internal_errors(true); $document->loadHTML($dashboard['body']); libxml_clear_errors();
+        $xpath = new DOMXPath($document);
+        $badge = $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," welcome-role-badge ")]');
+        $details = $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," welcome-details ")]');
+        tenantCheck($dashboard['status'] === 200 && $badge->length === 1 && trim($badge->item(0)->textContent) === $badgeLabel, 'dashboard badge uses authenticated account type for account ' . $accountId);
+        $account = $db->query('SELECT unit_number,created_at FROM users WHERE id=' . $accountId)->fetch_assoc();
+        $expectedDetails = 'Unit ' . $account['unit_number'] . ' • Member since ' . date('M Y', strtotime($account['created_at']));
+        tenantCheck($details->length === 1 && trim($details->item(0)->textContent) === $expectedDetails, 'dashboard footer uses database unit and joining date without duplicate role for account ' . $accountId);
+    }
     tenantCheck($owner['account_kind'] === 'owner' && $owner['approved'], 'verified unit owner receives owner context');
     tenantCheck($tenant['account_kind'] === 'tenant' && $tenant['approved'] && (int)$tenant['billing_user_id'] === 1, 'tenant receives explicit owner-linked billing context');
     tenantCheck($legacy['account_kind'] === 'owner' && residentCanPayBill($db, 5, 5), 'legacy blank account kind preserves existing unit owner access');
@@ -216,11 +227,19 @@ try {
     putenv('CONDO_TENANT_PARKING=0');
     $visitorWithoutParking=tenantRequest('resident/visitors.php',2);
     $visitorXPath=tenantXPath($visitorWithoutParking['body']);
-    tenantCheck($visitorWithoutParking['status']===200 && $visitorXPath->query('//input[@name="visitor_name"]')->length===1 && $visitorXPath->query('//input[@name="needs_parking"]')->length===0 && $visitorXPath->query('//a[starts-with(@href,"parking.php")]')->length===0, 'disabled tenant parking removes integrated visitor parking controls and navigation while keeping visitor registration');
+    tenantCheck($visitorWithoutParking['status']===200 && $visitorXPath->query('//input[@name="visitor_name"]')->length===1 && $visitorXPath->query('//input[@name="needs_parking"]')->length===0 && $visitorXPath->query('//a[starts-with(@href,"parking.php") and normalize-space(.)="Parking & Vehicles"]')->length===1, 'disabled tenant parking hides visitor parking controls and keeps the authorized vehicle workspace navigation');
     putenv('CONDO_TENANT_PARKING=1');
     tenantActor($db,2);
     $tenantVehicle=createVehicle($db,2,'Toyota','Vios','Silver',2025,'TENANT CAR','private_uploads/vehicle_documents/fixture.pdf','application/pdf');
     tenantActor($db,7); tenantCheck(decideVehicle($db,$tenantVehicle,'approved',''), 'management can approve tenant vehicle registration');
+    putenv('CONDO_TENANT_PARKING=0');
+    $vehicleOnly=tenantRequest('resident/parking.php',2);
+    $vehicleOnlyXPath=tenantXPath($vehicleOnly['body']);
+    tenantCheck($vehicleOnly['status']===200 && $vehicleOnlyXPath->query('//*[@data-parking-tab="vehicles"]')->length===1 && $vehicleOnlyXPath->query('//*[@data-parking-tab="parking"]')->length===0, 'disabled tenant parking leaves only the authorized vehicles tab');
+    putenv('CONDO_TENANT_VEHICLES=0');
+    tenantCheck(tenantRequest('resident/parking.php',2)['status']===403, 'combined workspace denied when all tenant parking and vehicle services are disabled');
+    putenv('CONDO_TENANT_VEHICLES=1');
+    putenv('CONDO_TENANT_PARKING=1');
     $vehiclePage=tenantRequest('resident/vehicles.php',2);
     tenantCheck($vehiclePage['status']===200 && str_contains($vehiclePage['body'],'TENANT CAR') && tenantXPath($vehiclePage['body'])->query('//a[contains(normalize-space(.),"Request sticker")]')->length===1, 'approved tenant vehicle offers a personal sticker request');
     foreach (['AMENITIES'=>'resident/book_amenity.php', 'VISITORS'=>'resident/visitors.php', 'VEHICLES'=>'resident/vehicles.php', 'MAINTENANCE'=>'resident/maintenance.php', 'MESSAGES'=>'resident/messages.php'] as $setting=>$page) {

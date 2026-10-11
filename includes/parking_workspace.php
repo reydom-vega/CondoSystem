@@ -1,0 +1,62 @@
+<?php
+/** Presentation composition only; existing modules retain their guards and writes. */
+function parkingWorkspaceModule(string $module): string {
+    $parkingWorkspaceEmbedded = true;
+    $residentVehiclePage = $module === 'resident-vehicles';
+    $path = match ($module) {
+        'resident-vehicles', 'staff-vehicles' => __DIR__.'/vehicle_registry_page.php',
+        'slots' => __DIR__.'/../superadmin/parkinginventory.php',
+        'configuration' => __DIR__.'/../superadmin/parking_configuration.php',
+        default => throw new InvalidArgumentException('Unknown parking module.'),
+    };
+    ob_start();
+    try { include $path; return (string)ob_get_clean(); }
+    catch (Throwable $error) { ob_end_clean(); throw $error; }
+}
+
+function parkingWorkspaceTabs(bool $resident): array {
+    if ($resident) {
+        $tabs = [];
+        if (residentHasPermission('resident.parking.request') || residentHasPermission('resident.stickers.order')) $tabs['parking'] = 'Parking & Sticker';
+        if (residentHasPermission('resident.vehicles.register')) $tabs['vehicles'] = 'Registered Vehicles';
+        if (isset($tabs['parking'])) $tabs['requests'] = 'Requests';
+        return $tabs;
+    }
+    $tabs = ['overview'=>'Overview'];
+    if (canAccess('management.dashboard')) $tabs['slots'] = 'Parking Slots';
+    if (canAccess('vehicles.read')) $tabs['vehicles'] = 'Registered Vehicles';
+    if (canAccess('stickers.issue') || canAccess('billing.manage')) $tabs['stickers'] = 'Sticker Requests';
+    $tabs['visitors'] = 'Visitor Parking';
+    $tabs['records'] = 'Parking Records';
+    return $tabs;
+}
+
+function parkingWorkspaceActiveTab(array $tabs, string $default): string {
+    $action = $_POST['action'] ?? '';
+    $requested = $_GET['tab'] ?? $default;
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $requested = match ($action) {
+            'register_vehicle', 'review_vehicle' => 'vehicles',
+            'update_status', 'import_inventory' => 'slots',
+            'issue_sticker', 'reassign_vehicle_slot' => 'stickers',
+            'decide_request', 'reassign_request_slot' => 'visitors',
+            default => isset($_POST['sticker_price']) ? 'slots' : $default,
+        };
+        if (isset($tabs['requests']) && ($_POST['form_action'] ?? '') === 'cancel_visitor_request') $requested = 'requests';
+    }
+    return is_string($requested) && isset($tabs[$requested]) ? $requested : (string)array_key_first($tabs);
+}
+
+function renderParkingWorkspaceTabs(array $tabs, string $active, array $counts = []): void {
+    echo '<div class="qr-tabs parking-tabs" role="tablist" aria-label="Parking sections">';
+    foreach ($tabs as $key=>$label) {
+        echo '<a href="parking.php?tab='.$key.'" role="tab" id="parking-tab-'.$key.'" aria-controls="parking-panel-'.$key.'" aria-selected="'.($active===$key?'true':'false').'" tabindex="'.($active===$key?'0':'-1').'" data-parking-tab="'.$key.'">'.htmlspecialchars($label, ENT_QUOTES, 'UTF-8');
+        if (array_key_exists($key, $counts)) echo ' <span class="parking-tab-count">'.max(0,(int)$counts[$key]).'</span>';
+        echo '</a>';
+    }
+    echo '</div>';
+}
+
+function parkingWorkspacePanelAttributes(string $key, string $active): string {
+    return 'id="parking-panel-'.$key.'" role="tabpanel" aria-labelledby="parking-tab-'.$key.'" data-parking-panel="'.$key.'"'.($active===$key?'':' hidden');
+}

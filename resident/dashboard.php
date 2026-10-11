@@ -10,11 +10,20 @@ if (isAdmin()) {
 
 $username = $_SESSION['username'] ?? 'User';
 $unitNumber = isset($_SESSION['unit_number']) ? 'Unit ' . htmlspecialchars($_SESSION['unit_number']) : 'Unit Not Set';
-$memberSince = $_SESSION['member_since'] ?? 'Aug 2026';
 $nameParts = preg_split('/\s+/', trim($username));
 $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? substr(end($nameParts), 0, 1) : ''));
 $accountApproved = isApproved();
 $connection = connectDb();
+$accountRoleLabel = residentAccountLabel();
+$userId = (int)$_SESSION['user_id'];
+$welcomeAccountQuery = $connection->prepare('SELECT full_name, created_at FROM users WHERE id = ? LIMIT 1');
+$welcomeAccountQuery->bind_param('i', $userId);
+$welcomeAccountQuery->execute();
+$welcomeAccount = $welcomeAccountQuery->get_result()->fetch_assoc();
+$welcomeAccountQuery->close();
+$displayName = trim((string)($welcomeAccount['full_name'] ?? '')) ?: $username;
+$joinedAt = !empty($welcomeAccount['created_at']) ? strtotime($welcomeAccount['created_at']) : false;
+$memberSince = $joinedAt !== false ? date('M Y', $joinedAt) : null;
 $monthlyDue = 0.00;
 $activeBookings = 0;
 $activeRequests = 0;
@@ -112,11 +121,15 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
             </header>
 
             <section class="welcome-banner">
-                <div class="welcome-text">
-                    <h2>Welcome, <?php echo htmlspecialchars($username); ?>!</h2>
-                    <p><?php echo $unitNumber; ?> • <?php echo htmlspecialchars(residentAccountLabel(), ENT_QUOTES, 'UTF-8'); ?> • Member since <?php echo htmlspecialchars($memberSince); ?></p>
+                <div class="welcome-banner-heading">
+                    <div class="welcome-text">
+                        <span class="welcome-eyebrow">RESIDENT DASHBOARD</span>
+                        <h2>Welcome back, <?php echo htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?>!</h2>
+                        <p>Here's your condominium overview.</p>
+                    </div>
+                    <span class="badge badge-success welcome-role-badge"><?php echo systemIcon('dashboard'); ?><?php echo htmlspecialchars($accountRoleLabel, ENT_QUOTES, 'UTF-8'); ?></span>
                 </div>
-                <div class="welcome-hand"><?php echo systemIcon('hand', 'welcome-hand-icon'); ?></div>
+                <p class="welcome-details"><span><?php echo $unitNumber; ?></span> <span aria-hidden="true">&bull;</span> <span><?php echo htmlspecialchars($memberSince !== null ? 'Member since ' . $memberSince : 'Membership date unavailable', ENT_QUOTES, 'UTF-8'); ?></span></p>
             </section>
 
             <?php if (!$accountApproved): ?>
@@ -189,7 +202,7 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
                 <a href="permits.php" class="stat-card"><div class="stat-head"><?php echo systemSidebarIcon('calendar'); ?></div><div class="stat-label">Permit Requests</div><p>Request move-in, move-out, renovation, or delivery approval.</p></a>
                 <?php endif; ?>
                 <?php if (residentHasPermission('resident.parking.request') || residentHasPermission('resident.stickers.order')): ?>
-                <a href="parking.php" class="stat-card"><div class="stat-head"><?php echo systemSidebarIcon('parking'); ?></div><div class="stat-label"><?php echo residentHasPermission('resident.stickers.order') ? 'Parking &amp; Stickers' : 'Visitor Parking'; ?></div><p><?php echo residentHasPermission('resident.stickers.order') ? 'Order stickers and request visitor parking.' : 'Request temporary parking for your registered visitors.'; ?></p></a>
+                <a href="parking.php" class="stat-card"><div class="stat-head"><?php echo systemSidebarIcon('parking'); ?></div><div class="stat-label"><?php echo 'Parking &amp; Vehicles'; ?></div><p><?php echo residentHasPermission('resident.stickers.order') ? 'Order stickers and request visitor parking.' : 'Request temporary parking for your registered visitors.'; ?></p></a>
                 <?php endif; ?>
             </section>
 

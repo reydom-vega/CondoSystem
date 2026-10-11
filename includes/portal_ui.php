@@ -45,6 +45,7 @@ function renderPortalUiHead(): void {
     if ($rendered) return;
     $rendered = true;
     $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+    echo '<link rel="icon" type="image/svg+xml" sizes="any" href="'.$escape(buildUrl('celandine-favicon.svg')).'?v='.filemtime(dirname(__DIR__).'/celandine-favicon.svg').'">';
     echo '<meta name="portal-role" content="'.$escape(portalUiRoleLabel()).'">';
     foreach (['assets/css/design-system.css','assets/css/components.css','assets/css/responsive.css'] as $path) {
         echo '<link rel="stylesheet" href="'.$escape(buildUrl($path)).'?v='.filemtime(dirname(__DIR__).'/'.$path).'">';

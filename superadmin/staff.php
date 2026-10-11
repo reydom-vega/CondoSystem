@@ -163,6 +163,11 @@ if ($result) {
         $staff[] = $member;
     }
 }
+// Keep account validation on the creation tab and account actions on the information tab.
+$activeTab = ($_GET['tab'] ?? '') === 'add' ? 'add' : 'information';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $activeTab = ($_POST['action'] ?? '') === 'add_staff' && $errors ? 'add' : 'information';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -650,6 +655,8 @@ if ($result) {
     }
 </style>
 <?php renderPortalUiHead(); ?>
+    <link rel="stylesheet" href="../assets/css/workspace-tabs.css">
+    <script src="../assets/js/workspace-tabs.js" defer></script>
 </head>
 <body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
@@ -674,19 +681,16 @@ if ($result) {
             <?php if ($errors): ?><div class="alert error"><ul><?php foreach ($errors as $error): ?><li><?php echo htmlspecialchars($error); ?></li><?php endforeach; ?></ul></div><?php endif; ?>
 
             <section class="unit-page-head"><div><h2>Staff Management</h2><p>Review staff accounts and assign their system roles.</p></div><div class="unit-summary"><span><?php echo count($staff); ?> Staff Accounts</span></div></section>
-            <section class="unit-management-panel">
-                <h3>Add Staff Account</h3>
-                <form method="post" class="staff-create-form" id="staffCreateForm"><?php echo workflowCsrfField(); ?>
-                    <input type="hidden" name="action" value="add_staff">
-                    <label>Full name<input type="text" name="full_name" required maxlength="100"></label>
-                    <label>Username<input type="text" name="username" required maxlength="20"></label>
-                    <label>Email<input type="email" name="email" required maxlength="100"></label>
-                    <label>Contact number<input type="text" name="contact_number" required maxlength="20"></label>
-                    <label>Password<input type="password" name="password" required minlength="8"></label>
-                    <label>Role<select name="role" required><?php foreach ($staffRoles as $role => $label): ?><option value="<?php echo htmlspecialchars($role); ?>"><?php echo htmlspecialchars($label); ?></option><?php endforeach; ?></select></label>
-                    <button type="submit">Add Staff</button>
-                </form>
+            <div data-workspace-tabs>
+                <nav class="workspace-tabs" role="tablist" aria-label="Staff management sections">
+                    <?php foreach (['information' => 'Staff Information', 'add' => 'Add Staff Account'] as $key => $label): ?>
+                        <a id="staff-tab-<?php echo $key; ?>" href="?<?php echo htmlspecialchars(http_build_query(['tab' => $key, 'role' => $roleFilter, 'search' => $search]), ENT_QUOTES, 'UTF-8'); ?>" role="tab" data-workspace-tab="<?php echo $key; ?>" aria-controls="staff-panel-<?php echo $key; ?>" aria-selected="<?php echo $activeTab === $key ? 'true' : 'false'; ?>" tabindex="<?php echo $activeTab === $key ? '0' : '-1'; ?>"><?php echo htmlspecialchars($label, ENT_QUOTES, 'UTF-8'); ?></a>
+                    <?php endforeach; ?>
+                </nav>
+            <section class="unit-management-panel" id="staff-panel-information" role="tabpanel" aria-labelledby="staff-tab-information" tabindex="0" data-workspace-panel="information"<?php echo $activeTab !== 'information' ? ' hidden' : ''; ?>>
+                <h3>Staff Information</h3>
                 <form class="staff-search-row" method="get" action="staff.php">
+                    <input type="hidden" name="tab" value="information">
                     <label for="staffSearch">Search staff</label><input id="staffSearch" type="search" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Name, username, or email...">
                     <label for="staffRole">Filter by role</label><select id="staffRole" name="role"><option value="all">All roles</option><?php foreach ($staffRoles as $role => $label): ?><option value="<?php echo htmlspecialchars($role); ?>" <?php echo $roleFilter === $role ? 'selected' : ''; ?>><?php echo htmlspecialchars($label); ?></option><?php endforeach; ?></select>
                     <button type="submit">Filter</button>
@@ -712,6 +716,20 @@ if ($result) {
                     </tr><?php endforeach; endif; ?>
                 </tbody></table></div>
             </section>
+            <section class="unit-management-panel" id="staff-panel-add" role="tabpanel" aria-labelledby="staff-tab-add" tabindex="0" data-workspace-panel="add"<?php echo $activeTab !== 'add' ? ' hidden' : ''; ?>>
+                <h3>Add Staff Account</h3>
+                <form method="post" action="staff.php?tab=add" class="staff-create-form" id="staffCreateForm"><?php echo workflowCsrfField(); ?>
+                    <input type="hidden" name="action" value="add_staff">
+                    <label>Full name<input type="text" name="full_name" required maxlength="100"></label>
+                    <label>Username<input type="text" name="username" required maxlength="20"></label>
+                    <label>Email<input type="email" name="email" required maxlength="100"></label>
+                    <label>Contact number<input type="text" name="contact_number" required maxlength="20"></label>
+                    <label>Password<input type="password" name="password" required minlength="8"></label>
+                    <label>Role<select name="role" required><?php foreach ($staffRoles as $role => $label): ?><option value="<?php echo htmlspecialchars($role); ?>"><?php echo htmlspecialchars($label); ?></option><?php endforeach; ?></select></label>
+                    <button type="submit">Add Staff</button>
+                </form>
+            </section>
+            </div>
         </main>
     </div>
 

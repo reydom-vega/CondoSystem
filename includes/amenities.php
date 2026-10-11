@@ -118,6 +118,43 @@ function poolAvailability(mysqli $db,string $date,int $duration): array {
     return ['success'=>true,'date'=>$date,'duration'=>$duration,'hourly_rate'=>300,'total_fee'=>$duration*300,'timezone'=>'Asia/Manila','slots'=>$slots,'booked'=>$booked,'fully_booked'=>$available===0 && count(array_filter($slots,fn($slot)=>$slot['status']==='booked'))===count($slots)];
 }
 
+/** Match the existing full-day hall hold, including pending reservations. No identities are exposed. */
+function functionHallAvailability(mysqli $db, string $date): array {
+    if (!workflowDate($date)) throw new InvalidArgumentException('Choose a valid reservation date.');
+    $query = $db->prepare("SELECT 1 FROM bookings WHERE amenity='Function Hall' AND booking_date=? AND status IN ('pending','approved','confirmed','completed') LIMIT 1");
+    $query->bind_param('s', $date);
+    $query->execute();
+    $reserved = (bool)$query->get_result()->fetch_row();
+    $slots = [];
+    for ($hour = 6; $hour <= 20; $hour++) {
+        $start = sprintf('%02d:00', $hour);
+        $slots[] = ['start' => $start, 'end' => '21:00', 'status' => $reserved ? 'booked' : ($date . ' ' . $start . ':00' <= date('Y-m-d H:i:s') ? 'past' : 'available')];
+    }
+    return ['success' => true, 'amenity' => 'Function Hall', 'date' => $date, 'reservation_type' => 'full_day', 'total_fee' => 3000, 'timezone' => 'Asia/Manila', 'slots' => $slots, 'fully_booked' => $reserved];
+}
+
+/** One status per day, using the same exclusive full-day holds as booking validation. */
+function functionHallCalendarAvailability(mysqli $db, string $month): array {
+    if (!preg_match('/\A[0-9]{4}-(?:0[1-9]|1[0-2])\z/', $month) || (int)substr($month, 0, 4) < 1000 || (int)substr($month, 0, 4) > 9998) {
+        throw new InvalidArgumentException('Choose a valid calendar month.');
+    }
+    $first = new DateTimeImmutable($month . '-01');
+    $start = $first->format('Y-m-d');
+    $end = $first->modify('first day of next month')->format('Y-m-d');
+    $query = $db->prepare("SELECT DISTINCT booking_date FROM bookings WHERE amenity='Function Hall' AND booking_date>=? AND booking_date<? AND status IN ('pending','approved','confirmed','completed')");
+    $query->bind_param('ss', $start, $end);
+    $query->execute();
+    $reserved = array_column($query->get_result()->fetch_all(MYSQLI_ASSOC), null, 'booking_date');
+    $days = [];
+    $today = date('Y-m-d');
+    for ($day = $first; $day->format('Y-m-d') < $end; $day = $day->modify('+1 day')) {
+        $date = $day->format('Y-m-d');
+        $past = $date < $today || ($date === $today && date('H:i:s') >= '20:00:00');
+        $days[] = ['date' => $date, 'status' => isset($reserved[$date]) ? 'booked' : ($past ? 'past' : 'available')];
+    }
+    return ['success' => true, 'amenity' => 'Function Hall', 'month' => $month, 'reservation_type' => 'full_day', 'total_fee' => 3000, 'timezone' => 'Asia/Manila', 'first_weekday' => (int)$first->format('w'), 'days' => $days];
+}
+
 /** Decision and bill share a transaction; approvals also share the schedule mutex. */
 function decideAmenityBooking(mysqli $db,int $id,string $action,string $reason='',bool $pmoReview=false): bool {
     if(!isLoggedIn()) throw new InvalidArgumentException('Sign in before changing a booking.');

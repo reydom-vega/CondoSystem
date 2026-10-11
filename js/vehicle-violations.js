@@ -116,6 +116,7 @@
     form.dataset.confirmTitle = 'Submit vehicle report'; form.dataset.confirmAction = 'Submit report';
     form.querySelector('button[type=submit]').textContent = 'Submit Vehicle Report';
     syncPenalty();
+    form.closest('.violation-workspace')?.dispatchEvent(new CustomEvent('violation:show-issue'));
     form.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
     animate(fields); input('violation_type').focus({ preventScroll: true });
     if (dialog.open) dialog.close();

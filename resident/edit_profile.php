@@ -254,34 +254,6 @@ $db->close();
                         </div>
                     <?php endif; ?>
 
-                    <?php if ($otpMessage): ?><div class="alert success"><?php echo htmlspecialchars($otpMessage); ?></div><?php endif; ?>
-                    <?php if ($otpError): ?><div class="alert error"><?php echo htmlspecialchars($otpError); ?></div><?php endif; ?>
-
-                    <div class="phone-verify">
-                        <div class="phone-verify-head">
-                            <h3 class="section-title">Phone Verification</h3>
-                            <?php if ($phoneVerified): ?><span class="pv-badge ok">✓ Verified</span><?php endif; ?>
-                        </div>
-                        <?php if ($phoneVerified): ?>
-                            <p class="pv-note">You'll receive SMS notifications for dues and approvals.</p>
-                        <?php else: ?>
-                            <p class="pv-note">Verify your number to get SMS reminders for dues and parking approvals.</p>
-                            <div class="pv-row">
-                                <form method="POST" action="edit_profile.php">
-                                    <?php echo workflowCsrfField(); ?>
-                                    <input type="hidden" name="action" value="send_phone_otp">
-                                    <button type="submit">Send Code</button>
-                                </form>
-                                <form method="POST" action="edit_profile.php" class="pv-code-form">
-                                    <?php echo workflowCsrfField(); ?>
-                                    <input type="hidden" name="action" value="verify_phone_otp">
-                                    <input type="text" id="otp_code" name="otp_code" maxlength="6" placeholder="123456" inputmode="numeric" autocomplete="one-time-code" aria-label="Verification code">
-                                    <button type="submit">Verify</button>
-                                </form>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-
                     <form method="POST" action="edit_profile.php" class="profile-form">
                         <?php echo workflowCsrfField(); ?>
                         <input type="hidden" name="action" value="update_profile">

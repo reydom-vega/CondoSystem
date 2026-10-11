@@ -63,7 +63,7 @@
 .amenity-page #amenityApp .amenity-dialog-intro { margin:16px 0 20px; color:var(--amenity-muted); font-size:14px; }
 .amenity-form-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin:18px 0; }
 .amenity-page #amenityApp .field-label { display:flex; flex-direction:column; gap:8px; margin:0; color:#dbe4f2; font-size:13px; font-weight:600; letter-spacing:normal; text-transform:none; }
-.amenity-page #amenityApp :is(.amenity-form-grid,.amenity-admin-filter,.amenity-decision-details) :is(input:not([type=hidden]):not([type=checkbox]),select,textarea) { box-sizing:border-box; width:100%; min-width:0; min-height:44px; padding:10px 12px; margin:0; border:1px solid #536179; border-radius:8px; background:#121b2a; color:#f1f5f9; font:400 14px/1.5 Inter,"Segoe UI",sans-serif; }
+.amenity-page #amenityApp :is(.amenity-form-grid,.amenity-admin-filter,.amenity-decision-details,.amenity-calendar-controls) :is(input:not([type=hidden]):not([type=checkbox]),select,textarea) { box-sizing:border-box; width:100%; min-width:0; min-height:44px; padding:10px 12px; margin:0; border:1px solid #536179; border-radius:8px; background:#121b2a; color:#f1f5f9; font:400 14px/1.5 Inter,"Segoe UI",sans-serif; }
 .amenity-slot-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:24px 0 14px; }
 .amenity-page #amenityApp .amenity-slot-heading h3 { font-size:17px; }
 .amenity-slot-legend { display:flex; gap:16px; flex-wrap:wrap; color:var(--amenity-muted); font-size:12px; }
@@ -98,6 +98,7 @@
 .amenity-admin-schedule .amenity-time-slots { grid-template-columns:repeat(5,minmax(0,1fr)); }
 .amenity-admin-filter { display:flex; gap:14px; align-items:flex-end; margin:20px 0; }
 .amenity-admin-filter label { min-width:200px; }
+.amenity-admin-filter .amenity-history-search { flex:1 1 280px; min-width:0; }
 .amenity-admin-table-wrap { min-width:0; max-width:100%; overflow-x:auto; border:1px solid var(--amenity-border); border-radius:12px; }
 .amenity-admin-table { width:100%; min-width:1380px; border-collapse:collapse; text-align:left; }
 .amenity-admin-table :is(th,td) { padding:15px 14px; border-bottom:1px solid var(--amenity-border); font-size:13px; vertical-align:top; }
@@ -122,9 +123,9 @@
 .amenity-resident-page #amenityApp .amenity-page-intro p:last-child { max-width:650px; margin-top:8px !important; font-size:14px; }
 .amenity-timezone { flex-shrink:0; color:var(--amenity-muted); font-size:12px; padding:7px 11px; border:1px solid var(--amenity-border); border-radius:7px; }
 .amenity-view-nav { display:flex; gap:8px; margin-bottom:28px; padding:5px; width:fit-content; max-width:100%; border:1px solid var(--amenity-border); border-radius:11px; background:#131a28; }
-.amenity-resident-page #amenityApp .amenity-view-nav button { display:flex; align-items:center; justify-content:center; gap:9px; width:auto; margin:0; min-height:42px; padding:10px 18px; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--amenity-muted); font:600 14px/1.4 Inter,"Segoe UI",sans-serif; box-shadow:none; }
-.amenity-resident-page #amenityApp .amenity-view-nav button[aria-selected=true] { background:#303044; border-color:#716047; color:#ffe1ac; }
-.amenity-resident-page #amenityApp .amenity-view-nav button:hover { color:#fff; }
+.amenity-page #amenityApp .amenity-view-nav button { display:flex; align-items:center; justify-content:center; gap:9px; width:auto; margin:0; min-height:42px; padding:10px 18px; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--amenity-muted); font:600 14px/1.4 Inter,"Segoe UI",sans-serif; box-shadow:none; }
+.amenity-page #amenityApp .amenity-view-nav button[aria-selected=true] { background:#303044; border-color:#716047; color:#ffe1ac; }
+.amenity-page #amenityApp .amenity-view-nav button:hover { color:#fff; }
 .amenity-count { display:inline-flex; align-items:center; justify-content:center; min-width:23px; height:23px; padding:0 5px; border-radius:6px; background:#ffffff12; font-size:11px; }
 .amenity-reservable-heading { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-top:0; }
 .amenity-section-count { color:var(--amenity-muted); font-size:12px; white-space:nowrap; }
@@ -215,8 +216,8 @@ html:has(.amenity-resident-page dialog[open]) { overflow:hidden; }
  .amenity-resident-page #amenityApp .dash-title { font-size:22px; }
  .amenity-resident-page #amenityApp .profile-nav-name,.amenity-resident-page #amenityApp .profile-caret { display:none; }
  .amenity-resident-page #amenityApp .btn-profile-nav { padding:0; min-width:36px; border:0; background:transparent; }
- .amenity-resident-page #amenityApp .amenity-view-nav { width:100%; box-sizing:border-box; gap:3px; margin-bottom:24px; }
- .amenity-resident-page #amenityApp .amenity-view-nav button { flex:1; padding:9px 5px; gap:5px; font-size:12px; }
+ .amenity-page #amenityApp .amenity-view-nav { width:100%; box-sizing:border-box; gap:3px; margin-bottom:24px; }
+ .amenity-page #amenityApp .amenity-view-nav button { flex:1; padding:9px 5px; gap:5px; font-size:12px; }
  .amenity-resident-page #amenityApp .amenity-card .amenity-body { padding:18px; }
  .amenity-resident-page #amenityApp .amenity-dialog-heading h2 { font-size:18px !important; }
  .amenity-resident-page #amenityApp .amenity-dialog-heading > button { padding:7px 10px; min-height:36px; font-size:12px; }
@@ -228,3 +229,22 @@ html:has(.amenity-resident-page dialog[open]) { overflow:hidden; }
  .amenity-resident-page #amenityApp .amenity-time-slots { grid-template-columns:repeat(2,minmax(0,1fr)); }
  .amenity-resident-page #amenityApp .amenity-history-card { padding:18px; }
 }
+
+.amenity-availability-panels { display:grid; gap:24px; }
+.amenity-availability-panels[hidden] { display:none !important; }
+.amenity-calendar-controls { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; margin-top:20px; }
+.amenity-calendar-controls label { min-width:170px; }
+.amenity-calendar { max-width:760px; }
+.amenity-calendar-weekdays,.amenity-calendar-days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:8px; }
+.amenity-calendar-weekdays { margin-bottom:8px; color:var(--amenity-muted); text-align:center; font-size:12px; }
+.amenity-calendar-day { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; min-width:0; min-height:78px; border:1px solid #3c8e75; border-radius:9px; background:#132d2b; color:#c3f3df; }
+.amenity-calendar-day strong { font-size:18px; }
+.amenity-calendar-day span { font-size:12px; }
+.amenity-calendar-day[data-state=booked] { border-color:#80505a; background:#33232b; color:#f2bcc5; }
+.amenity-calendar-day[data-state=past] { border-color:#3b4559; background:#202635; color:#aeb9ca; }
+@media(max-width:560px) { .amenity-calendar-weekdays,.amenity-calendar-days { gap:4px; } .amenity-calendar-day { min-height:60px; border-radius:6px; gap:3px; } .amenity-calendar-day strong { font-size:15px; } .amenity-calendar-day span { font-size:clamp(8px,2.5vw,11px); } .amenity-calendar-weekdays { font-size:10px; } .amenity-calendar-controls { gap:8px; } .amenity-calendar-controls label { flex:1; min-width:120px; } }
+@media(max-width:380px) { .amenity-calendar-day[data-state=available] span { font-size:0; } .amenity-calendar-day[data-state=available] span::after { content:'Avail.'; font-size:9px; } }
+.amenity-page #amenityApp .amenity-admin-schedule .amenity-time-slots button:disabled { opacity:1; cursor:default; }
+.amenity-page #amenityApp .amenity-view-nav { flex-wrap:wrap; }
+.amenity-page #amenityApp .amenity-view-nav button:focus-visible { outline:2px solid #fbbf24; outline-offset:3px; }
+@media(max-width:700px) { .amenity-page #amenityApp .amenity-view-nav { width:100%; gap:3px; } .amenity-page #amenityApp .amenity-view-nav button { flex:1 1 0; min-width:0; padding:9px 5px; gap:5px; font-size:12px; flex-wrap:wrap; } }

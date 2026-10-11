@@ -1,5 +1,6 @@
 <?php
 require_once '../config.php';
+require_once __DIR__ . '/../includes/billing_workspace.php';
 
 if (!isLoggedIn()) {
     redirect('../login.php');
@@ -11,8 +12,10 @@ if (!canManageBilling()) {
 $username = $_SESSION['username'] ?? 'Administrator';
 $nameParts = preg_split('/\s+/', trim($username));
 $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? substr(end($nameParts), 0, 1) : ''));
-$search = trim($_GET['search'] ?? '');
+$search = trim($_POST['search'] ?? $_GET['search'] ?? '');
 $statusFilter = $_GET['status'] ?? 'all';
+if (!in_array($statusFilter, ['all', 'paid', 'pending', 'overdue'], true)) $statusFilter = 'all';
+$activeTab = billingWorkspaceActiveTab();
 $payments = [];
 $totals = ['all' => 0, 'paid' => 0, 'pending' => 0, 'overdue' => 0];
 $successMessage = '';
@@ -29,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($paymentId > 0) {
             if (confirmCashBillPayment($connection, $paymentId)) {
                 $successMessage = 'Payment marked as paid via Cash.';
+                $activeTab = 'history';
             }
         }
     } elseif ($action === 'send_reminders') {
@@ -40,11 +44,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if ($successMessage !== '') {
     $_SESSION['unitpayments_success'] = $successMessage;
-    $redirectParams = [];
+    $redirectParams = ['tab' => $activeTab];
     if ($search !== '') {
         $redirectParams['search'] = $search;
     }
-    if ($statusFilter !== 'all') {
+    if ($activeTab === 'billing' && in_array($statusFilter, ['pending', 'overdue'], true)) {
         $redirectParams['status'] = $statusFilter;
     }
     $redirectUrl = 'unitpayments.php' . ($redirectParams ? '?' . http_build_query($redirectParams) : '');
@@ -77,15 +81,16 @@ if (ensurePaymentsTable($connection)) {
             if ($search !== '' && strpos($haystack, strtolower($search)) === false) {
                 continue;
             }
-            if ($statusFilter !== 'all' && $payment['status'] !== $statusFilter) {
-                continue;
-            }
             $payments[] = $payment;
         }
     }
 }
 
 $paymentCount = count($payments);
+$paidPayments = array_values(array_filter($payments, static fn(array $payment): bool => $payment['status'] === 'paid'));
+$currentPayments = array_values(array_filter($payments, static fn(array $payment): bool =>
+    $payment['status'] !== 'paid' && (!in_array($statusFilter, ['pending', 'overdue'], true) || $payment['status'] === $statusFilter)
+));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -95,6 +100,8 @@ $paymentCount = count($payments);
     <title>Celandine Residences</title>
     <link rel="stylesheet" href="../styles.css">
 <?php renderPortalUiHead(); ?>
+    <link rel="stylesheet" href="../assets/css/billing-workspace.css?v=<?php echo (int)filemtime(__DIR__ . '/../assets/css/billing-workspace.css'); ?>">
+    <script src="../assets/js/billing-workspace.js?v=<?php echo (int)filemtime(__DIR__ . '/../assets/js/billing-workspace.js'); ?>" defer></script>
 </head>
 <body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
@@ -104,9 +111,9 @@ $paymentCount = count($payments);
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-        <main class="dashboard-main">
+        <main class="dashboard-main billing-workspace">
             <header class="dash-header">
-                <div class="dash-header-left"><button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button><div><span class="dash-subtitle">CELANDINE RESIDENCES</span><h1 class="dash-title">Payments</h1></div></div>
+                <div class="dash-header-left"><button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button><div><span class="dash-subtitle">CELANDINE RESIDENCES</span><h1 class="dash-title">Billing &amp; Payments</h1></div></div>
                 <div class="dash-header-right">
                     <?php include '../notifications.php'; ?>
                     <div class="profile-menu" id="profileMenu">
@@ -127,28 +134,22 @@ $paymentCount = count($payments);
                 <div class="payment-overview-card overdue"><span>Overdue</span><strong>₱<?php echo number_format($totals['overdue'], 2); ?></strong></div>
             </section>
 
-            <section class="unit-management-panel payment-management-panel">
+            <?php renderBillingWorkspaceTabs($activeTab, count($currentPayments), count($paidPayments)); ?>
+            <?php foreach (['billing' => $currentPayments, 'history' => $paidPayments] as $panelKey => $payments): ?>
+            <section class="unit-management-panel payment-management-panel" <?php echo billingWorkspacePanelAttributes($panelKey, $activeTab); ?>>
+                <div class="billing-section-head"><div><h2><?php echo $panelKey === 'history' ? 'Payment History' : 'Outstanding Bills'; ?></h2><p><?php echo $panelKey === 'history' ? 'Completed payments and their recorded references.' : 'Review unpaid statements and confirm cash received at the office.'; ?></p></div></div>
                 <form class="unit-filters" method="get" action="unitpayments.php">
-                    <label for="paymentSearch">Search payments</label><input id="paymentSearch" type="search" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Search resident or unit...">
-                    <label for="paymentStatus">Filter by status</label><select id="paymentStatus" name="status"><option value="all" <?php echo $statusFilter === 'all' ? 'selected' : ''; ?>>All statuses</option><option value="paid" <?php echo $statusFilter === 'paid' ? 'selected' : ''; ?>>Paid</option><option value="pending" <?php echo $statusFilter === 'pending' ? 'selected' : ''; ?>>Pending</option><option value="overdue" <?php echo $statusFilter === 'overdue' ? 'selected' : ''; ?>>Overdue</option></select>
+                    <input type="hidden" name="tab" value="<?php echo $panelKey; ?>">
+                    <label for="paymentSearch-<?php echo $panelKey; ?>">Search <?php echo $panelKey === 'history' ? 'history' : 'bills'; ?></label><input id="paymentSearch-<?php echo $panelKey; ?>" type="search" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Resident, unit or reference...">
+                    <?php if ($panelKey === 'billing'): ?>
+                    <label for="paymentStatus">Filter by status</label><select id="paymentStatus" name="status"><option value="all">All unpaid statuses</option><option value="pending" <?php echo $statusFilter === 'pending' ? 'selected' : ''; ?>>Pending</option><option value="overdue" <?php echo $statusFilter === 'overdue' ? 'selected' : ''; ?>>Overdue</option></select>
+                    <?php endif; ?>
                     <button type="submit">Search</button>
                 </form>
-                <div class="unit-table-wrap"><table class="unit-table payment-table"><thead><tr><th>Resident</th><th>Unit</th><th>Amount</th><th>Method</th><th>Date</th><th>Time</th><th>Reference</th><th>Status</th><th>Actions</th></tr></thead><tbody>
-                    <?php if (empty($payments)): ?><tr><td colspan="9" class="unit-empty">No payment records found.</td></tr><?php else: ?>
-                        <?php foreach ($payments as $payment): $items = getBillItems($connection, (int)$payment['id']); $reference = 'DUES-' . (int)$payment['id']; $paymentDate = !empty($payment['paid_at']) ? $payment['paid_at'] : $payment['created_at']; ?><tr><td><strong><?php echo htmlspecialchars($payment['full_name']); ?></strong><small>@<?php echo htmlspecialchars($payment['username']); ?></small></td><td><?php echo htmlspecialchars($payment['unit_number']); ?></td><td>
-                            <?php if (empty($items)): ?>
-                                <strong>₱<?php echo number_format((float)$payment['amount'], 2); ?></strong>
-                            <?php else: ?>
-                                <details><summary><strong>₱<?php echo number_format((float)$payment['amount'], 2); ?></strong></summary>
-                                    <div style="margin-top:6px; font-size:12px; color:#9ca3af;">
-                                        <?php foreach ($items as $item): ?><div><?php echo htmlspecialchars($item['category']); ?>: ₱<?php echo number_format((float)$item['amount'], 2); ?></div><?php endforeach; ?>
-                                    </div>
-                                </details>
-                            <?php endif; ?>
-                        </td><td><?php echo htmlspecialchars(paymentChannelLabel($payment['payment_channel'] ?? null, $payment['payment_method'] ?? null)); ?></td><td class="payment-date-cell"><?php echo htmlspecialchars(date('M j, Y', strtotime($paymentDate))); ?></td><td class="payment-time-cell"><?php echo htmlspecialchars(date('g:i A', strtotime($paymentDate))); ?></td><td><strong><?php echo htmlspecialchars($reference); ?></strong><?php if (!empty($payment['paymongo_payment_id'])): ?><br><small>Payment ID: <?php echo htmlspecialchars($payment['paymongo_payment_id']); ?></small><?php endif; ?></td><td><span class="unit-status <?php echo htmlspecialchars($payment['status']); ?>"><?php echo htmlspecialchars(ucfirst($payment['status'])); ?></span></td><td><?php if (in_array($payment['status'], ['pending', 'overdue'], true) && $payment['payment_method'] === 'cash'): ?><form method="post" class="manual-payment-confirm"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="mark_paid"><input type="hidden" name="payment_id" value="<?php echo (int)$payment['id']; ?>"><button type="submit" class="btn-small btn-approve">Confirm Cash Paid</button></form><?php elseif (in_array($payment['status'], ['pending', 'overdue'], true) && in_array($payment['payment_method'], ['bank', 'online'], true)): ?><span>Awaiting PayMongo</span><?php else: ?>—<?php endif; ?></td></tr><?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody></table></div>
+                <?php include __DIR__ . '/../includes/billing_staff_table.php'; ?>
             </section>
+            <?php endforeach; ?>
+
         </main>
     </div>
     <script>

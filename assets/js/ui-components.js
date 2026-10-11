@@ -10,7 +10,6 @@
   const main = document.querySelector('.dashboard-main,main,.form-panel,.pending-card,.rejected-card');
   const controller = new AbortController();
   const on = (node,event,fn,options={}) => node?.addEventListener(event,fn,{...options,signal:controller.signal});
-  const role = document.querySelector('meta[name=portal-role]')?.content;
   const storageKey = 'celandine-sidebar-collapsed';
   let restoreFocus;
 
@@ -89,10 +88,6 @@
     const separator = document.createElement('span'); separator.textContent = '/'; separator.setAttribute('aria-hidden','true');
     const current = document.createElement('span'); current.textContent = heading.textContent; current.setAttribute('aria-current','page');
     breadcrumb.append(home,separator,current); header.after(breadcrumb);
-  }
-  if (role && header?.querySelector('.dash-header-right')) {
-    const badge = document.createElement('span'); badge.className = 'portal-role-badge'; badge.textContent = role;
-    header.querySelector('.dash-header-right').prepend(badge);
   }
   document.querySelectorAll('.alert').forEach(alert => {
     if (!alert.hasAttribute('role')) alert.setAttribute('role',alert.classList.contains('error') ? 'alert' : 'status');

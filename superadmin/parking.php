@@ -1,5 +1,6 @@
 <?php
-require_once '../config.php';
+require_once __DIR__.'/../config.php';
+require_once __DIR__.'/../includes/parking_workspace.php';
 
 if (!isLoggedIn()) {
     redirect('../login.php');
@@ -60,6 +61,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (in_array($_POST['action'] ?? '', ['import_inventory','update_status'], true) || isset($_POST['sticker_price'])) requireCapability('parking.configure');
+    if (($_POST['action'] ?? '') === 'review_vehicle') requireCapability('vehicles.review');
+}
+$parkingTabs = parkingWorkspaceTabs(false);
+$parkingActiveTab = parkingWorkspaceActiveTab($parkingTabs, $parkingDefaultTab ?? 'overview');
+$parkingFlash = getFlash();
+if ($parkingFlash) $success = (string)$parkingFlash['message'];
+$parkingVehiclesContent = isset($parkingTabs['vehicles']) ? parkingWorkspaceModule('staff-vehicles') : '';
+$parkingSlotsContent = isset($parkingTabs['slots']) ? parkingWorkspaceModule('slots') : '';
+$parkingConfigurationContent = canAccess('parking.configure') ? parkingWorkspaceModule('configuration') : '';
 $requests = getAllParkingRequests($connection);
 $pendingRequests = array_values(array_filter($requests, static fn (array $r): bool => $r['status'] === 'pending'));
 $canSeeStickerClaims = canAccess('stickers.issue') || canAccess('billing.manage');
@@ -84,9 +96,11 @@ foreach ($parkingSlots as $slot) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences</title>
+    <title>Celandine Residences - Parking Management</title>
     <link rel="stylesheet" href="../styles.css?v=<?php echo filemtime(__DIR__ . '/../styles.css'); ?>">
 <link rel="stylesheet" href="../services.css?v=<?php echo filemtime(__DIR__ . '/../services.css'); ?>"><?php renderPortalUiHead(); ?>
+<link rel="stylesheet" href="../assets/css/parking-workspace.css?v=<?= filemtime(__DIR__.'/../assets/css/parking-workspace.css') ?>">
+<script defer src="../assets/js/parking-workspace.js?v=<?= filemtime(__DIR__.'/../assets/js/parking-workspace.js') ?>"></script>
 </head>
 <body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
@@ -96,9 +110,9 @@ foreach ($parkingSlots as $slot) {
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-        <main class="dashboard-main">
+        <main class="dashboard-main parking-workspace">
             <header class="dash-header">
-                <div class="dash-header-left"><button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button><div><span class="dash-subtitle">CELANDINE RESIDENCES</span><h1 class="dash-title">Parking</h1></div></div>
+                <div class="dash-header-left"><button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button><div><span class="dash-subtitle">CELANDINE RESIDENCES</span><h1 class="dash-title"><?= canAccess('management.dashboard') ? 'Parking Management' : 'Parking &amp; Stickers' ?></h1></div></div>
                 <div class="dash-header-right">
                     <?php include '../notifications.php'; ?>
                     <div class="profile-menu" id="profileMenu">
@@ -107,17 +121,19 @@ foreach ($parkingSlots as $slot) {
                     </div>
                 </div>
             </header>
-            <?php if (isSuperAdmin()): ?><p><a class="service-btn service-btn-secondary" href="parking_configuration.php">Parking configuration</a> · <a class="service-btn service-btn-secondary" href="parkinginventory.php">Parking inventory</a></p><?php endif; ?>
+            <?php renderParkingWorkspaceTabs($parkingTabs, $parkingActiveTab); ?>
 
             <?php if ($success): ?><div class="alert success"><?php echo htmlspecialchars($success); ?></div><?php endif; ?>
             <?php if (!empty($errors)): ?><div class="alert error"><ul><?php foreach ($errors as $error): ?><li><?php echo htmlspecialchars($error); ?></li><?php endforeach; ?></ul></div><?php endif; ?>
 
+            <section <?= parkingWorkspacePanelAttributes('overview', $parkingActiveTab) ?>>
             <section class="unit-page-head">
-                <div><h2>Parking Requests</h2><p>Slots are assigned from parking inventory when passes are approved or stickers are issued. You can change the designated slot below.</p></div>
+                <div><h2>Parking overview</h2><p>Review parking requests and slot assignments in Visitor Parking. Manage paid sticker issuance in Sticker Requests.</p></div>
                 <div class="unit-summary">
                     <span><?php echo count($pendingRequests); ?> Pending Requests</span>
                     <a class="service-btn service-btn-secondary" href="registeredvehicles.php">Registered Vehicles</a>
-                    <a class="service-btn service-btn-secondary" href="parkinginventory.php">Parking Slot Inventory</a>
+                    <?php if (isset($parkingTabs['slots'])): ?><a class="service-btn service-btn-secondary" href="parking.php?tab=slots">Parking Slots</a><?php endif; ?>
+                    <a class="service-btn service-btn-secondary" href="parking.php?tab=visitors">Visitor Parking</a>
                 </div>
             </section>
 
@@ -128,6 +144,13 @@ foreach ($parkingSlots as $slot) {
                 <div class="admin-stat-card"><?php echo systemIconFromGlyph('🛠️', 'admin-stat-icon admin-icon-pink'); ?><strong><?php echo $maintenanceSlots; ?></strong><span>Maintenance Slots</span></div>
             </section>
 
+            </section>
+            <?php if (isset($parkingTabs['slots'])): ?><section <?= parkingWorkspacePanelAttributes('slots', $parkingActiveTab) ?>>
+                <?php if ($parkingConfigurationContent): ?><details class="parking-config-details" <?= isset($_POST['sticker_price']) || basename($_SERVER['SCRIPT_FILENAME'] ?? '') === 'parking_configuration.php' ? 'open' : '' ?>><summary>Parking configuration</summary><?= $parkingConfigurationContent ?></details><?php endif; ?>
+                <?= $parkingSlotsContent ?>
+            </section><?php endif; ?>
+            <?php if (isset($parkingTabs['vehicles'])): ?><section <?= parkingWorkspacePanelAttributes('vehicles', $parkingActiveTab) ?>><?= $parkingVehiclesContent ?></section><?php endif; ?>
+            <section <?= parkingWorkspacePanelAttributes('visitors', $parkingActiveTab) ?>>
             <div class="parking-request-columns">
             <section class="unit-management-panel parking-panel parking-requests-panel">
                 <h3 class="section-title">Parking Requests</h3>
@@ -185,7 +208,8 @@ foreach ($parkingSlots as $slot) {
                 <?php endif; ?>
             </section>
 
-            <?php if ($canSeeStickerClaims): ?><section class="unit-management-panel parking-panel sticker-requests-panel">
+            </div></section>
+            <?php if ($canSeeStickerClaims): ?><section <?= parkingWorkspacePanelAttributes('stickers', $parkingActiveTab) ?>><section class="unit-management-panel parking-panel sticker-requests-panel">
                 <h3 class="section-title">Resident Parking Sticker Requests</h3>
                 <?php if (empty($stickerClaims)): ?>
                     <p class="bookings-empty">No sticker requests yet.</p>
@@ -247,8 +271,8 @@ foreach ($parkingSlots as $slot) {
                         </div>
                     <?php endforeach; ?>
                 <?php endif; ?>
-            </section><?php endif; ?>
-            </div>
+            </section></section><?php endif; ?>
+            <section <?= parkingWorkspacePanelAttributes('records', $parkingActiveTab) ?>><?php include __DIR__.'/../includes/parking_records_content.php'; ?></section>
 
         </main>
     </div>

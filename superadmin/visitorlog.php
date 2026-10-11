@@ -18,6 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireWorkflowCsrf();
     $action = $_POST['action'] ?? '';
     $actorId = (int)$_SESSION['user_id'];
+    $returnTab = $action === 'checkout' ? 'inside' : 'form';
     try {
         if ($action === 'checkin') {
             $visitorName = trim($_POST['visitor_name'] ?? '');
@@ -31,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($visitorId !== false) {
                     logAudit('checkin', 'visitor', $visitorId, 'Logged in visitor '.$visitorName.' for unit '.$unitNumber);
                     setFlash('success', htmlspecialchars($visitorName).' has been logged in.');
+                    $returnTab = 'inside';
                 } else {
                     setFlash('error', 'Could not log the visitor in. Please try again.');
                 }
@@ -40,6 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($visitorId > 0 && logVisitorOut($connection, $visitorId, $actorId)) {
                 logAudit('checkout', 'visitor', $visitorId, 'Checked out visitor entry #'.$visitorId);
                 setFlash('success', 'Visitor checked out.');
+                $returnTab = 'history';
             } else {
                 setFlash('error', 'Could not check out that visitor.');
             }
@@ -50,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         error_log('Manual visitor log failed: '.$error->getMessage());
         setFlash('error', 'Could not update the visitor log. Please try again.');
     }
-    redirect('visitorlog.php');
+    redirect('visitorlog.php?tab=' . $returnTab);
 }
 
 $search = trim($_GET['search'] ?? '');
@@ -84,6 +87,8 @@ $visitors = array_values(array_filter($allVisitors, function (array $visitor) us
 
 $activeCount = countActiveVisitors($connection);
 $activeVisitors = getActiveVisitors($connection);
+$visitorLogTabs = ['form' => 'Log a Visitor In', 'inside' => 'Currently Inside', 'history' => 'History'];
+$visitorLogTab = is_string($_GET['tab'] ?? null) && isset($visitorLogTabs[$_GET['tab']]) ? $_GET['tab'] : (isset($_GET['search']) || isset($_GET['status']) ? 'history' : 'form');
 $flash = getFlash();
 ?>
 <!DOCTYPE html>
@@ -94,6 +99,8 @@ $flash = getFlash();
     <title>Celandine Residences</title>
     <link rel="stylesheet" href="../styles.css">
 <?php renderPortalUiHead(); ?>
+    <link rel="stylesheet" href="../assets/css/workspace-tabs.css">
+    <script src="../assets/js/workspace-tabs.js" defer></script>
 </head>
 <body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
@@ -122,10 +129,15 @@ $flash = getFlash();
 
             <?php if ($flash): ?><div class="alert <?php echo $flash['type'] === 'error' ? 'error' : 'success'; ?>" role="status"><?php echo $flash['message']; ?></div><?php endif; ?>
 
-            <section class="visitor-log-workspace" aria-label="Visitor check-in and check-out">
-                <div class="unit-management-panel">
+            <div class="visitor-log-workspace" data-workspace-tabs>
+                <nav class="workspace-tabs" role="tablist" aria-label="Visitor log sections">
+                    <?php foreach ($visitorLogTabs as $tabKey => $tabLabel): ?>
+                    <a id="visitor-log-tab-<?= $tabKey ?>" href="?<?= htmlspecialchars(http_build_query(['tab' => $tabKey, 'search' => $search, 'status' => $statusFilter]), ENT_QUOTES, 'UTF-8') ?>" role="tab" data-workspace-tab="<?= $tabKey ?>" aria-controls="visitor-log-panel-<?= $tabKey ?>" aria-selected="<?= $visitorLogTab === $tabKey ? 'true' : 'false' ?>" tabindex="<?= $visitorLogTab === $tabKey ? '0' : '-1' ?>"><?= htmlspecialchars($tabLabel, ENT_QUOTES, 'UTF-8') ?><?php if ($tabKey !== 'form'): ?> <span class="workspace-tab-count"><?= $tabKey === 'inside' ? $activeCount : count($allVisitors) ?></span><?php endif; ?></a>
+                    <?php endforeach; ?>
+                </nav>
+                <section class="unit-management-panel" id="visitor-log-panel-form" role="tabpanel" aria-labelledby="visitor-log-tab-form" tabindex="0" data-workspace-panel="form" <?= $visitorLogTab !== 'form' ? 'hidden' : '' ?>>
                     <h3 class="section-title">Log a Visitor In</h3>
-                    <form method="post" action="visitorlog.php" class="visitor-form"><?php echo workflowCsrfField(); ?>
+                    <form method="post" action="visitorlog.php?tab=form" class="visitor-form"><?php echo workflowCsrfField(); ?>
                         <input type="hidden" name="action" value="checkin">
                         <div class="field"><label for="visitorName">Visitor name</label><input id="visitorName" name="visitor_name" maxlength="120" placeholder="e.g. Juan Dela Cruz" required></div>
                         <div class="field"><label for="visitorContact">Contact number (optional)</label><input id="visitorContact" name="visitor_contact" maxlength="30" placeholder="e.g. 09171234567"></div>
@@ -133,8 +145,8 @@ $flash = getFlash();
                         <div class="field"><label for="visitorPurpose">Purpose (optional)</label><input id="visitorPurpose" name="purpose" maxlength="150" placeholder="e.g. Delivery, family visit"></div>
                         <button type="submit">Log Visitor In</button>
                     </form>
-                </div>
-                <div class="unit-management-panel">
+                </section>
+                <section class="unit-management-panel" id="visitor-log-panel-inside" role="tabpanel" aria-labelledby="visitor-log-tab-inside" tabindex="0" data-workspace-panel="inside" <?= $visitorLogTab !== 'inside' ? 'hidden' : '' ?>>
                     <h3 class="section-title">Currently Inside (<?php echo $activeCount; ?>)</h3>
                     <?php if (!$activeVisitors): ?><p class="bookings-empty">No visitors currently checked in.</p><?php else: ?>
                     <div class="unit-table-wrap"><table class="unit-table">
@@ -143,15 +155,15 @@ $flash = getFlash();
                             <td><strong><?php echo htmlspecialchars($visitor['visitor_name']); ?></strong><br><small><?php echo (int)$visitor['visitor_count']; ?> visitor(s)</small><?php if ($visitor['purpose']): ?><br><?php echo htmlspecialchars($visitor['purpose']); ?><?php endif; ?></td>
                             <td><?php echo htmlspecialchars($visitor['unit_number']); ?></td>
                             <td><?php echo htmlspecialchars(date('M j, g:i A', strtotime($visitor['time_in']))); ?></td>
-                            <td><form method="post" action="visitorlog.php"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="checkout"><input type="hidden" name="visitor_log_id" value="<?php echo (int)$visitor['id']; ?>"><button type="submit" class="visitor-checkout-btn">Check Out</button></form></td>
+                            <td><form method="post" action="visitorlog.php?tab=inside"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="checkout"><input type="hidden" name="visitor_log_id" value="<?php echo (int)$visitor['id']; ?>"><button type="submit" class="visitor-checkout-btn">Check Out</button></form></td>
                         </tr><?php endforeach; ?></tbody>
                     </table></div><?php endif; ?>
-                </div>
-            </section>
+                </section>
 
-            <section class="unit-management-panel">
+            <section class="unit-management-panel" id="visitor-log-panel-history" role="tabpanel" aria-labelledby="visitor-log-tab-history" tabindex="0" data-workspace-panel="history" <?= $visitorLogTab !== 'history' ? 'hidden' : '' ?>>
                 <h3 class="section-title">Visitor History</h3>
                 <form class="unit-filters" method="get" action="visitorlog.php">
+                    <input type="hidden" name="tab" value="history">
                     <label for="visitorSearch">Search</label>
                     <input id="visitorSearch" type="search" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Visitor name, unit, contact...">
 
@@ -188,6 +200,7 @@ $flash = getFlash();
                     </table>
                 </div>
             </section>
+            </div>
         </main>
     </div>
     <script>

@@ -6,7 +6,7 @@ $path = rawurldecode((string)parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH));
 $relative = substr($path,strlen('/CondoSystem3/'));
 if (!str_starts_with($path,'/CondoSystem3/')) { http_response_code(404); exit; }
 if ($relative === '__manifest') { header('Content-Type: application/json'); echo getenv('CONDO_UI_MANIFEST'); exit; }
-$asset = preg_match('~^(?:assets/(?:css|js|vendor/gsap)/[a-zA-Z0-9./_-]+|js/[a-zA-Z0-9._-]+\.js|[a-zA-Z0-9_-]+\.css|(?:assets/(?:amenities|homepage)|IMAGES)/[a-zA-Z0-9 ._-]+)$~D',$relative);
+$asset = preg_match('~^(?:celandine(?:-favicon)?\.svg|assets/(?:css|js|vendor/gsap)/[a-zA-Z0-9./_-]+|js/[a-zA-Z0-9._-]+\.js|[a-zA-Z0-9_-]+\.css|(?:assets/(?:amenities|homepage)|IMAGES)/[a-zA-Z0-9 ._-]+)$~D',$relative);
 if ($asset) {
     $file = realpath($root.'/'.$relative);
     if (!$file || !is_file($file) || !str_starts_with(str_replace('\\','/',$file),str_replace('\\','/',$root).'/')) { http_response_code(404); exit; }
@@ -16,7 +16,7 @@ if ($asset) {
     header('Content-Type: '.$mime); readfile($file); exit;
 }
 $manifest = json_decode(getenv('CONDO_UI_MANIFEST') ?: '[]',true);
-$allowed = array_unique(array_merge(array_map(static fn(array $entry):string => explode('?',$entry['path'],2)[0],$manifest),['api/dashboard.php','api/admin_dashboard.php','api/notifications.php','api/messages.php','api/admin_messages.php','api/amenity_bookings.php','api/scan_history.php','api/scan_history_export.php','api/violation_vehicles.php','violation_evidence.php','login.php','logout.php','resident/dashboard.php']));
+$allowed = array_unique(array_merge(array_map(static fn(array $entry):string => explode('?',$entry['path'],2)[0],$manifest),['resident/vehicles.php','superadmin/registeredvehicles.php','superadmin/parkinginventory.php','superadmin/parking_configuration.php','api/dashboard.php','api/admin_dashboard.php','api/notifications.php','api/messages.php','api/admin_messages.php','api/amenity_bookings.php','api/scan_history.php','api/scan_history_export.php','api/violation_vehicles.php','violation_evidence.php','login.php','logout.php','resident/dashboard.php']));
 if (!in_array($relative,$allowed,true)) { http_response_code(404); exit; }
 require_once $root.'/config.php';
 $actor = filter_var($_GET['fixture_actor'] ?? $_SESSION['user_id'] ?? 0,FILTER_VALIDATE_INT);

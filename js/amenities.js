@@ -5,14 +5,19 @@
   if (viewNav) {
     const tabs = [...viewNav.querySelectorAll('[data-amenity-view]')];
     function activateView(id, updateHash = false) {
-      if (!tabs.some(tab => tab.dataset.amenityView === id)) id = 'exploreAmenities';
+      if (!tabs.some(tab => tab.dataset.amenityView === id)) id = viewNav.dataset.defaultView || tabs[0].dataset.amenityView;
       tabs.forEach(tab => {
         const active = tab.dataset.amenityView === id;
         tab.setAttribute('aria-selected', String(active));
         tab.tabIndex = active ? 0 : -1;
         document.getElementById(tab.dataset.amenityView).hidden = !active;
       });
-      if (updateHash) history.replaceState(null, '', `#${id}`);
+      if (updateHash) {
+        if (location.hash !== '#'+id) history.pushState(null, '', '#'+id);
+        const panel = document.getElementById(id);
+        if (window.gsap && !matchMedia('(prefers-reduced-motion: reduce)').matches) window.gsap.fromTo(panel, {opacity:.5,y:6}, {opacity:1,y:0,duration:.22,overwrite:true,clearProps:'opacity,transform'});
+      }
+      app.dispatchEvent(new CustomEvent('amenity:view-changed'));
     }
     viewNav.hidden = false;
     viewNav.setAttribute('role', 'tablist');
@@ -32,6 +37,7 @@
     });
     app.querySelectorAll('[data-amenity-view-link]').forEach(link => link.addEventListener('click', () => activateView(link.hash.slice(1))));
     window.addEventListener('hashchange', () => activateView(location.hash.slice(1)));
+    window.addEventListener('popstate', () => activateView(location.hash.slice(1)));
     activateView(location.hash.slice(1));
   }
   const endpoint = '../api/amenity_bookings.php';
@@ -88,90 +94,145 @@
     return data;
   }
   async function post(data) { return json(await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({...data,csrf_token:app.dataset.csrf})})); }
-  const poolForm = document.querySelector('[data-pool-reservation]');
-  const schedule = document.querySelector('[data-pool-schedule]');
-  const availabilityForm = poolForm || schedule;
-  let request, requestVersion = 0, slots = [], loadedDate = '', loadedDuration = 0, submitting = false;
-  const slotContainer = availabilityForm?.querySelector('[data-time-slots]');
-  const slotMessage = availabilityForm?.querySelector('[data-availability-message]');
-  const submit = poolForm?.querySelector('[data-reservation-submit]');
-  const feedback = poolForm?.querySelector('[data-booking-feedback]');
-  function validSelection() {
-    return poolForm && loadedDate === poolForm.elements.booking_date.value && loadedDuration === Number(poolForm.elements.duration_hours.value) && slots.some(slot => slot.start === poolForm.elements.booking_time.value && slot.status === 'available');
-  }
-  function summary() {
-    if(!poolForm) return;
-    const date = poolForm.elements.booking_date.value, duration = Number(poolForm.elements.duration_hours.value);
-    const selected = slots.find(slot => slot.start === poolForm.elements.booking_time.value && slot.status === 'available');
-    poolForm.querySelector('[data-summary-date]').textContent = date ? new Date(`${date}T12:00:00`).toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'}) : 'Choose a date';
-    poolForm.querySelector('[data-summary-duration]').textContent = `${duration} hour${duration === 1 ? '' : 's'}`;
-    poolForm.querySelector('[data-summary-fee]').textContent = money(duration * 300);
-    poolForm.querySelector('[data-summary-time]').textContent = selected ? `${time(selected.start)} – ${time(selected.end)}` : 'Choose a time';
-    submit.disabled = submitting || !validSelection();
-    slotContainer.querySelectorAll('button').forEach(button => {
-      const selected = button.dataset.start === poolForm.elements.booking_time.value;
-      button.setAttribute('aria-pressed',String(selected));
-      button.querySelector('span').textContent = selected ? 'Selected' : button.dataset.state === 'booked' ? 'Booked' : button.dataset.state === 'past' ? 'Past' : 'Available';
-    });
-    const hint = poolForm.querySelector('.amenity-submit-hint');
-    if (hint) hint.hidden = !!validSelection();
-  }
-  async function refreshSlots() {
-    if(!availabilityForm) return;
-    request?.abort(); request = new AbortController(); const version = ++requestVersion;
-    const date = availabilityForm.elements.booking_date.value, duration = Number(availabilityForm.elements.duration_hours.value);
-    const previous = poolForm?.elements.booking_time.value;
-    loadedDate = ''; loadedDuration = 0; if(submit) submit.disabled = true;
-    if(!date || !availabilityForm.elements.booking_date.validity.valid) {
-      slots = []; slotContainer.replaceChildren(); slotMessage.textContent = 'Select a valid date to see available starting times.';
-      if(poolForm) { poolForm.elements.booking_time.value = ''; summary(); } return;
+  function createAvailabilityController(availabilityForm) {
+    const poolForm = availabilityForm.matches('[data-pool-reservation]') ? availabilityForm : null;
+    const schedule = poolForm ? null : availabilityForm;
+    const amenity = availabilityForm.dataset.amenitySchedule || 'Swimming Pool';
+    let request, requestVersion = 0, slots = [], loadedDate = '', loadedDuration = 0, submitting = false;
+    const slotContainer = availabilityForm?.querySelector('[data-time-slots]');
+    const slotMessage = availabilityForm?.querySelector('[data-availability-message]');
+    const submit = poolForm?.querySelector('[data-reservation-submit]');
+    const feedback = poolForm?.querySelector('[data-booking-feedback]');
+    function validSelection() {
+      return poolForm && loadedDate === poolForm.elements.booking_date.value && loadedDuration === Number(poolForm.elements.duration_hours.value) && slots.some(slot => slot.start === poolForm.elements.booking_time.value && slot.status === 'available');
     }
-    slotMessage.textContent = 'Loading schedule availability…'; slotContainer.setAttribute('aria-busy','true');
-    slotContainer.querySelectorAll('button').forEach(button => button.disabled = true);
-    try {
-      const data = await json(await fetch(`${endpoint}?${new URLSearchParams({date,duration})}`,{signal:request.signal,headers:{Accept:'application/json'}}));
-      if(version !== requestVersion) return;
-      slots = data.slots; loadedDate = date; loadedDuration = duration;
-      slotContainer.replaceChildren();
-      slots.forEach(slot => {
-        const button = document.createElement('button'); button.type = 'button'; button.dataset.start = slot.start; button.dataset.state = slot.status;
-        button.disabled = slot.status !== 'available' || !poolForm;
-        const strong = document.createElement('strong'), state = document.createElement('span'); strong.textContent = `${time(slot.start)} – ${time(slot.end)}`;
-        state.textContent = slot.status === 'booked' ? 'Booked' : slot.status === 'past' ? 'Past' : 'Available';
-        button.append(strong,state); slotContainer.append(button);
+    function summary() {
+      if(!poolForm) return;
+      const date = poolForm.elements.booking_date.value, duration = Number(poolForm.elements.duration_hours.value);
+      const selected = slots.find(slot => slot.start === poolForm.elements.booking_time.value && slot.status === 'available');
+      poolForm.querySelector('[data-summary-date]').textContent = date ? new Date(`${date}T12:00:00`).toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'}) : 'Choose a date';
+      poolForm.querySelector('[data-summary-duration]').textContent = `${duration} hour${duration === 1 ? '' : 's'}`;
+      poolForm.querySelector('[data-summary-fee]').textContent = money(duration * 300);
+      poolForm.querySelector('[data-summary-time]').textContent = selected ? `${time(selected.start)} – ${time(selected.end)}` : 'Choose a time';
+      submit.disabled = submitting || !validSelection();
+      slotContainer.querySelectorAll('button').forEach(button => {
+        const selected = button.dataset.start === poolForm.elements.booking_time.value;
+        button.setAttribute('aria-pressed',String(selected));
+        button.querySelector('span').textContent = selected ? 'Selected' : button.dataset.state === 'booked' ? 'Booked' : button.dataset.state === 'past' ? 'Past' : 'Available';
       });
-      const available = slots.filter(slot => slot.status === 'available').length;
-      slotMessage.textContent = data.fully_booked ? 'Fully Booked — The swimming pool is fully reserved for the selected date and duration. Please choose another date.' : available ? `${available} available starting time${available===1?'':'s'} · ${duration} hour${duration===1?'':'s'} · Asia/Manila` : 'No future starting times remain for this date and duration. Choose another date.';
-      if(poolForm) {
-        if(previous && !slots.some(slot => slot.start === previous && slot.status === 'available')) { poolForm.elements.booking_time.value = ''; feedback.textContent = 'Time Slot Already Booked — The selected time is no longer available for this date and duration. Choose another available time.'; }
-        summary();
+      const hint = poolForm.querySelector('.amenity-submit-hint');
+      if (hint) hint.hidden = !!validSelection();
+    }
+    async function refreshSlots() {
+      if(!availabilityForm) return;
+      request?.abort(); request = new AbortController(); const version = ++requestVersion;
+      const date = availabilityForm.elements.booking_date.value, duration = Number(availabilityForm.elements.duration_hours?.value || 1);
+      const previous = poolForm?.elements.booking_time.value;
+      loadedDate = ''; loadedDuration = 0; if(submit) submit.disabled = true;
+      if(!date || !availabilityForm.elements.booking_date.validity.valid) {
+        slots = []; slotContainer.replaceChildren(); slotMessage.textContent = 'Select a valid date to see available starting times.';
+        if(poolForm) { poolForm.elements.booking_time.value = ''; summary(); } return;
       }
-    } catch(error) { if(error.name !== 'AbortError') { slots = []; loadedDate = ''; slotContainer.replaceChildren(); slotMessage.textContent = error.message; if(poolForm) summary(); } }
-    finally { if(version === requestVersion) slotContainer.removeAttribute('aria-busy'); }
+      slotMessage.textContent = 'Loading schedule availability…'; slotContainer.setAttribute('aria-busy','true');
+      slotContainer.querySelectorAll('button').forEach(button => button.disabled = true);
+      try {
+        const data = await json(await fetch(`${endpoint}?${new URLSearchParams({date,duration,amenity})}`,{signal:request.signal,headers:{Accept:'application/json'}}));
+        if(version !== requestVersion) return;
+        slots = data.slots; loadedDate = date; loadedDuration = duration;
+        slotContainer.replaceChildren();
+        slots.forEach(slot => {
+          const button = document.createElement('button'); button.type = 'button'; button.dataset.start = slot.start; button.dataset.state = slot.status;
+          button.disabled = slot.status !== 'available' || !poolForm;
+          const strong = document.createElement('strong'), state = document.createElement('span'); strong.textContent = `${time(slot.start)} – ${time(slot.end)}`;
+          state.textContent = slot.status === 'booked' ? 'Booked' : slot.status === 'past' ? 'Past' : 'Available';
+          button.append(strong,state); slotContainer.append(button);
+        });
+        const available = slots.filter(slot => slot.status === 'available').length;
+        slotMessage.textContent = data.fully_booked ? 'Fully Booked - The swimming pool is fully reserved for the selected date and duration. Please choose another date.' : available ? `${available} available starting time${available === 1 ? '' : 's'} - ${duration} hour${duration === 1 ? '' : 's'} - Asia/Manila` : 'No future starting times remain for this date and duration. Choose another date.';
+        if(poolForm) {
+          if(previous && !slots.some(slot => slot.start === previous && slot.status === 'available')) { poolForm.elements.booking_time.value = ''; feedback.textContent = 'Time Slot Already Booked — The selected time is no longer available for this date and duration. Choose another available time.'; }
+          summary();
+        }
+      } catch(error) { if(error.name !== 'AbortError') { slots = []; loadedDate = ''; slotContainer.replaceChildren(); slotMessage.textContent = error.message; if(poolForm) summary(); } }
+      finally { if(version === requestVersion) slotContainer.removeAttribute('aria-busy'); }
+    }
+    availabilityForm?.querySelector('[data-refresh-slots]')?.addEventListener('click',refreshSlots);
+    availabilityForm?.addEventListener('change',event => {
+      if(['booking_date','duration_hours'].includes(event.target.name)) { if(poolForm) { poolForm.elements.booking_time.value = ''; feedback.textContent = ''; } refreshSlots(); }
+    });
+    slotContainer?.addEventListener('click',event => {
+      const button = event.target.closest('[data-start]');
+      if(!poolForm || !button || button.disabled) return;
+      poolForm.elements.booking_time.value = button.dataset.start; feedback.textContent = ''; summary();
+    });
+    poolForm?.addEventListener('submit',async event => {
+      event.preventDefault(); if(submitting || !validSelection() || !poolForm.reportValidity()) return;
+      submitting = true; submit.disabled = true; submit.textContent = 'Submitting…'; feedback.textContent = 'Submitting your reservation for approval…';
+      try {
+        const data = Object.fromEntries(new FormData(poolForm)); data.action = 'create';
+        const response = await post(data); feedback.textContent = response.message;
+        feedback.dataset.success = 'true'; poolForm.elements.booking_time.value = '';
+        // Reload the current page so the saved request appears in reservation history.
+        window.location.assign('book_amenity.php#yourBookings');
+      } catch(error) {
+        feedback.dataset.success = 'false'; feedback.textContent = `${error.title ? error.title+' — ' : ''}${error.message}`;
+        if(error.code === 'schedule_conflict') { poolForm.elements.booking_time.value = ''; await refreshSlots(); }
+      } finally { submitting = false; submit.textContent = 'Submit reservation'; summary(); }
+    });
+    const isVisible = () => schedule ? !schedule.closest('[role="tabpanel"]')?.hidden : !!bookingDialog?.open && !poolForm.closest('[data-booking-pane]')?.hidden;
+    const refreshIfVisible = () => { if (!document.hidden && !submitting && isVisible()) refreshSlots(); };
+    if (poolForm) summary();
+    if (schedule) refreshIfVisible();
+    return {refreshSlots, refreshIfVisible};
   }
-  availabilityForm?.querySelector('[data-refresh-slots]')?.addEventListener('click',refreshSlots);
-  availabilityForm?.addEventListener('change',event => {
-    if(['booking_date','duration_hours'].includes(event.target.name)) { if(poolForm) { poolForm.elements.booking_time.value = ''; feedback.textContent = ''; } refreshSlots(); }
-  });
-  slotContainer?.addEventListener('click',event => {
-    const button = event.target.closest('[data-start]');
-    if(!poolForm || !button || button.disabled) return;
-    poolForm.elements.booking_time.value = button.dataset.start; feedback.textContent = ''; summary();
-  });
-  poolForm?.addEventListener('submit',async event => {
-    event.preventDefault(); if(submitting || !validSelection() || !poolForm.reportValidity()) return;
-    submitting = true; submit.disabled = true; submit.textContent = 'Submitting…'; feedback.textContent = 'Submitting your reservation for approval…';
-    try {
-      const data = Object.fromEntries(new FormData(poolForm)); data.action = 'create';
-      const response = await post(data); feedback.textContent = response.message;
-      feedback.dataset.success = 'true'; poolForm.elements.booking_time.value = '';
-      // Reload the current page so the saved request appears in reservation history.
-      window.location.assign('book_amenity.php#yourBookings');
-    } catch(error) {
-      feedback.dataset.success = 'false'; feedback.textContent = `${error.title ? error.title+' — ' : ''}${error.message}`;
-      if(error.code === 'schedule_conflict') { poolForm.elements.booking_time.value = ''; await refreshSlots(); }
-    } finally { submitting = false; submit.textContent = 'Submit reservation'; summary(); }
-  });
+  const availabilityControllers = [...app.querySelectorAll('[data-pool-reservation],[data-amenity-schedule]')].map(createAvailabilityController);
+  const hallCalendar = app.querySelector('[data-hall-calendar]');
+  if (hallCalendar) {
+    const monthInput = hallCalendar.elements.month;
+    const days = hallCalendar.querySelector('[data-calendar-days]');
+    const message = hallCalendar.querySelector('[data-calendar-message]');
+    let calendarRequest, version = 0;
+    const dateLabel = date => new Date(date+'T12:00:00').toLocaleDateString('en-PH', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    async function refreshCalendar() {
+      calendarRequest?.abort(); calendarRequest = new AbortController(); const current = ++version;
+      days.replaceChildren();
+      if (!/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(monthInput.value) || !monthInput.validity.valid) {
+        days.removeAttribute('aria-busy'); message.textContent = 'Select a valid month to see available days.'; return;
+      }
+      message.textContent = 'Loading daily availability...'; days.setAttribute('aria-busy','true');
+      try {
+        const data = await json(await fetch(`${endpoint}?${new URLSearchParams({amenity:'Function Hall',month:monthInput.value})}`, {signal:calendarRequest.signal,headers:{Accept:'application/json'}}));
+        if (current !== version) return;
+        data.days.forEach((day,index) => {
+          const cell = document.createElement('div'); cell.className = 'amenity-calendar-day'; cell.dataset.date = day.date; cell.dataset.state = day.status;
+          cell.setAttribute('role','listitem');
+          if (index === 0) cell.style.gridColumnStart = data.first_weekday+1;
+          const status = day.status === 'available' ? 'Available' : day.status === 'booked' ? 'Booked' : 'Past';
+          cell.setAttribute('aria-label', dateLabel(day.date)+': '+status);
+          const number = document.createElement('strong'), label = document.createElement('span');
+          number.textContent = Number(day.date.slice(-2)); label.textContent = status;
+          cell.append(number,label); days.append(cell);
+        });
+        const available = data.days.filter(day => day.status === 'available').length;
+        const booked = data.days.filter(day => day.status === 'booked').length;
+        message.textContent = `${available} available day${available === 1 ? '' : 's'} - ${booked} booked - Full-day reservations`;
+      } catch (error) { if (current === version && error.name !== 'AbortError') message.textContent = error.message; }
+      finally { if (current === version) days.removeAttribute('aria-busy'); }
+    }
+    hallCalendar.addEventListener('submit', event => { event.preventDefault(); refreshCalendar(); });
+    monthInput.addEventListener('change', refreshCalendar);
+    hallCalendar.querySelector('[data-refresh-calendar]').addEventListener('click', refreshCalendar);
+    hallCalendar.querySelectorAll('[data-calendar-step]').forEach(button => button.addEventListener('click', () => {
+      if (!/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(monthInput.value)) return;
+      const [year,month] = monthInput.value.split('-').map(Number);
+      const target = new Date(Date.UTC(year,month-1+Number(button.dataset.calendarStep),1));
+      monthInput.value = target.toISOString().slice(0,7); refreshCalendar();
+    }));
+    const refreshIfVisible = () => { if (!document.hidden && !hallCalendar.closest('[role="tabpanel"]')?.hidden) refreshCalendar(); };
+    availabilityControllers.push({refreshIfVisible}); refreshIfVisible();
+  }
+  function refreshSlots() { availabilityControllers.forEach(controller => controller.refreshIfVisible()); }
+  app.addEventListener('amenity:view-changed', refreshSlots);
   document.querySelectorAll('[data-booking-decision]').forEach(form => form.addEventListener('submit',async event => {
     event.preventDefault(); const button = event.submitter; if(!button || !form.reportValidity()) return;
     const message = form.querySelector('[data-decision-feedback]'); const action = button.value;
@@ -179,12 +240,17 @@
     form.querySelectorAll('button').forEach(control => control.disabled = true); message.textContent = 'Saving decision…';
     try {
       const response = await post({action,booking_id:form.dataset.bookingDecision,reason:form.elements.reason.value,pmo_review:form.elements.pmo_review?.checked || false});
-      message.textContent = response.message; window.location.reload();
+      message.textContent = response.message;
+      const target = ['rejected','cancelled','completed'].includes(action) ? 'bookingHistory' : 'bookingRequests';
+      const url = new URL(location.href);
+      url.searchParams.delete('status');
+      url.searchParams.delete('history_search');
+      url.hash = target;
+      history.replaceState(null, '', url); window.location.reload();
     } catch(error) { message.textContent = `${error.title ? error.title+' — ' : ''}${error.message}`; if(error.code === 'schedule_conflict') refreshSlots(); }
     finally { form.querySelectorAll('button').forEach(control => control.disabled = false); }
   }));
-  window.addEventListener('focus',() => { if(schedule || bookingDialog?.open) refreshSlots(); });
-  document.addEventListener('visibilitychange',() => { if(!document.hidden && (schedule || bookingDialog?.open)) refreshSlots(); });
-  setInterval(() => { if(!document.hidden && !submitting && (schedule || bookingDialog?.open)) refreshSlots(); },30000);
-  if(poolForm) summary(); if(schedule) refreshSlots();
+  window.addEventListener('focus', refreshSlots);
+  document.addEventListener('visibilitychange', refreshSlots);
+  setInterval(refreshSlots,30000);
 })();

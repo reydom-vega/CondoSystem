@@ -65,18 +65,32 @@
     form.elements.start_time.addEventListener('input', () => form.elements.end_time.setCustomValidity(''));
     syncCategory(); syncItems();
   }
-  const search = document.getElementById('permitSearch');
-  const status = document.getElementById('permitStatusFilter');
-  const filter = () => {
-    let visible = 0;
-    document.querySelectorAll('[data-permit-status]').forEach(row => {
-      row.hidden = (status.value && row.dataset.permitStatus !== status.value) || !row.textContent.toLowerCase().includes(search.value.toLowerCase().trim());
-      if (!row.hidden) visible++;
-    });
-    const empty = document.getElementById('permitNoMatches');
-    if (empty) empty.hidden = visible > 0;
+  document.querySelectorAll('[data-permit-list]').forEach(list => {
+    const search = list.querySelector('[data-permit-search]');
+    const status = list.querySelector('[data-permit-status-filter]');
+    const filter = () => {
+      let visible = 0;
+      list.querySelectorAll('[data-permit-status]').forEach(row => {
+        row.hidden = Boolean((status.value && row.dataset.permitStatus !== status.value) || !row.textContent.toLowerCase().includes(search.value.toLowerCase().trim()));
+        if (!row.hidden) visible++;
+      });
+      const empty = list.querySelector('[data-permit-no-matches]');
+      if (empty) empty.hidden = visible > 0;
+    };
+    search.addEventListener('input', filter); status.addEventListener('change', filter);
+  });
+  document.querySelectorAll('[data-permit-tab-link]').forEach(link => link.addEventListener('click', event => {
+    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    const tab = document.querySelector('[data-workspace-tab="' + link.dataset.permitTabLink + '"]');
+    if (tab) { event.preventDefault(); tab.click(); tab.focus(); }
+  }));
+  // Preserve links saved before the tabbed layout was introduced.
+  const legacyHashTab = () => {
+    const key = location.hash === '#permitHistory' ? 'history' : location.hash === '#permitRequestForm' ? 'form' : null;
+    if (key) document.querySelector('[data-workspace-tab="' + key + '"]')?.click();
   };
-  search?.addEventListener('input', filter); status?.addEventListener('change', filter);
+  addEventListener('DOMContentLoaded', legacyHashTab);
+  addEventListener('hashchange', legacyHashTab);
   document.querySelectorAll('form').forEach(current => current.addEventListener('submit', event => {
     if (event.defaultPrevented) return;
     if (current.dataset.confirm && !window.CelandineConfirmReady && !window.confirm(current.dataset.confirm)) { event.preventDefault(); return; }

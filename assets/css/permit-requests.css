@@ -67,7 +67,7 @@
 .permit-request-page .permit-table-actions :is(.service-btn,button) { min-height:36px; padding:8px 10px; font-size:12px; }
 .permit-request-page .permit-table-actions button { width:auto; }
 .permit-request-page .permit-history-panel .service-empty-state { margin:0; padding:24px; color:var(--text-secondary); font-size:14px; text-align:center; }
-.permit-request-page #permitNoMatches { margin:18px 0 0; padding:16px; border:1px dashed var(--border-color); border-radius:var(--radius-control); font-size:14px; }
+.permit-request-page [data-permit-no-matches] { margin:18px 0 0; padding:16px; border:1px dashed var(--border-color); border-radius:var(--radius-control); font-size:14px; }
 .permit-request-page .permit-detail-panel > .permit-identity { margin-top:20px; }
 .permit-request-page .permit-detail-panel > p { font-size:14px; line-height:1.7; }
 .permit-request-page .permit-detail-panel .permit-review { border-color:var(--border-color); background:var(--bg-sidebar); }
@@ -98,19 +98,19 @@
   .permit-request-page .permit-requester-heading > span:last-child { margin-left:0; flex-basis:100%; }
   .permit-request-page .permit-identity { padding:14px; gap:16px; }
   .permit-request-page .permit-identity > div:last-child { grid-column:1 / -1; }
-  .portal-ui.permit-request-page #permitHistory .permit-table { display:block; min-width:0; width:100%; }
-  .permit-request-page #permitHistory .permit-table :is(tbody,tr,td) { display:block; }
-  .permit-request-page #permitHistory .permit-table thead { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
-  .permit-request-page #permitHistory .permit-table tr { margin-bottom:16px; padding:16px; border:1px solid var(--border-color); border-radius:var(--radius-control); background:var(--bg-sidebar); }
-  .permit-request-page #permitHistory .permit-table td { display:grid; grid-template-columns:84px minmax(0,1fr); gap:12px; min-width:0; padding:10px 0; border-bottom:1px solid var(--border-color); }
-  .permit-request-page #permitHistory .permit-table td::before { content:attr(data-label); color:var(--text-muted); font-size:12px; font-weight:500; }
-  .permit-request-page #permitHistory .permit-cell-value { min-width:0; overflow-wrap:anywhere; }
-  .permit-request-page #permitHistory .service-status { max-width:100%; white-space:normal; }
-  .permit-request-page #permitHistory .permit-table td:first-child { padding-top:0; }
-  .permit-request-page #permitHistory .permit-table td:last-child { display:block; padding-bottom:0; border-bottom:0; }
-  .permit-request-page #permitHistory .permit-table td:last-child::before { display:none; }
-  .permit-request-page #permitHistory .permit-table-actions { display:grid; grid-template-columns:1fr; min-width:0; }
-  .portal-ui.permit-request-page #permitHistory .permit-table-actions :is(a,button) { width:100%; min-height:40px; }
+  .portal-ui.permit-request-page .permit-records-panel .permit-table { display:block; min-width:0; width:100%; }
+  .permit-request-page .permit-records-panel .permit-table :is(tbody,tr,td) { display:block; }
+  .permit-request-page .permit-records-panel .permit-table thead { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+  .permit-request-page .permit-records-panel .permit-table tr { margin-bottom:16px; padding:16px; border:1px solid var(--border-color); border-radius:var(--radius-control); background:var(--bg-sidebar); }
+  .permit-request-page .permit-records-panel .permit-table td { display:grid; grid-template-columns:84px minmax(0,1fr); gap:12px; min-width:0; padding:10px 0; border-bottom:1px solid var(--border-color); }
+  .permit-request-page .permit-records-panel .permit-table td::before { content:attr(data-label); color:var(--text-muted); font-size:12px; font-weight:500; }
+  .permit-request-page .permit-records-panel .permit-cell-value { min-width:0; overflow-wrap:anywhere; }
+  .permit-request-page .permit-records-panel .service-status { max-width:100%; white-space:normal; }
+  .permit-request-page .permit-records-panel .permit-table td:first-child { padding-top:0; }
+  .permit-request-page .permit-records-panel .permit-table td:last-child { display:block; padding-bottom:0; border-bottom:0; }
+  .permit-request-page .permit-records-panel .permit-table td:last-child::before { display:none; }
+  .permit-request-page .permit-records-panel .permit-table-actions { display:grid; grid-template-columns:1fr; min-width:0; }
+  .portal-ui.permit-request-page .permit-records-panel .permit-table-actions :is(a,button) { width:100%; min-height:40px; }
 }
 @media(max-width:380px) {
   .permit-request-page .permit-identity { grid-template-columns:1fr; }

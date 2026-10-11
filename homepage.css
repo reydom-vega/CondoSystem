@@ -13,7 +13,7 @@ button,input,textarea,select{font:inherit}
 .home-nav.scrolled{background:rgba(7,17,29,.86);box-shadow:0 10px 40px rgba(0,0,0,.18)}
 .nav-inner{width:var(--wrap);margin:0 auto;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:20px}
 .brand{display:inline-flex;align-items:center;gap:12px;font-weight:700;color:#fff;letter-spacing:.02em;min-width:0}
-.brand svg,.brand img{width:34px;height:34px}
+.brand svg,.brand img{width:48px;height:48px}
 .brand span{font-size:1rem;line-height:1.1;white-space:nowrap}
 .nav-links{justify-self:center;display:flex;gap:26px;align-items:center;flex-wrap:wrap}
 .nav-links a{color:#d1d5db;font-size:.95rem;font-weight:500;position:relative}
@@ -337,7 +337,7 @@ section[id], #main-content { scroll-margin-top: calc(var(--nav-h) + 16px); }
 
 .footer { margin-top: 0; background: #0a0f1d; }
 
-.footer-brand svg { width: 34px; height: 34px; flex-shrink: 0; }
+.footer-brand svg,.footer-brand img { width: 48px; height: 48px; flex-shrink: 0; }
 
 @media (max-width:1180px) {
   .nav-links, .nav-cta { display: none; }

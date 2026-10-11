@@ -44,6 +44,11 @@ function renderStaffSidebarNavigation(): void {
     foreach (staffSidebarLinks() as [$path, $icon, $label]) {
         $route = explode('?', $path, 2)[0];
         $active = str_ends_with($current, '/' . $route);
+        if ($route === 'superadmin/parking.php' && in_array($_SESSION['role'] ?? '', ['admin','superadmin'], true)) {
+            foreach (['registeredvehicles.php','parkinginventory.php','parking_configuration.php'] as $parkingPage) {
+                $active = $active || str_ends_with($current, '/superadmin/'.$parkingPage);
+            }
+        }
         if ($route === 'superadmin/service_requests.php') {
             $kind = isSecurity() ? 'visitor' : (($_GET['kind'] ?? 'permit') === 'visitor' ? 'visitor' : 'permit');
             $active = $active && str_ends_with($path, '?kind=' . $kind);

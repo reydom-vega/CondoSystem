@@ -104,14 +104,18 @@ function createParkingStickerOrderForBill(int $userId, int $billPaymentId, int $
 }
 
 function getLatestParkingStickerOrder(int $userId): ?array {
+    return getParkingStickerOrdersForUser($userId, 1)[0] ?? null;
+}
+
+function getParkingStickerOrdersForUser(int $userId, ?int $limit = null): array {
     $connection = connectDb();
     if (!ensureParkingStickerOrdersTable($connection)) {
-        return null;
+        return [];
     }
-    $stmt = $connection->prepare('SELECT o.*, p.status AS bill_status, p.paid_at AS bill_paid_at FROM parking_sticker_orders o INNER JOIN payments p ON p.id = o.bill_payment_id AND p.user_id=o.user_id WHERE o.user_id = ? ORDER BY o.id DESC LIMIT 1');
+    $stmt = $connection->prepare('SELECT o.*, p.status AS bill_status, p.paid_at AS bill_paid_at FROM parking_sticker_orders o INNER JOIN payments p ON p.id = o.bill_payment_id AND p.user_id=o.user_id WHERE o.user_id = ? ORDER BY o.id DESC'.($limit === null ? '' : ' LIMIT '.max(1,$limit)));
     $stmt->bind_param('i', $userId);
     $stmt->execute();
-    return $stmt->get_result()->fetch_assoc() ?: null;
+    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 
 function submitParkingStickerProof(int $orderId, int $userId, string $proofFile): bool {
@@ -131,7 +135,7 @@ function getParkingStickerClaims(mysqli $connection): array {
     }
     ensurePaymongoColumns($connection);
     ensureStickerVehicleLinks($connection);
-    $result = $connection->query("SELECT o.id, o.user_id, o.quantity, o.amount, o.claim_status, o.proof_file, o.proof_submitted_at, o.issued_at, p.status AS payment_status, p.payment_method, p.paymongo_payment_id, p.gateway_status, p.paid_at, u.full_name, u.username, u.email, u.unit_number FROM parking_sticker_orders o INNER JOIN payments p ON p.id = o.bill_payment_id INNER JOIN users u ON u.id = o.user_id ORDER BY (p.status = 'paid' AND o.claim_status <> 'issued') DESC, FIELD(p.status, 'pending', 'overdue', 'paid'), o.created_at DESC");
+    $result = $connection->query("SELECT o.id, o.user_id, o.quantity, o.amount, o.created_at, o.claim_status, o.proof_file, o.proof_submitted_at, o.issued_at, p.status AS payment_status, p.payment_method, p.paymongo_payment_id, p.gateway_status, p.paid_at, u.full_name, u.username, u.email, u.unit_number FROM parking_sticker_orders o INNER JOIN payments p ON p.id = o.bill_payment_id INNER JOIN users u ON u.id = o.user_id ORDER BY (p.status = 'paid' AND o.claim_status <> 'issued') DESC, FIELD(p.status, 'pending', 'overdue', 'paid'), o.created_at DESC");
     $claims = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
     foreach ($claims as &$claim) {
         $claim['vehicles'] = getStickerVehicles($connection,(int)$claim['id']);

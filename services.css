@@ -1,6 +1,7 @@
 .service-panel { background:var(--dash-card-bg,#151e30); border:1px solid var(--dash-card-border,#334155); border-radius:14px; padding:24px; margin:20px 0; }
 .service-panel p { color:var(--text-muted,#b0bbcd); line-height:1.6; }
 .service-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin-top:20px; }
+.history-search-controls { margin-bottom:20px; }
 .service-form label.field-label { display:flex; flex-direction:column; gap:8px; margin:0; }
 .service-form label.field-label input,.service-form label.field-label select,.service-form label.field-label textarea { margin:0; font-size:14px; font-weight:400; text-transform:none; letter-spacing:normal; }
 .service-form input,.service-form select,.service-form textarea,.service-actions input { width:100%; padding:12px; border-radius:8px; border:1px solid #475569; background:var(--input-bg,#111827); color:var(--text-primary,#fff); }

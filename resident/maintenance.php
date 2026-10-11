@@ -1,5 +1,6 @@
 <?php
 require_once '../config.php';
+require_once '../includes/maintenance_workspace.php';
 
 if (!isLoggedIn()) {
     redirect('../login.php');
@@ -106,6 +107,13 @@ if ($tableReady) {
         }
     }
 }
+$tabs = ['form' => 'Request Form', 'requests' => 'Requests', 'history' => 'History'];
+$requestGroups = ['requests' => [], 'history' => []];
+foreach ($requests as $request) $requestGroups[maintenanceWorkspaceIsHistory($request) ? 'history' : 'requests'][] = $request;
+$selected = $selectedRequest;
+$defaultTab = $_SERVER['REQUEST_METHOD'] === 'POST' && $success ? 'requests' : 'form';
+$activeTab = maintenanceWorkspaceActiveTab($tabs, $selected, $defaultTab);
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submit_request') $activeTab = $success ? 'requests' : 'form';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -115,6 +123,8 @@ if ($tableReady) {
     <title>Celandine Residences - Maintenance Request</title>
     <link rel="stylesheet" href="../resident.css">
 <?php renderPortalUiHead(); ?>
+    <link rel="stylesheet" href="../assets/css/maintenance-workspace.css">
+    <script src="../assets/js/maintenance-workspace.js" defer></script>
 </head>
 <body class="portal-ui dashboard-page">
 
@@ -172,6 +182,9 @@ if ($tableReady) {
             <?php if ($success): ?><div class="alert success maintenance-alert">Maintenance request updated successfully.</div><?php endif; ?>
             <?php if ($errors): ?><div class="alert error maintenance-alert"><ul><?php foreach ($errors as $error): ?><li><?php echo htmlspecialchars($error); ?></li><?php endforeach; ?></ul></div><?php endif; ?>
 
+            <div class="maintenance-workspace">
+            <?php renderMaintenanceWorkspaceTabs($tabs, $activeTab, ['requests' => count($requestGroups['requests']), 'history' => count($requestGroups['history'])]); ?>
+            <section <?php echo maintenanceWorkspacePanelAttributes('form', $activeTab); ?>>
             <section class="maintenance-form-card resident-maintenance-form">
                 <h2 class="section-title">Submit New Request</h2>
                 <form method="post" action="maintenance.php" enctype="multipart/form-data" class="maintenance-submit-form"><?php echo workflowCsrfField(); ?>
@@ -188,22 +201,18 @@ if ($tableReady) {
                 </form>
             </section>
 
-            <?php if ($selectedRequest): ?>
-                <section class="maintenance-detail-card">
-                    <div class="maintenance-detail-heading"><div><span class="dash-subtitle">REQUEST DETAILS</span><h2>Maintenance Request #<?php echo maintenanceRequestCode((int)$selectedRequest['id']); ?></h2></div><span class="maintenance-status-badge status-<?php echo htmlspecialchars($selectedRequest['status']); ?>"><?php echo htmlspecialchars(maintenanceStatusLabel($selectedRequest['status'])); ?></span></div>
-                    <dl class="maintenance-detail-grid">
-                        <div><dt>Issue</dt><dd><?php echo htmlspecialchars($selectedRequest['issue_type']); ?></dd></div><div><dt>Location</dt><dd><?php echo htmlspecialchars($selectedRequest['location'] ?? 'Not specified'); ?></dd></div><div><dt>Unit</dt><dd><?php echo htmlspecialchars((string)($_SESSION['unit_number'] ?? '')); ?></dd></div><div><dt>Date Submitted</dt><dd><?php echo htmlspecialchars(date('M j, Y', strtotime($selectedRequest['created_at']))); ?></dd></div><div><dt>Priority</dt><dd><?php echo htmlspecialchars(ucfirst($selectedRequest['urgency'] ?? 'normal')); ?></dd></div><div class="maintenance-detail-wide"><dt>Description</dt><dd><?php echo nl2br(htmlspecialchars($selectedRequest['description'])); ?></dd></div>
-                        <?php if (!empty($selectedRequest['completion_note'])): ?><div class="maintenance-detail-wide"><dt>Completion Notes</dt><dd><?php echo nl2br(htmlspecialchars($selectedRequest['completion_note'])); ?></dd></div><?php endif; ?>
-                    </dl>
-                    <div class="maintenance-evidence-grid"><?php foreach (['evidence_path' => 'Submitted Photo', 'before_photo_path' => 'Before Photo', 'after_photo_path' => 'After Photo'] as $field => $label): ?><?php if (!empty($selectedRequest[$field])): ?><a href="../maintenance_evidence.php?id=<?php echo (int)$selectedRequest['id']; ?>&amp;field=<?php echo rawurlencode($field); ?>" target="_blank" rel="noopener"><img src="../maintenance_evidence.php?id=<?php echo (int)$selectedRequest['id']; ?>&amp;field=<?php echo rawurlencode($field); ?>" alt="<?php echo htmlspecialchars($label); ?>"><span><?php echo htmlspecialchars($label); ?></span></a><?php endif; ?><?php endforeach; ?></div>
-                    <div class="maintenance-detail-actions"><a class="maintenance-nav-button secondary" href="maintenance.php">Close Details</a><?php if ($selectedRequest['status'] === 'completed'): ?><form method="post"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="resident_update"><input type="hidden" name="request_id" value="<?php echo (int)$selectedRequest['id']; ?>"><button class="maintenance-action-btn confirm" name="decision" value="confirm">Confirm Completion</button><button class="maintenance-action-btn problem" name="decision" value="problem">Report Problem</button></form><?php elseif ($selectedRequest['status'] === 'pending'): ?><form method="post" data-confirm="Cancel this maintenance request?" data-confirm-title="Cancel request" data-confirm-action="Cancel"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="resident_update"><input type="hidden" name="request_id" value="<?php echo (int)$selectedRequest['id']; ?>"><button class="maintenance-action-btn problem" name="decision" value="cancel">Cancel Request</button></form><?php endif; ?></div>
-                </section>
-            <?php endif; ?>
-
-            <section class="maintenance-active-card maintenance-list-card">
-                <div class="maintenance-list-heading"><h2>My Maintenance Requests</h2><span><?php echo count($requests); ?> requests</span></div>
-                <?php if (!$requests): ?><p class="bookings-empty">No maintenance requests yet.</p><?php else: ?><div class="maintenance-request-list"><?php foreach ($requests as $request): ?><article class="maintenance-request-item"><div class="maintenance-request-head"><div><span class="maintenance-request-code"><?php echo maintenanceRequestCode((int)$request['id']); ?></span><h3><?php echo htmlspecialchars($request['issue_type']); ?></h3></div><span class="maintenance-status-badge status-<?php echo htmlspecialchars($request['status']); ?>"><?php echo htmlspecialchars(maintenanceStatusLabel($request['status'])); ?></span></div><p><?php echo htmlspecialchars((string)($_SESSION['unit_number'] ?? '')); ?> · <?php echo htmlspecialchars(date('M j, Y', strtotime($request['created_at']))); ?> · <?php echo htmlspecialchars(ucfirst($request['urgency'] ?? 'normal')); ?> priority</p><div class="maintenance-list-actions"><a href="maintenance.php?view=<?php echo (int)$request['id']; ?>" class="maintenance-nav-button">View Details</a><?php if ($request['status'] === 'completed'): ?><span>Confirm completion or report a problem in details</span><?php endif; ?></div></article><?php endforeach; ?></div><?php endif; ?>
             </section>
+            <?php foreach ($requestGroups as $tabKey => $tabRequests): ?>
+                <section <?php echo maintenanceWorkspacePanelAttributes($tabKey, $activeTab); ?>>
+                    <p class="maintenance-tab-description"><?php echo $tabKey === 'history' ? 'Successful, rejected, and cancelled requests.' : 'Track your requests. Completed work remains here until you confirm completion or report a problem.'; ?></p>
+                    <?php
+                    $requests = $tabRequests;
+                    $selectedRequest = $selected && (maintenanceWorkspaceIsHistory($selected) ? 'history' : 'requests') === $tabKey ? $selected : null;
+                    require '../includes/resident_maintenance_records.php';
+                    ?>
+                </section>
+            <?php endforeach; ?>
+            </div>
         </main>
 
     </div>

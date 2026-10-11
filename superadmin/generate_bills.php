@@ -16,12 +16,19 @@ ensureBillingTables($connection);
 
 $errors = [];
 $success = '';
+$billTabs = ['single' => 'Single Unit', 'all' => 'All Units', 'history' => 'History'];
+$activeTab = (string)($_GET['tab'] ?? 'single');
+if (!isset($billTabs[$activeTab])) $activeTab = 'single';
+if (!isset($_GET['tab']) && (isset($_GET['history_search']) || isset($_GET['history_status']))) {
+    $activeTab = 'history';
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireWorkflowCsrf();
     $action = $_POST['action'] ?? '';
 
     if ($action === 'bulk_generate') {
+        $activeTab = 'all';
         $dueDate = trim($_POST['due_date'] ?? '');
         $notify = isset($_POST['notify_residents']);
 
@@ -62,6 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     } elseif ($action === 'custom_bill') {
+        $activeTab = 'single';
         $targetUserId = (int)($_POST['user_id'] ?? 0);
         $dueDate = trim($_POST['due_date'] ?? '');
         $notify = isset($_POST['notify_resident_custom']);
@@ -100,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if ($success !== '') {
     $_SESSION['billing_success'] = $success;
-    header('Location: generate_bills.php');
+    header('Location: generate_bills.php?tab=' . $activeTab);
     exit;
 }
 
@@ -275,6 +283,8 @@ $billHistory = $historyStmt->get_result()->fetch_all(MYSQLI_ASSOC);
         }
     </style>
 <?php renderPortalUiHead(); ?>
+    <link rel="stylesheet" href="../assets/css/workspace-tabs.css?v=<?= filemtime(__DIR__ . '/../assets/css/workspace-tabs.css') ?>">
+    <script defer src="../assets/js/workspace-tabs.js?v=<?= filemtime(__DIR__ . '/../assets/js/workspace-tabs.js') ?>"></script>
 </head>
 <body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
@@ -309,10 +319,18 @@ $billHistory = $historyStmt->get_result()->fetch_all(MYSQLI_ASSOC);
             <?php if ($success): ?><div class="alert success"><?php echo htmlspecialchars($success); ?></div><?php endif; ?>
             <?php if (!empty($errors)): ?><div class="alert error"><ul><?php foreach ($errors as $error): ?><li><?php echo htmlspecialchars($error); ?></li><?php endforeach; ?></ul></div><?php endif; ?>
 
-            <section class="unit-management-panel">
+            <div class="generate-bills-workspace" data-workspace-tabs>
+            <nav class="workspace-tabs" role="tablist" aria-label="Generate bills">
+                <?php foreach ($billTabs as $tabKey => $tabLabel): ?>
+                    <?php $tabQuery = $_GET; $tabQuery['tab'] = $tabKey; ?>
+                    <a id="generateBillsTab-<?= $tabKey ?>" role="tab" data-workspace-tab="<?= $tabKey ?>" aria-controls="generateBillsPanel-<?= $tabKey ?>" aria-selected="<?= $activeTab === $tabKey ? 'true' : 'false' ?>" tabindex="<?= $activeTab === $tabKey ? '0' : '-1' ?>" href="<?= htmlspecialchars('generate_bills.php?' . http_build_query($tabQuery), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($tabLabel, ENT_QUOTES, 'UTF-8') ?></a>
+                <?php endforeach; ?>
+            </nav>
+
+            <section class="unit-management-panel" id="generateBillsPanel-single" role="tabpanel" aria-labelledby="generateBillsTab-single" data-workspace-panel="single"<?= $activeTab !== 'single' ? ' hidden' : '' ?>>
                 <h3 class="section-title">Create Custom Bill — Single Unit</h3>
                 <p class="panel-subtext">For one-off charges, a specific resident's rent, or anything that doesn't fit the standard monthly template.</p>
-                <form method="post" id="customBillForm">
+                <form method="post" action="generate_bills.php?tab=single" id="customBillForm">
                     <?php echo workflowCsrfField(); ?>
                     <input type="hidden" name="action" value="custom_bill">
                     <div class="bill-form-grid">
@@ -357,10 +375,10 @@ $billHistory = $historyStmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 </form>
             </section>
 
-            <section class="unit-management-panel">
+            <section class="unit-management-panel" id="generateBillsPanel-all" role="tabpanel" aria-labelledby="generateBillsTab-all" data-workspace-panel="all"<?= $activeTab !== 'all' ? ' hidden' : '' ?>>
                 <h3 class="section-title">Generate Monthly Bills — All Residents</h3>
                 <p class="panel-subtext">Create one monthly statement per approved unit owner. Tenants view the owner's unit statement and cannot pay. The due date selects the billing month; repeating it skips existing statements, including paid ones. Earlier balances remain on their original bills.</p>
-                <form method="post" id="bulkGenerateForm">
+                <form method="post" action="generate_bills.php?tab=all" id="bulkGenerateForm">
                     <?php echo workflowCsrfField(); ?>
                     <input type="hidden" name="action" value="bulk_generate">
                     <div class="bill-form-grid">
@@ -387,7 +405,7 @@ $billHistory = $historyStmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 </form>
             </section>
 
-            <section class="unit-management-panel bill-history-panel">
+            <section class="unit-management-panel bill-history-panel" id="generateBillsPanel-history" role="tabpanel" aria-labelledby="generateBillsTab-history" data-workspace-panel="history"<?= $activeTab !== 'history' ? ' hidden' : '' ?>>
                 <div class="bill-history-heading">
                     <div>
                         <h3 class="section-title">Generated Bill History</h3>
@@ -396,6 +414,7 @@ $billHistory = $historyStmt->get_result()->fetch_all(MYSQLI_ASSOC);
                     <span class="bill-history-count"><?php echo count($billHistory); ?> records shown</span>
                 </div>
                 <form class="bill-history-filters" method="get" action="generate_bills.php">
+                    <input type="hidden" name="tab" value="history">
                     <label for="historySearch">Search bill history</label>
                     <input id="historySearch" type="search" name="history_search" value="<?php echo htmlspecialchars($historySearch); ?>" placeholder="Name, username, email, phone, unit, or DUES-123">
                     <label for="historyStatus">Filter by status</label>
@@ -408,7 +427,7 @@ $billHistory = $historyStmt->get_result()->fetch_all(MYSQLI_ASSOC);
                         <option value="rolled_forward" <?php echo $historyStatus === 'rolled_forward' ? 'selected' : ''; ?>>Rolled Forward</option>
                     </select>
                     <button type="submit">Search</button>
-                    <a class="bill-history-reset" href="generate_bills.php">Reset</a>
+                    <a class="bill-history-reset" href="generate_bills.php?tab=history">Reset</a>
                 </form>
                 <div class="bill-history-table-wrap">
                     <table class="unit-table bill-history-table">
@@ -437,6 +456,7 @@ $billHistory = $historyStmt->get_result()->fetch_all(MYSQLI_ASSOC);
                     </table>
                 </div>
             </section>
+            </div>
         </main>
     </div>
     <script>

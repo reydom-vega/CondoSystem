@@ -42,9 +42,9 @@ body.portal-ui.visitor-pass-page { padding:32px 16px; }
 .visitor-pass-qr-section { padding:26px 0 22px; text-align:center; }
 .portal-ui .visitor-pass #serviceQr {
   display:block; width:fit-content; max-width:100%; margin:14px auto 0; padding:16px;
-  background:#fff; border:1px solid #fff; border-radius:12px;
+  background:#fff; border:1px solid var(--theme-line,#fff); border-radius:12px;
 }
-.visitor-pass #serviceQr :is(canvas,img) { display:block; width:256px; max-width:100%; height:auto; aspect-ratio:1; margin:0; }
+.visitor-pass #serviceQr :is(canvas,img) { display:block; width:auto; max-width:100%; height:auto; aspect-ratio:1; margin:0; }
 .visitor-pass .visitor-pass-qr-fallback { margin-top:12px; font-size:13px; color:var(--status-warning); }
 .visitor-pass-qr-unavailable { display:flex; align-items:center; justify-content:center; gap:10px; padding:20px 12px; margin-top:12px; border:1px dashed var(--border-color); border-radius:var(--radius-control); }
 .visitor-pass .visitor-pass-qr-unavailable p { font-size:13px; }
@@ -76,15 +76,15 @@ body.portal-ui.visitor-pass-page { padding:32px 16px; }
   body.visitor-pass-page::before,body.visitor-pass-page::after { display:none; }
   .portal-ui .visitor-pass.service-pass {
     width:100%; max-width:600px; margin:0 auto; padding:12px 18px;
-    border:1px solid #cbd5e1; border-radius:8px; background:#fff; box-shadow:none;
+    border:1px solid var(--theme-line,#cbd5e1); border-radius:8px; background:#fff; box-shadow:none;
     break-inside:avoid; page-break-inside:avoid; transform:none !important; opacity:1 !important;
   }
   .visitor-pass :is(h1,h2,p,dt,dd,strong,small,time,.visitor-pass-reference,.system-icon,.visitor-pass-row-icon,.visitor-pass-brand-icon) { color:#111827 !important; }
   .visitor-pass .visitor-pass-header h1 { font-size:24px; }
-  .visitor-pass-brand-icon,.visitor-pass-row-icon { background:#f3f4f6; border-color:#cbd5e1; }
-  .visitor-pass-status { margin:14px 0; min-height:36px; padding:8px; color:#111827; border:2px solid #111827; background:#fff; }
+  .visitor-pass-brand-icon,.visitor-pass-row-icon { background:#f3f4f6; border-color:var(--theme-line,#cbd5e1); }
+  .visitor-pass-status { margin:14px 0; min-height:36px; padding:8px; color:#111827; border:2px solid var(--theme-line,#111827); background:#fff; }
   .visitor-pass .visitor-pass-section h2,.visitor-pass .visitor-pass-qr-section h2 { margin-bottom:4px; }
-  .visitor-pass-row { padding:6px 0; border-color:#d1d5db; break-inside:avoid; transform:none !important; opacity:1 !important; }
+  .visitor-pass-row { padding:6px 0; border-color:var(--theme-line,#d1d5db); break-inside:avoid; transform:none !important; opacity:1 !important; }
   .visitor-pass-row-icon { top:6px; }
   .visitor-pass dt { font-size:11px; }
   .visitor-pass dd { margin-top:0; font-size:13px; line-height:1.35; }
@@ -92,8 +92,8 @@ body.portal-ui.visitor-pass-page { padding:32px 16px; }
   .visitor-pass-schedule { margin-top:12px; }
   .visitor-pass-qr-section { padding:12px 0; break-inside:avoid; opacity:1 !important; transform:none !important; }
   .portal-ui .visitor-pass #serviceQr { margin-top:8px; padding:16px; border-radius:0; }
-  .visitor-pass #serviceQr :is(canvas,img) { width:220px; }
-  .visitor-pass-instructions { padding:10px 12px; background:#fff; border-color:#cbd5e1; break-inside:avoid; }
+  .visitor-pass #serviceQr :is(canvas,img) { width:auto; max-width:220px; }
+  .visitor-pass-instructions { padding:10px 12px; background:#fff; border-color:var(--theme-line,#cbd5e1); break-inside:avoid; }
   .visitor-pass .visitor-pass-instructions p { font-size:11px; }
   .visitor-pass-actions,.visitor-pass-checkin { display:none !important; }
 }

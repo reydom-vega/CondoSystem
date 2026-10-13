@@ -83,8 +83,8 @@ $announcements = getAnnouncements(50, false);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences</title>
-    <link rel="stylesheet" href="../styles.css">
+    <title>The Celandine</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('styles.css'), ENT_QUOTES, 'UTF-8') ?>">
 <?php renderPortalUiHead(); ?>
 </head>
 <body class="portal-ui dashboard-page admin-page">
@@ -92,7 +92,6 @@ $announcements = getAnnouncements(50, false);
         <aside class="sidebar" id="sidebar">
             <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
-                <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
             <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
@@ -103,7 +102,7 @@ $announcements = getAnnouncements(50, false);
                 <div class="dash-header-left">
                     <button class="btn-icon-menu" id="menuToggle" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button>
                     <div>
-                        <span class="dash-subtitle">CELANDINE RESIDENCES</span>
+                        <span class="dash-subtitle">THE CELANDINE</span>
                         <h1 class="dash-title">Announcements</h1>
                     </div>
                 </div>
@@ -127,8 +126,8 @@ $announcements = getAnnouncements(50, false);
             </header>
 
             <div class="action-row">
-                <button onclick="openCreateModal()" class="btn-primary" style="background: #d97706;"><?php echo systemIcon('announcements', 'system-action-icon'); ?> New Announcement</button>
-                <button onclick="showTemplateModal()" class="btn-primary" style="background: #0891b2;"><?php echo systemIcon('bolt', 'system-action-icon'); ?> Quick Template</button>
+                <button onclick="openCreateModal()" class="btn-primary" style="background: var(--accent-primary,#d97706);"><?php echo systemIcon('announcements', 'system-action-icon'); ?> New Announcement</button>
+                <button onclick="showTemplateModal()" class="btn-primary" style="background: var(--theme-template-fill,#0891b2);"><?php echo systemIcon('bolt', 'system-action-icon'); ?> Quick Template</button>
             </div>
 
             <?php if ($success): ?>
@@ -200,18 +199,18 @@ $announcements = getAnnouncements(50, false);
                 <input type="hidden" name="announcement_id" id="announcement_id" value="0">
 
                 <div style="margin-bottom: 15px;">
-                    <label for="title" style="display: block; margin-bottom: 5px; color: #cbd5e1;">Title</label>
-                    <input type="text" id="title" name="title" required style="width: 100%; padding: 10px; background: #1f293d; border: 1px solid #374151; border-radius: 6px; color: #fff;" placeholder="Announcement title">
+                    <label for="title" style="display: block; margin-bottom: 5px; color: var(--theme-copy,#cbd5e1);">Title</label>
+                    <input type="text" id="title" name="title" required style="width: 100%; padding: 10px; background: var(--theme-hover,#1f293d); border: 1px solid var(--theme-line,#374151); border-radius: 6px; color: var(--theme-ink,#fff);" placeholder="Announcement title">
                 </div>
 
                 <div style="margin-bottom: 15px;">
-                    <label for="category" style="display: block; margin-bottom: 5px; color: #cbd5e1;">Category</label>
-                    <input type="text" id="category" name="category" style="width: 100%; padding: 10px; background: #1f293d; border: 1px solid #374151; border-radius: 6px; color: #fff;" placeholder="e.g., Maintenance, Events, Security">
+                    <label for="category" style="display: block; margin-bottom: 5px; color: var(--theme-copy,#cbd5e1);">Category</label>
+                    <input type="text" id="category" name="category" style="width: 100%; padding: 10px; background: var(--theme-hover,#1f293d); border: 1px solid var(--theme-line,#374151); border-radius: 6px; color: var(--theme-ink,#fff);" placeholder="e.g., Maintenance, Events, Security">
                 </div>
 
                 <div style="margin-bottom: 15px;">
-                    <label for="priority" style="display: block; margin-bottom: 5px; color: #cbd5e1;">Priority</label>
-                    <select id="priority" name="priority" style="width: 100%; padding: 10px; background: #1f293d; border: 1px solid #374151; border-radius: 6px; color: #fff;">
+                    <label for="priority" style="display: block; margin-bottom: 5px; color: var(--theme-copy,#cbd5e1);">Priority</label>
+                    <select id="priority" name="priority" style="width: 100%; padding: 10px; background: var(--theme-hover,#1f293d); border: 1px solid var(--theme-line,#374151); border-radius: 6px; color: var(--theme-ink,#fff);">
                         <option value="low">Low</option>
                         <option value="medium" selected>Medium</option>
                         <option value="high">High</option>
@@ -219,26 +218,26 @@ $announcements = getAnnouncements(50, false);
                 </div>
 
                 <div style="margin-bottom: 15px;">
-                    <label for="expires_at" style="display: block; margin-bottom: 5px; color: #cbd5e1;">Expires On <span style="color: #6b7280; font-weight: normal;">(optional)</span></label>
-                    <input type="datetime-local" id="expires_at" name="expires_at" style="width: 100%; padding: 10px; background: #1f293d; border: 1px solid #374151; border-radius: 6px; color: #fff;">
-                    <small style="color: #6b7280;">Leave blank for a permanent announcement. After this date/time, it disappears from resident dashboards automatically.</small>
+                    <label for="expires_at" style="display: block; margin-bottom: 5px; color: var(--theme-copy,#cbd5e1);">Expires On <span style="color: var(--theme-muted,#6b7280); font-weight: normal;">(optional)</span></label>
+                    <input type="datetime-local" id="expires_at" name="expires_at" style="width: 100%; padding: 10px; background: var(--theme-hover,#1f293d); border: 1px solid var(--theme-line,#374151); border-radius: 6px; color: var(--theme-ink,#fff);">
+                    <small style="color: var(--theme-muted,#6b7280);">Leave blank for a permanent announcement. After this date/time, it disappears from resident dashboards automatically.</small>
                 </div>
 
                 <div style="margin-bottom: 20px;">
-                    <label for="content" style="display: block; margin-bottom: 5px; color: #cbd5e1;">Content</label>
-                    <textarea id="content" name="content" required style="width: 100%; padding: 10px; background: #1f293d; border: 1px solid #374151; border-radius: 6px; color: #fff; min-height: 150px; font-family: inherit;" placeholder="Write your announcement here..."></textarea>
+                    <label for="content" style="display: block; margin-bottom: 5px; color: var(--theme-copy,#cbd5e1);">Content</label>
+                    <textarea id="content" name="content" required style="width: 100%; padding: 10px; background: var(--theme-hover,#1f293d); border: 1px solid var(--theme-line,#374151); border-radius: 6px; color: var(--theme-ink,#fff); min-height: 150px; font-family: inherit;" placeholder="Write your announcement here..."></textarea>
                 </div>
 
                 <div style="margin-bottom: 20px;">
-                    <label style="display: flex; align-items: center; gap: 8px; color: #cbd5e1; cursor: pointer;">
+                    <label style="display: flex; align-items: center; gap: 8px; color: var(--theme-copy,#cbd5e1); cursor: pointer;">
                         <input type="checkbox" id="notify_residents" name="notify_residents" checked style="width: auto;">
                         Email and text this to all residents
                     </label>
                 </div>
 
                 <div style="display: flex; gap: 10px;">
-                    <button type="submit" class="btn-primary" style="flex: 1; padding: 10px; background: #d97706; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Save Announcement</button>
-                    <button type="button" onclick="closeModal()" style="flex: 1; padding: 10px; background: #374151; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Cancel</button>
+                    <button type="submit" class="btn-primary" style="flex: 1; padding: 10px; background: var(--accent-primary,#d97706); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Save Announcement</button>
+                    <button type="button" onclick="closeModal()" style="flex: 1; padding: 10px; background: var(--theme-hover,#374151); color: var(--theme-ink,#fff); border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Cancel</button>
                 </div>
             </form>
         </div>

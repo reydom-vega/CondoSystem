@@ -1,0 +1,45 @@
+@font-face { font-family:CelandineRoman; src:url('../fonts/cinzel/Cinzel-Regular.ttf') format('truetype'); font-style:normal; font-weight:400; font-display:swap; }
+.celandine-brand { --brand-height:48px; --brand-type:26px; --brand-gap:12px; display:inline-flex; align-items:center; gap:var(--brand-gap); max-width:100%; min-width:0; color:#fff; vertical-align:middle; }
+.celandine-brand--compact { --brand-height:36px; --brand-type:19.5px; --brand-gap:8px; }
+.celandine-brand .celandine-brand-emblem { display:block; flex:0 0 auto; width:calc(var(--brand-height)*143/150); height:var(--brand-height); max-width:none; object-fit:contain; filter:none; }
+.celandine-brand .celandine-wordmark, .portal-loading-brand .celandine-wordmark { display:inline-block; font-family:CelandineRoman,'Times New Roman',serif; font-size:var(--brand-type,24px); font-style:normal; font-weight:400; line-height:1.1; letter-spacing:.02em; white-space:nowrap; color:inherit; text-shadow:none; }
+.celandine-wordmark .celandine-initial { font-size:1.24em; }
+html[data-theme=light] .celandine-brand, html[data-theme=light] .portal-loading-brand { color:#b45309; }
+.portal-ui .sidebar-brand { gap:0; padding:0; }
+.portal-ui .sidebar-brand .celandine-brand { --brand-height:34px; --brand-type:18px; --brand-gap:8px; }
+.portal-ui .sidebar-brand .celandine-brand-emblem { width:calc(var(--brand-height)*143/150); height:var(--brand-height); flex:0 0 auto; }
+.portal-ui .sidebar-brand .celandine-wordmark { font-family:CelandineRoman,'Times New Roman',serif; font-size:var(--brand-type); font-weight:400; letter-spacing:.02em; line-height:1.1; }
+.portal-ui .dash-subtitle { font-family:CelandineRoman,'Times New Roman',serif; font-weight:400; }
+.portal-ui .brand:has(>.celandine-brand),.portal-homepage .brand:has(>.celandine-brand),.footer-brand:has(>.celandine-brand) { gap:0; }
+.portal-homepage .brand .celandine-wordmark { font-size:var(--brand-type); white-space:nowrap; line-height:1.1; }
+.portal-homepage .brand .celandine-initial { font-size:1.24em; }
+.digital-id-heading .celandine-brand { --brand-height:34px; --brand-type:18px; --brand-gap:8px; }
+.digital-id-heading .celandine-brand-emblem { width:calc(var(--brand-height)*143/150); height:var(--brand-height); }
+.digital-id-heading>div { flex:1; }
+.portal-loading-brand { --brand-type:24px; color:#fff; }
+.portal-loading-brand .celandine-wordmark { letter-spacing:.02em; }
+.signup-status-brand:has(>.celandine-brand) { display:block; }
+.signup-status-brand>small { display:block; margin-top:10px; }
+.visitor-pass-header:has(>.celandine-brand) { display:block; }
+.visitor-pass-header>.celandine-brand { margin-bottom:16px; }
+.digital-id-verification>.celandine-brand { margin-bottom:24px; }
+.account-brand { margin-bottom:24px; }
+@media(max-width:1023px) {
+ .portal-ui .sidebar-brand { padding-right:44px; }
+ .portal-ui .sidebar-brand .celandine-brand { --brand-height:28px; --brand-type:15px; --brand-gap:6px; }
+ .portal-ui .sidebar-close { top:28px; }
+}
+@media(max-width:640px) {
+ .celandine-brand--full { --brand-height:38px; --brand-type:20.5px; --brand-gap:9px; }
+ .portal-homepage .home-nav .celandine-brand { --brand-height:30px; --brand-type:16px; --brand-gap:7px; }
+ .digital-id-heading .celandine-brand { --brand-height:30px; --brand-type:17px; --brand-gap:6px; }
+ .portal-ui .brand .celandine-brand { --brand-height:38px; --brand-type:20.5px; --brand-gap:9px; }
+}
+@media(max-width:380px) {
+ .portal-homepage .home-nav .celandine-brand { --brand-height:25px; --brand-type:13.5px; --brand-gap:5px; }
+ .digital-id-heading .celandine-brand { --brand-height:27px; --brand-type:15.5px; --brand-gap:6px; }
+}
+@media print {
+ .celandine-brand { color:#b45309; }
+ .celandine-brand img[data-theme-logo] { content:url('../../celandineorange.svg'); }
+}

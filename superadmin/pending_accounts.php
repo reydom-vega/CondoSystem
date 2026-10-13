@@ -42,9 +42,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             logAudit('approve', 'user', $userIdToApprove, 'Approved resident and assigned unit ' . $assignedUnit);
             $safeName = htmlspecialchars($applicant['full_name'], ENT_QUOTES, 'UTF-8');
             $safeUnit = htmlspecialchars($assignedUnit, ENT_QUOTES, 'UTF-8');
-            $emailBody = '<p>Hello ' . $safeName . ',</p><p>Your Celandine Residences account has been approved. Sign in to the resident portal.</p><p>Unit: ' . $safeUnit . '</p>';
+            $emailBody = '<p>Hello ' . $safeName . ',</p><p>Your The Celandine account has been approved. Sign in to the resident portal.</p><p>Unit: ' . $safeUnit . '</p>';
             $accountVersion = $applicant['session_version'];
-            $emailQueued = queueNotification($connection, 'account:' . $userIdToApprove . ':approved:' . $accountVersion, 'email', $applicant['email'], '[Celandine Residences] Account Approved', emailLayout('Account Approved', 'Your account is ready', $emailBody), $userIdToApprove, 'account_approved', $accountVersion);
+            $emailQueued = queueNotification($connection, 'account:' . $userIdToApprove . ':approved:' . $accountVersion, 'email', $applicant['email'], '[The Celandine] Account Approved', emailLayout('Account Approved', 'Your account is ready', $emailBody), $userIdToApprove, 'account_approved', $accountVersion);
             setFlash('success', 'Resident approved and assigned to unit ' . $assignedUnit . ($emailQueued ? '. Approval email queued for delivery.' : '. Email could not be queued; check notification worker settings.'));
         } catch (InvalidArgumentException $error) {
             setFlash('error', $error->getMessage());
@@ -97,13 +97,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             logAudit('reject', 'user', $userIdToReject, 'Rejected registration for ' . $applicant['full_name'] . '. Reason: ' . $rejectionReason);
             $safeName = htmlspecialchars($applicant['full_name'], ENT_QUOTES, 'UTF-8');
             $safeReason = nl2br(htmlspecialchars($rejectionReason, ENT_QUOTES, 'UTF-8'));
-            $emailBody = '<p style="color:#cbd5e1;line-height:1.6;">Hello ' . $safeName . ',</p>'
-                . '<p style="color:#cbd5e1;line-height:1.6;">After review, we could not approve your Celandine Residences registration at this time.</p>'
-                . '<p style="color:#f8fafc;font-weight:bold;margin-bottom:6px;">Reason provided by Admin:</p>'
-                . '<p style="color:#cbd5e1;line-height:1.6;">' . $safeReason . '</p>'
-                . '<p style="color:#cbd5e1;line-height:1.6;">You may sign in to your account to review the reason, update your information, and resubmit your application for review.</p>';
+            $emailBody = '<p style="color:var(--theme-copy,#cbd5e1);line-height:1.6;">Hello ' . $safeName . ',</p>'
+                . '<p style="color:var(--theme-copy,#cbd5e1);line-height:1.6;">After review, we could not approve your The Celandine registration at this time.</p>'
+                . '<p style="color:var(--theme-ink,#f8fafc);font-weight:bold;margin-bottom:6px;">Reason provided by Admin:</p>'
+                . '<p style="color:var(--theme-copy,#cbd5e1);line-height:1.6;">' . $safeReason . '</p>'
+                . '<p style="color:var(--theme-copy,#cbd5e1);line-height:1.6;">You may sign in to your account to review the reason, update your information, and resubmit your application for review.</p>';
             $accountVersion = $previousVersion + 1;
-            $emailQueued = queueNotification($connection, 'account:' . $userIdToReject . ':rejected:' . $accountVersion, 'email', $applicant['email'], '[Celandine Residences] Registration Update', emailLayout('Registration Update', 'Your application was not approved', $emailBody), $userIdToReject, 'account_rejected', $accountVersion);
+            $emailQueued = queueNotification($connection, 'account:' . $userIdToReject . ':rejected:' . $accountVersion, 'email', $applicant['email'], '[The Celandine] Registration Update', emailLayout('Registration Update', 'Your application was not approved', $emailBody), $userIdToReject, 'account_rejected', $accountVersion);
             setFlash('success', 'User account has been rejected. Reason: ' . $rejectionReason . ($emailQueued ? '. Registration update email queued for delivery.' : '. Email could not be queued; check notification worker settings.'));
         } else {
             setFlash('error', 'Unable to reject this account. Please try again.');
@@ -133,8 +133,8 @@ if ($search !== '') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences - Pending Accounts</title>
-    <link rel="stylesheet" href="../styles.css">
+    <title>The Celandine - Pending Accounts</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('styles.css'), ENT_QUOTES, 'UTF-8') ?>">
     <style>
         .pending-search-clear { color: var(--link-orange); font-weight: 600; white-space: nowrap; }
         .pending-approve-dialog,
@@ -144,7 +144,7 @@ if ($search !== '') {
             transform: translate(-50%, -50%);
             margin: 0;
             width: min(440px, calc(100% - 32px));
-            border: 1px solid rgba(148, 163, 184, 0.28);
+            border: 1px solid var(--theme-line,rgba(148, 163, 184, 0.28));
             border-radius: 12px;
             padding: 24px;
             background: #9ca3aa;
@@ -165,7 +165,7 @@ if ($search !== '') {
             width: 100%;
             min-height: 42px;
             padding: 8px 10px;
-            border: 1px solid #cbd5e1;
+            border: 1px solid var(--theme-line,#cbd5e1);
             border-radius: 8px;
             background: #fff;
             color: #0f172a;
@@ -188,28 +188,28 @@ if ($search !== '') {
         .pending-dialog-actions button:hover { filter: brightness(0.96); }
         .pending-dialog-actions button:active { transform: translateY(1px); }
         .pending-dialog-actions .dialog-cancel { background: #e2e8f0; color: #0f172a; }
-        .pending-dialog-actions .dialog-confirm-approve { background: var(--btn-orange); color: #fff; }
-        .pending-dialog-actions .dialog-confirm-reject { background: var(--btn-danger); color: #fff; }
+        .pending-dialog-actions .dialog-confirm-approve { background: var(--btn-orange); color: var(--theme-ink,#fff); }
+        .pending-dialog-actions .dialog-confirm-reject { background: var(--btn-danger); color: var(--theme-ink,#fff); }
 
         .system-confirm-dialog.pending-approve-dialog,
         .system-confirm-dialog.pending-reject-dialog {
-            background: #111a2b;
-            color: #f8fafc;
-            border-color: rgba(148, 163, 184, 0.22);
+            background: var(--theme-surface,#111a2b);
+            color: var(--theme-ink,#f8fafc);
+            border-color: var(--theme-line,rgba(148, 163, 184, 0.22));
             box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
         }
 
         .system-confirm-dialog.pending-approve-dialog h2,
-        .system-confirm-dialog.pending-reject-dialog h2 { color: #f8fafc; }
+        .system-confirm-dialog.pending-reject-dialog h2 { color: var(--theme-ink,#f8fafc); }
         .system-confirm-dialog.pending-approve-dialog p,
-        .system-confirm-dialog.pending-reject-dialog p { color: #aab4c4; }
+        .system-confirm-dialog.pending-reject-dialog p { color: var(--theme-copy,#aab4c4); }
         .system-confirm-dialog.pending-approve-dialog label,
-        .system-confirm-dialog.pending-reject-dialog label { color: #e2e8f0; }
+        .system-confirm-dialog.pending-reject-dialog label { color: var(--theme-ink,#e2e8f0); }
         .system-confirm-dialog.pending-reject-dialog select,
         .system-confirm-dialog.pending-reject-dialog textarea {
-            border-color: #3b465b;
-            background: #1f293d;
-            color: #f8fafc;
+            border-color: var(--theme-line,#3b465b);
+            background: var(--theme-inset,#1f293d);
+            color: var(--theme-ink,#f8fafc);
         }
         .system-confirm-dialog .pending-dialog-actions {
             justify-content: stretch;
@@ -221,13 +221,13 @@ if ($search !== '') {
             border-radius: 9px;
         }
         .system-confirm-dialog .pending-dialog-actions .dialog-cancel {
-            background: #293346;
-            color: #f8fafc;
+            background: var(--theme-hover,#293346);
+            color: var(--theme-ink,#f8fafc);
         }
         .system-confirm-dialog .pending-dialog-actions .dialog-confirm-approve,
         .system-confirm-dialog .pending-dialog-actions .dialog-confirm-reject {
             background: linear-gradient(110deg, #f59e0b, #f97316);
-            color: #fff;
+            color: var(--theme-ink,#fff);
         }
     </style>
 <?php renderPortalUiHead(); ?>
@@ -237,7 +237,6 @@ if ($search !== '') {
         <aside class="sidebar" id="sidebar">
             <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
-                <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
             <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
@@ -248,7 +247,7 @@ if ($search !== '') {
                 <div class="dash-header-left">
                     <button class="btn-icon-menu" id="menuToggle" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button>
                     <div>
-                        <span class="dash-subtitle">CELANDINE RESIDENCES</span>
+                        <span class="dash-subtitle">THE CELANDINE</span>
                         <h1 class="dash-title">Pending Accounts</h1>
                     </div>
                 </div>

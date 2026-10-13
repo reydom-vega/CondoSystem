@@ -35,7 +35,7 @@ try {
     $tomorrow=date('Y-m-d',strtotime('+1 day')); $next=date('Y-m-d',strtotime('+2 days')); $raceDate=date('Y-m-d',strtotime('+3 days'));
     foreach([1,2,3] as $hours) {
         $id=poolCreate($db,$hours===3?2:1,$tomorrow,sprintf('%02d:00',6+$hours),$hours,$hours*5);
-        $row=poolRow($db,$id); poolCheck($row['hourly_rate']==='300.00' && $row['total_fee']===($hours*300).'.00' && (int)$row['duration_hours']===$hours,'hourly price snapshot '.$hours);
+        $row=poolRow($db,$id); poolCheck($row['hourly_rate']==='1000.00' && $row['total_fee']===($hours*1000).'.00' && (int)$row['duration_hours']===$hours,'hourly price snapshot '.$hours);
         poolCheck($row['unit_number']==='0101' && $row['status']==='pending' && $row['payment_id']===null,'authorized unit snapshot without premature bill '.$hours);
     }
     poolActor(1);
@@ -52,7 +52,7 @@ try {
     poolActor(4); poolCheck(decideAmenityBooking($db,$first,'approved'),'admin approval'); $approved=poolRow($db,$first); $billId=(int)$approved['payment_id'];
     poolCheck($approved['status']==='approved' && (int)$approved['approved_by']===4 && $approved['approved_at']!==null,'approval snapshot');
     $bill=$db->query('SELECT * FROM payments WHERE id='.$billId)->fetch_assoc();
-    poolCheck((int)$bill['user_id']===1 && $bill['amount']==='900.00' && $bill['status']==='pending' && $bill['billing_scope']==='amenity_reservation','exactly one unpaid unit-owner bill');
+    poolCheck((int)$bill['user_id']===1 && $bill['amount']==='3000.00' && $bill['status']==='pending' && $bill['billing_scope']==='amenity_reservation','exactly one unpaid unit-owner bill');
     $item=$db->query('SELECT * FROM bill_items WHERE payment_id='.$billId)->fetch_assoc(); poolCheck($item['category']==='Amenity Reservation' && str_contains($item['description'],'Booking #'.$first),'bill links original booking');
     poolCheck(decideAmenityBooking($db,$first,'approved') && (int)poolRow($db,$first)['payment_id']===$billId,'repeated approval idempotent');
     $before=(int)$db->query('SELECT COUNT(*) n FROM payments')->fetch_assoc()['n'];
@@ -88,7 +88,7 @@ try {
     poolCheck(residentCanPayBill($db,1,1,$tenantBill) && !residentCanPayBill($db,2,1,$tenantBill),'existing owner-only unit payment rules retained');
     $db->query("UPDATE payments SET paymongo_checkout_id='cs_pool_fixture',payment_method='online' WHERE id=$tenantBill");
     poolActor(2); poolReject(fn()=>decideAmenityBooking($db,$tenant,'cancelled'),'online checkout cancellation requires PMO');
-    $context=['internal_payment_id'=>$tenantBill,'checkout_id'=>'cs_pool_fixture','paymongo_payment_id'=>'pay_pool_fixture','payment_channel'=>'gcash','amount'=>90000,'currency'=>'PHP','payment_status'=>'paid','event_type'=>'checkout_session.payment.paid','livemode'=>false];
+    $context=['internal_payment_id'=>$tenantBill,'checkout_id'=>'cs_pool_fixture','paymongo_payment_id'=>'pay_pool_fixture','payment_channel'=>'gcash','amount'=>300000,'currency'=>'PHP','payment_status'=>'paid','event_type'=>'checkout_session.payment.paid','livemode'=>false];
     poolCheck(!confirmPaymongoCheckoutPayment($db,array_replace($context,['amount'=>1]))['confirmed'] && poolRow($db,$tenant)['status']==='approved','incorrect provider amount cannot confirm');
     poolCheck(confirmPaymongoCheckoutPayment($db,$context)['confirmed'] && poolRow($db,$tenant)['status']==='confirmed','verified provider payment confirms booking');
     poolCheck(!confirmPaymongoCheckoutPayment($db,$context)['confirmed'],'duplicate provider event idempotent');
@@ -107,7 +107,9 @@ try {
     poolCheck(count(functionHallCalendarAvailability($db,'2028-02')['days'])===29 && functionHallCalendarAvailability($db,'2028-02')['first_weekday']===2,'hall calendar handles leap-year February and weekday alignment');
     poolCheck(count(functionHallCalendarAvailability($db,'2027-02')['days'])===28 && count(functionHallCalendarAvailability($db,'2026-12')['days'])===31,'hall calendar uses the correct month length');
     foreach(['2026-13','2026-00','2026-2','not-a-month','0000-01'] as $invalidMonth) poolReject(fn()=>functionHallCalendarAvailability($db,$invalidMonth),'calendar rejects invalid month '.$invalidMonth);
-    $hall=poolCreate($db,1,$tomorrow,'08:00',1,50,'Function Hall'); poolActor(2);
+    $hall=poolCreate($db,1,$tomorrow,'08:00',1,50,'Function Hall');
+    poolCheck(poolRow($db,$hall)['total_fee']==='10000.00','Function Hall saves the full-day fee of PHP 10000');
+    poolActor(2);
     poolCheck(functionHallAvailability($db,$tomorrow)['fully_booked'] && count(array_filter(functionHallAvailability($db,$tomorrow)['slots'],fn($slot)=>$slot['status']==='booked'))===15,'pending hall request blocks the entire date in availability');
     poolCheck(array_column(functionHallCalendarAvailability($db,substr($tomorrow,0,7))['days'],'status','date')[$tomorrow]==='booked','pending hall reservation marks one calendar day Booked');
     poolReject(fn()=>createAmenityBooking($db,2,'Function Hall',$tomorrow,'10:00',20),'Function Hall retains exclusive full-day pending hold');
@@ -146,14 +148,18 @@ try {
     [$status,$html]=$request('resident/book_amenity.php',2); poolCheck($status===200,'tenant amenity page available');
     preg_match('/data-csrf="([a-f0-9]+)"/',$html,$token); $csrf=$token[1];
     poolCheck(substr_count($html,'data-open-booking=')===2 && str_contains($html,'amenity-swimming-pool') && str_contains($html,'amenity-function-hall'),'only two reservable cards and local photographs');
+    poolCheck(str_contains($html,'₱1,000 / hour') && str_contains($html,'₱10,000 / day') && str_contains($html,'Pool Area'),'amenity cards display updated rates and pool location');
     $dom=new DOMDocument();libxml_use_internal_errors(true);$dom->loadHTML($html);$xp=new DOMXPath($dom);
     poolCheck($xp->query('//article[contains(@class,"amenity-card")]')->length===9 && $xp->query('//article[contains(@class,"amenity-card")]//button[@data-open-booking]')->length===2,'all nine amenity cards, seven view-only');
     foreach($xp->query('//form[translate(@method,"POST","post")="post"]') as $form) poolCheck($xp->query('.//input[@name="csrf_token"]',$form)->length===1,'rendered booking CSRF token');
     [$status,$body]=$request('api/amenity_bookings.php?date='.$next.'&duration=2',2); $data=json_decode($body,true); poolCheck($status===200 && isset($data['slots']) && !str_contains($body,'Tenant Two') && !str_contains($body,'payment_id'),'availability endpoint scoped and identity-free');
+    poolCheck($data['hourly_rate']===1000 && $data['total_fee']===2000,'pool availability quotes PHP 1000 per hour');
     [$status,$body]=$request('api/amenity_bookings.php?amenity=Function%20Hall&date='.$tomorrow,2);$data=json_decode($body,true);
     poolCheck($status===200 && $data['reservation_type']==='full_day' && count($data['slots'])===15 && !str_contains($body,'Owner One') && !str_contains($body,'user_id'),'hall API uses full-day schedule without exposing personal information');
+    poolCheck($data['total_fee']===10000,'hall daily availability quotes PHP 10000');
     [$status,$body]=$request('api/amenity_bookings.php?amenity=Function%20Hall&month='.substr($tomorrow,0,7),4);$data=json_decode($body,true);
     poolCheck($status===200 && isset($data['days']) && !isset($data['slots']) && !str_contains($body,'Owner One') && !str_contains($body,'user_id'),'hall monthly endpoint returns dates without arrival times or identities');
+    poolCheck($data['total_fee']===10000,'hall monthly availability quotes PHP 10000');
     [$status]=$request('api/amenity_bookings.php?amenity=Function%20Hall&month=2026-13',4);poolCheck($status===422,'hall monthly endpoint validates the month');
     [$status]=$request('api/amenity_bookings.php?amenity=Function%20Hall&month='.substr($tomorrow,0,7),5);poolCheck($status===403,'hall monthly endpoint retains staff authorization');
     [$status]=$request('api/amenity_bookings.php?amenity=Playground&date='.$next,2);poolCheck($status===422,'availability API rejects unsupported amenities');
@@ -162,7 +168,7 @@ try {
     $input=['action'=>'create','amenity'=>'Swimming Pool','booking_date'=>date('Y-m-d',strtotime('+4 days')),'booking_time'=>'10:00','duration_hours'=>'2','attendees'=>'1','total_fee'=>'0.01','hourly_rate'=>'0.01','user_id'=>3,'unit_number'=>'9999'];
     [$status]=$request('api/amenity_bookings.php',2,$input+['csrf_token'=>'invalid']); poolCheck($status===403,'invalid CSRF rejected');
     [$status,$body]=$request('api/amenity_bookings.php',2,$input+['csrf_token'=>$csrf]); poolCheck($status===200,'resident submission API');
-    $tampered=$db->query('SELECT * FROM bookings ORDER BY id DESC LIMIT 1')->fetch_assoc(); poolCheck((int)$tampered['user_id']===2 && $tampered['unit_number']==='0101' && $tampered['hourly_rate']==='300.00' && $tampered['total_fee']==='600.00','posted identity, unit and price ignored');
+    $tampered=$db->query('SELECT * FROM bookings ORDER BY id DESC LIMIT 1')->fetch_assoc(); poolCheck((int)$tampered['user_id']===2 && $tampered['unit_number']==='0101' && $tampered['hourly_rate']==='1000.00' && $tampered['total_fee']==='2000.00','posted identity, unit and price ignored');
     [$status,$adminHtml]=$request('superadmin/bookingrequest.php',4); poolCheck($status===200 && str_contains($adminHtml,'data-pool-schedule') && str_contains($adminHtml,'Total fee'),'Admin schedule and billing columns');
     preg_match('/data-csrf="([a-f0-9]+)"/',$adminHtml,$token); $adminCsrf=$token[1];
     [$status,$body]=$request('api/amenity_bookings.php',4,['action'=>'approved','booking_id'=>$overlap,'csrf_token'=>$adminCsrf]);
@@ -184,7 +190,7 @@ try {
     $late=poolCreate($db,1,$next,'20:00',1); poolActor(4); decideAmenityBooking($db,$late,'approved'); $lateBill=(int)poolRow($db,$late)['payment_id'];
     $db->query("UPDATE payments SET paymongo_checkout_id='cs_late_pool',payment_method='online' WHERE id=$lateBill");
     poolActor(6); decideAmenityBooking($db,$late,'cancelled','PMO reviewed outstanding online checkout',true);
-    $lateContext=array_replace($context,['internal_payment_id'=>$lateBill,'checkout_id'=>'cs_late_pool','paymongo_payment_id'=>'pay_late_pool','amount'=>30000]);
+    $lateContext=array_replace($context,['internal_payment_id'=>$lateBill,'checkout_id'=>'cs_late_pool','paymongo_payment_id'=>'pay_late_pool','amount'=>100000]);
     poolCheck(confirmPaymongoCheckoutPayment($db,$lateContext)['confirmed'] && poolRow($db,$late)['status']==='cancelled','late trusted payment retains PMO cancellation');
     poolActor(4); decideAmenityBooking($db,$moved,'approved'); $vacantBill=(int)poolRow($db,$moved)['payment_id'];
     $vacantPaid=poolCreate($db,3,date('Y-m-d',strtotime('+7 days')),'10:00',1);poolActor(4);decideAmenityBooking($db,$vacantPaid,'approved');$vacantPaidBill=(int)poolRow($db,$vacantPaid)['payment_id'];
@@ -192,6 +198,25 @@ try {
     poolCheck(unassignResidentUnit($db,3,'0102'),'residency revocation with active pool reservations');
     poolCheck(poolRow($db,$moved)['status']==='cancelled' && $db->query('SELECT status FROM payments WHERE id='.$vacantBill)->fetch_assoc()['status']==='rejected','vacancy releases approved pool booking and voids unpaid fee');
     poolCheck(poolRow($db,$vacantPaid)['status']==='cancelled' && $db->query('SELECT status FROM payments WHERE id='.$vacantPaidBill)->fetch_assoc()['status']==='paid','vacancy preserves paid financial history for PMO');
+    // A rate change must not invalidate earlier requests or rewrite their invoices.
+    $oldRateDate=date('Y-m-d',strtotime('+10 days'));
+    $oldRateBooking=poolCreate($db,1,$oldRateDate,'08:00',2);
+    $db->query("UPDATE bookings SET hourly_rate=300,total_fee=600 WHERE id=$oldRateBooking");
+    poolActor(4); poolCheck(decideAmenityBooking($db,$oldRateBooking,'approved'),'earlier price snapshot remains approvable');
+    $oldRateBill=(int)poolRow($db,$oldRateBooking)['payment_id'];
+    poolCheck($db->query('SELECT amount FROM payments WHERE id='.$oldRateBill)->fetch_assoc()['amount']==='600.00','earlier request is billed at its saved price');
+    $db->query("UPDATE payments SET payment_method='cash' WHERE id=$oldRateBill");
+    poolActor(6); poolCheck(confirmCashBillPayment($db,$oldRateBill),'earlier-rate invoice can still be paid');
+    decideAmenityBooking($db,$oldRateBooking,'approved');
+    $oldPaid=$db->query('SELECT amount,status FROM payments WHERE id='.$oldRateBill)->fetch_assoc();
+    poolCheck($oldPaid['amount']==='600.00' && $oldPaid['status']==='paid','repeated approval preserves the earlier paid amount');
+    $invalidSnapshot=poolCreate($db,1,$oldRateDate,'12:00',2);
+    $db->query("UPDATE bookings SET total_fee=1900 WHERE id=$invalidSnapshot");
+    poolActor(4); poolReject(fn()=>decideAmenityBooking($db,$invalidSnapshot,'approved'),'inconsistent saved price cannot be billed');
+    poolCheck(poolRow($db,$invalidSnapshot)['payment_id']===null,'inconsistent saved price produces no invoice');
+    $unpriced=poolCreate($db,1,$oldRateDate,'16:00');
+    $db->query("UPDATE bookings SET hourly_rate=0,total_fee=0 WHERE id=$unpriced");
+    poolActor(4); poolReject(fn()=>decideAmenityBooking($db,$unpriced,'approved'),'unpriced legacy request still requires resubmission');
     if(in_array('--preview',$argv,true)) { echo 'Disposable amenity preview: '.$base."resident/book_amenity.php?fixture_actor=2\nPress Enter to finish.\n";fgets(STDIN); }
     echo "Passed $checks pool, gallery and billing integration checks.\n";
 } finally {

@@ -82,9 +82,9 @@ if ($isVisitorPass) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= passEscape($passTitle) ?> | The Celandine Homes</title>
-    <link rel="stylesheet" href="resident.css">
-    <link rel="stylesheet" href="services.css">
+    <title><?= passEscape($passTitle) ?> | The Celandine</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('resident.css'), ENT_QUOTES, 'UTF-8') ?>">
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('services.css'), ENT_QUOTES, 'UTF-8') ?>">
     <?php renderPortalUiHead(); ?>
     <link rel="stylesheet" href="assets/css/resident-service-pass.css?v=<?= filemtime(__DIR__.'/assets/css/resident-service-pass.css') ?>">
     <script defer src="assets/js/resident-service-pass.js?v=<?= filemtime(__DIR__.'/assets/js/resident-service-pass.js') ?>"></script>
@@ -92,10 +92,9 @@ if ($isVisitorPass) {
 <body class="portal-ui dashboard-page visitor-pass-page">
 <main class="service-pass service-panel visitor-pass" aria-labelledby="passTitle">
     <header class="visitor-pass-header">
-        <?= systemIcon($isVisitorPass ? 'users' : 'file-text', 'visitor-pass-brand-icon') ?>
+        <?= brandHtml('compact') ?>
         <div>
             <h1 id="passTitle"><?= passEscape($passTitle) ?></h1>
-            <p>The Celandine Homes</p>
             <span class="visitor-pass-reference">Reference #<?= $id ?></span>
         </div>
     </header>
@@ -130,7 +129,7 @@ if ($isVisitorPass) {
     <section class="visitor-pass-qr-section" aria-labelledby="passQrTitle">
         <h2 id="passQrTitle">Security verification</h2>
         <?php if ($showQr): ?>
-        <div id="serviceQr" role="img" aria-label="<?= $isVisitorPass ? 'Visitor' : 'Permit' ?> access QR code" aria-describedby="passSecurityInstruction"></div>
+        <div id="serviceQr" data-qr-value="<?= passEscape(residentServicePassUrl($pass)) ?>" role="img" aria-label="<?= $isVisitorPass ? 'Visitor' : 'Permit' ?> access QR code" aria-describedby="passSecurityInstruction"></div>
         <p id="passQrFallback" class="visitor-pass-qr-fallback" role="status">QR code unavailable. Reload this page before presenting or printing the pass.</p>
         <?php else: ?>
         <div class="visitor-pass-qr-unavailable"><?= systemIcon('lock') ?><p>QR code unavailable for this request status.</p></div>
@@ -148,12 +147,5 @@ if ($isVisitorPass) {
         <a class="service-btn service-btn-secondary" href="<?= isSuperAdmin() ? 'superadmin/scanner.php' : (isSecurity() ? 'security/scanner.php' : (canReviewPermits() ? 'superadmin/service_requests.php' : ('resident/' . ($pass['request_kind'] === 'visitor' ? 'visitors.php' : 'permits.php')))) ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7M5 12h14"/></svg>Back</a>
     </div>
 </main>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script>
-if (document.getElementById('serviceQr') && typeof QRCode === 'function') {
-    new QRCode(document.getElementById('serviceQr'), {text:<?= json_encode(residentServicePassUrl($pass), JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>,width:256,height:256});
-    document.getElementById('passQrFallback').hidden = true;
-}
-</script>
 </body>
 </html>

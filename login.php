@@ -70,8 +70,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences</title>
-    <link rel="stylesheet" href="styles.css?v=2">
+    <title>The Celandine</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('styles.css'), ENT_QUOTES, 'UTF-8') ?>">
     <script src="js/page-transition.js?v=2" defer></script>
 <?php renderPortalUiHead(); ?>
 </head>
@@ -81,7 +81,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="form-panel">
             <div class="brand">
                 <?php include 'buildingicon.php'; ?>
-                <div class="brand-title">The Celandine<br>Residences</div>
             </div>
             <a class="login-back-button" href="homepage.php" data-screen-transition>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>

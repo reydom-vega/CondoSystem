@@ -65,13 +65,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verify Account</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Verify Account | The Celandine</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('styles.css'), ENT_QUOTES, 'UTF-8') ?>">
 <?php renderPortalUiHead(); ?>
 </head>
 <body class="portal-ui portal-account-page">
     <div class="card">
         <div class="form-panel">
+<div class="account-brand"><?= brandHtml('compact') ?></div>
             <h1>Verify Account</h1>
             <p class="subtitle">Enter your email and verification code to activate your account.</p>
 

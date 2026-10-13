@@ -23,6 +23,6 @@ if (isLoggedIn()) {
     }
 }
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sign out</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="services.css"><?php renderPortalUiHead(); ?>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sign out | The Celandine</title><link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('styles.css'), ENT_QUOTES, 'UTF-8') ?>"><link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('services.css'), ENT_QUOTES, 'UTF-8') ?>"><?php renderPortalUiHead(); ?>
 </head>
-<body class="portal-ui portal-account-page logout-confirmation"><main class="card"><h1>Sign out of your account?</h1><form method="post"><?php echo workflowCsrfField(); ?><button class="button-link" type="submit">Sign out</button></form><a class="button-link button-link-secondary" href="<?php echo htmlspecialchars($returnPath, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($returnLabel, ENT_QUOTES, 'UTF-8'); ?></a></main></body></html>
+<body class="portal-ui portal-account-page logout-confirmation"><main class="card"><div class="account-brand"><?= brandHtml('compact') ?></div><h1>Sign out of your account?</h1><form method="post"><?php echo workflowCsrfField(); ?><button class="button-link" type="submit">Sign out</button></form><a class="button-link button-link-secondary" href="<?php echo htmlspecialchars($returnPath, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($returnLabel, ENT_QUOTES, 'UTF-8'); ?></a></main></body></html>

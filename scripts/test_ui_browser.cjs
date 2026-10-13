@@ -147,7 +147,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve,ms));
     await evaluate("document.querySelector('[data-open-booking=swimming-pool]').click();{const f=document.querySelector('#poolBookingForm');const d=new Date();d.setDate(d.getDate()+12);f.elements.booking_date.value=d.toLocaleDateString('en-CA');f.elements.duration_hours.value='2';f.elements.attendees.value='4';f.elements.booking_date.dispatchEvent(new Event('change',{bubbles:true}));}");
     await wait("document.querySelector('[data-time-slots] button:not(:disabled)') && !document.querySelector('[data-time-slots]').hasAttribute('aria-busy')");
     await evaluate("document.querySelector('[data-time-slots] button:not(:disabled)').click()");
-    await check("document.querySelector('[data-summary-fee]').textContent.includes('600') && !document.querySelector('[data-reservation-submit]').disabled",'Pool fee and real availability selection');
+    await check("document.querySelector('[data-summary-fee]').textContent.includes('2,000') && !document.querySelector('[data-reservation-submit]').disabled",'Pool fee and real availability selection');
     await screenshot('mobile-pool-reservation');
     await evaluate("document.querySelector('[data-reservation-submit]').click()");
     await wait("location.hash==='#yourBookings' && document.querySelector('#yourBookings') && !document.querySelector('#yourBookings').hidden && document.querySelector('.alert.success') && !!window.CelandineUi && !!window.CelandineMotion");

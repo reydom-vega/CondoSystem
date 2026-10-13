@@ -16,8 +16,8 @@ $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? su
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences - QR Scanner</title>
-    <link rel="stylesheet" href="../<?php echo isSecurity() ? 'security.css' : 'styles.css'; ?>">
+    <title>The Celandine - QR Scanner</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl(isSecurity() ? 'security.css' : 'styles.css'), ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="../services.css?v=<?php echo filemtime(__DIR__ . '/../services.css'); ?>">
     <link rel="stylesheet" href="../scanner.css?v=<?php echo filemtime(__DIR__ . '/../scanner.css'); ?>">
 <?php renderPortalUiHead(); ?>
@@ -27,7 +27,6 @@ $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? su
         <aside class="sidebar" id="sidebar">
             <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
-                <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
             <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
@@ -36,7 +35,7 @@ $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? su
             <header class="dash-header">
                 <div class="dash-header-left">
                     <button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button>
-                    <div><span class="dash-subtitle">CELANDINE RESIDENCES</span><h1 class="dash-title">QR Scanner</h1></div>
+                    <div><span class="dash-subtitle">THE CELANDINE</span><h1 class="dash-title">QR Scanner</h1></div>
                 </div>
                 <div class="dash-header-right">
                     <div class="profile-menu" id="profileMenu">
@@ -47,7 +46,7 @@ $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? su
             </header>
 
             <div class="scanner-intro">
-                <div><p class="scanner-eyebrow">GATE OPERATIONS</p><h2>Verify visitor and permit passes</h2><p>Scan a visitor or permit QR code, review its status, then open the pass to confirm the appropriate gate action.</p></div>
+                <div><p class="scanner-eyebrow">GATE OPERATIONS</p><h2>Verify passes and Digital Condo IDs</h2><p>Scan a visitor, parking, permit or Digital Condo ID QR code. Confirm identity and access permissions separately before any gate action.</p></div>
                 <span class="scanner-context">History timezone <strong>Asia/Manila</strong></span>
             </div>
             <div class="qr-tabs" role="tablist" aria-label="QR scanner sections"><button type="button" id="scanTab" role="tab" aria-selected="true" aria-controls="scanPanel" data-scanner-tab="scan">Scan a pass</button><button type="button" id="historyTab" role="tab" aria-selected="false" aria-controls="historyPanel" tabindex="-1" data-scanner-tab="history">Scan history</button></div>

@@ -37,6 +37,7 @@ if (!file_exists($autoload)) {
     throw new RuntimeException('Install application dependencies with Composer before starting the application.');
 }
 require_once $autoload;
+require_once __DIR__ . '/includes/branding.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -128,7 +129,7 @@ const SMTP_PORT      = 587;
 const SMTP_SECURE    = 'tls'; 
 const SMTP_DEBUG     = 0;
 const MAIL_FROM      = '';
-const MAIL_FROM_NAME = 'The Celandine Homes';
+const MAIL_FROM_NAME = 'The Celandine';
 
 $configuredDbHost = appSetting('CONDO_DB_HOST', DB_HOST);
 $configuredDbUser = appSetting('CONDO_DB_USER', DB_USER);
@@ -750,7 +751,10 @@ function sendMail(string $to, string $subject, string $message): bool {
 
         $mail->Timeout = 15;
         
-        $mail->setFrom($configuredMailFrom, appSetting('CONDO_MAIL_FROM_NAME', MAIL_FROM_NAME));
+        $mail->setFrom($configuredMailFrom, brandMailFromName(appSetting('CONDO_MAIL_FROM_NAME', MAIL_FROM_NAME)));
+        if (str_contains($message, 'cid:celandine-brand')) {
+            $mail->addEmbeddedImage(__DIR__.'/assets/branding/email-brand-dark.png', 'celandine-brand', 'the-celandine.png', 'base64', 'image/png');
+        }
         $mail->addAddress($to);
         $mail->Subject      = $subject;
         $mail->Body         = $message;
@@ -1122,6 +1126,7 @@ require_once __DIR__ . '/includes/qr_scan_history.php';
 require_once __DIR__ . '/includes/visitor_parking.php';
 require_once __DIR__ . '/includes/vehicles.php';
 require_once __DIR__ . '/includes/authentication.php';
+require_once __DIR__ . '/includes/digital_id.php';
 
 // If there's no active session but a valid remember-me cookie is
 // present, this restores the session so the account stays logged in

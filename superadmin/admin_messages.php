@@ -91,7 +91,7 @@ if ($tableReady && $selectedUserId > 0) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences</title>
+    <title>The Celandine</title>
     <link rel="stylesheet" href="../styles.css?v=<?php echo (int)filemtime(__DIR__ . '/../styles.css'); ?>">
 <?php renderPortalUiHead(); ?>
 </head>
@@ -100,7 +100,6 @@ if ($tableReady && $selectedUserId > 0) {
         <aside class="sidebar" id="sidebar">
             <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
-                <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
             <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
@@ -111,7 +110,7 @@ if ($tableReady && $selectedUserId > 0) {
                 <div class="dash-header-left">
                     <button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button>
                     <div>
-                        <span class="dash-subtitle">CELANDINE RESIDENCES</span>
+                        <span class="dash-subtitle">THE CELANDINE</span>
                         <h1 class="dash-title">Messages</h1>
                     </div>
                 </div>
@@ -154,12 +153,19 @@ if ($tableReady && $selectedUserId > 0) {
                     <?php if (empty($residents)): ?>
                         <p class="admin-empty">No residents found.</p>
                     <?php else: ?>
-                        <?php foreach ($residents as $resident): ?>
-                            <a href="admin_messages.php?user_id=<?php echo (int)$resident['id']; ?>" class="admin-chat-resident <?php echo (int)$resident['id'] === $selectedUserId ? 'selected' : ''; ?>">
-                                <strong><?php echo htmlspecialchars($resident['full_name']); ?></strong>
-                                <small><?php echo htmlspecialchars($resident['unit_number']); ?></small>
-                            </a>
-                        <?php endforeach; ?>
+                        <div class="admin-chat-resident-search">
+                            <label class="field-label" for="residentSearch">Search residents</label>
+                            <input type="search" id="residentSearch" placeholder="Name, username or unit" autocomplete="off" aria-controls="residentList">
+                        </div>
+                        <div id="residentList">
+                            <?php foreach ($residents as $resident): ?>
+                                <a href="admin_messages.php?user_id=<?php echo (int)$resident['id']; ?>" class="admin-chat-resident <?php echo (int)$resident['id'] === $selectedUserId ? 'selected' : ''; ?>" data-resident-search="<?php echo htmlspecialchars($resident['full_name'] . ' ' . $resident['username'] . ' ' . $resident['unit_number'], ENT_QUOTES, 'UTF-8'); ?>">
+                                    <strong><?php echo htmlspecialchars($resident['full_name']); ?></strong>
+                                    <small><?php echo htmlspecialchars($resident['unit_number']); ?></small>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                        <p class="admin-chat-search-empty" id="residentSearchEmpty" role="status" hidden>No matching residents found.</p>
                     <?php endif; ?>
                 </div>
 
@@ -222,6 +228,24 @@ if ($tableReady && $selectedUserId > 0) {
                 profileToggle.setAttribute('aria-expanded', 'false');
             }
         });
+
+        const residentSearch = document.getElementById('residentSearch');
+        if (residentSearch) {
+            const residentEntries = [...document.querySelectorAll('#residentList [data-resident-search]')];
+            const noMatches = document.getElementById('residentSearchEmpty');
+            function filterResidents() {
+                const terms = residentSearch.value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+                let matches = 0;
+                residentEntries.forEach(entry => {
+                    const searchable = entry.dataset.residentSearch.toLocaleLowerCase();
+                    entry.hidden = !terms.every(term => searchable.includes(term));
+                    if (!entry.hidden) matches++;
+                });
+                noMatches.hidden = matches > 0;
+            }
+            residentSearch.addEventListener('input', filterResidents);
+            filterResidents();
+        }
 
         const adminMessagesContainer = document.querySelector('.admin-chat-messages');
         function scrollAdminMessagesToLatest() {

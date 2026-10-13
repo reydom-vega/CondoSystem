@@ -107,7 +107,7 @@ if ($isPaid) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences - Payment Status</title>
+    <title>The Celandine - Payment Status</title>
     <link rel="stylesheet" href="../resident.css?v=<?php echo (int)filemtime(__DIR__ . '/../resident.css'); ?>">
     <?php if ($isPending && $returnStatus === 'success'): ?>
     <meta http-equiv="refresh" content="5">
@@ -118,7 +118,7 @@ if ($isPaid) {
 <body class="portal-ui dashboard-page payment-return-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="dashboard.php" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
+            <a href="dashboard.php" class="sidebar-brand"><?php include '../buildingicon.php'; ?></a>
             <nav class="sidebar-nav">
                 <?php renderResidentSidebarNavigation('payments.php'); ?>
             </nav>
@@ -127,7 +127,7 @@ if ($isPaid) {
 
         <main class="dashboard-main">
             <header class="dash-header">
-                <div class="dash-header-left"><button class="btn-icon-menu" id="menuToggle" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button><div><span class="dash-subtitle">CELANDINE RESIDENCES</span><h1 class="dash-title">Payment Status</h1></div></div>
+                <div class="dash-header-left"><button class="btn-icon-menu" id="menuToggle" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button><div><span class="dash-subtitle">THE CELANDINE</span><h1 class="dash-title">Payment Status</h1></div></div>
                 <div class="dash-header-right">
                     <?php include '../notifications.php'; ?>
                     <div class="profile-menu" id="profileMenu">

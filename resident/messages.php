@@ -24,7 +24,6 @@ $markRead->execute();
 $selectedId = 'office';
 $reply = trim($_POST['reply'] ?? '');
 $errors = [];
-$search = trim($_GET['search'] ?? '');
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireWorkflowCsrf();
     $attachment = storeMessageAttachment($_FILES['attachment'] ?? []);
@@ -66,7 +65,7 @@ foreach ($messageQuery->get_result() as $message) {
     $selectedConversation['messages'][] = ['id' => (int)$message['id'], 'author' => $message['sender_role'] === 'admin' ? 'Management Office' : $username, 'body' => $message['body'], 'attachment_name' => $message['attachment_name'], 'attachment_mime' => $message['attachment_mime'], 'time' => date('M j, Y g:i A', strtotime($message['created_at'])), 'incoming' => $message['sender_role'] === 'admin'];
 }
 if (empty($selectedConversation['messages'])) {
-    $selectedConversation['messages'][] = ['id' => 0, 'author' => 'Management Office', 'body' => 'Welcome to the Celandine Residences messaging center. Send us a message and our team will respond here.', 'time' => 'Today', 'incoming' => true];
+    $selectedConversation['messages'][] = ['id' => 0, 'author' => 'Management Office', 'body' => 'Welcome to The Celandine messaging center. Send us a message and our team will respond here.', 'time' => 'Today', 'incoming' => true];
 }
 ?>
 <!DOCTYPE html>
@@ -74,7 +73,7 @@ if (empty($selectedConversation['messages'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences - Messages</title>
+    <title>The Celandine - Messages</title>
     <link rel="stylesheet" href="../resident.css?v=<?php echo (int)filemtime(__DIR__ . '/../resident.css'); ?>">
 <?php renderPortalUiHead(); ?>
 </head>
@@ -83,7 +82,6 @@ if (empty($selectedConversation['messages'])) {
         <aside class="sidebar" id="sidebar">
             <a href="dashboard.php" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
-                <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
             <nav class="sidebar-nav"><?php renderResidentSidebarNavigation(); ?></nav>
         </aside>
@@ -95,7 +93,7 @@ if (empty($selectedConversation['messages'])) {
                 <div class="dash-header-left">
                     <button class="btn-icon-menu" id="menuToggle" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button>
                     <div>
-                        <span class="dash-subtitle">CELANDINE RESIDENCES</span>
+                        <span class="dash-subtitle">THE CELANDINE</span>
                         <h1 class="dash-title">Messages</h1>
                     </div>
                 </div>
@@ -132,10 +130,6 @@ if (empty($selectedConversation['messages'])) {
                         <h2 class="section-title">Messages</h2>
                         <span class="message-count"><?php echo count($selectedConversation['messages']); ?></span>
                     </div>
-                    <form class="message-search" method="get" action="messages.php">
-                        <label for="messageSearch">Search messages</label>
-                        <input id="messageSearch" type="search" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Search messages...">
-                    </form>
                     <div class="conversation-items"><div class="conversation-item selected"><span class="conversation-avatar">M</span><span class="conversation-copy"><strong>Management Office</strong><span>Resident support conversation</span></span></div></div>
                 </div>
 

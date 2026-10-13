@@ -11,8 +11,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
 }
 $gateRow=gateRequest($db,(int)$pass['id']); $gateStatus=gateEffectiveStatus($gateRow);
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><?= gateEscape(gateNumber((int)$gateRow['id'])) ?> · The Celandine Homes</title><link rel="stylesheet" href="resident.css"><link rel="stylesheet" href="services.css?v=<?= filemtime(__DIR__.'/../services.css') ?>"><?php renderPortalUiHead(); ?>
-</head><body class="portal-ui dashboard-page"><main class="service-panel property-gate-print"><header class="gate-pass-brand"><h1>The Celandine Homes</h1><p>Property Gate Pass</p></header>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><?= gateEscape(gateNumber((int)$gateRow['id'])) ?> · The Celandine</title><link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('resident.css'), ENT_QUOTES, 'UTF-8') ?>"><link rel="stylesheet" href="services.css?v=<?= filemtime(__DIR__.'/../services.css') ?>"><?php renderPortalUiHead(); ?>
+</head><body class="portal-ui dashboard-page"><main class="service-panel property-gate-print"><header class="gate-pass-brand"><?= brandHtml('compact') ?><p>Property Gate Pass</p></header>
 <?php if($gateError): ?><p class="alert error" role="alert"><?= gateEscape($gateError) ?></p><?php endif; ?>
 <?php if(!gateValid($gateRow)): ?><p class="alert error gate-pass-movement-warning" role="status">Invalid for movement now: <?= gateEscape(str_replace('_',' ',$gateStatus)) ?> or outside the authorized schedule.</p><?php else: ?><p class="alert success">Valid within the authorized schedule. Security must check all items before confirming completion.</p><?php endif; ?>
 <?php include __DIR__.'/permit_details.php'; ?>

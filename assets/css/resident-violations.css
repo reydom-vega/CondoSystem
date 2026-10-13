@@ -9,10 +9,10 @@
 .portal-ui.resident-violations-page .resident-violation-summary { grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-bottom:28px; }
 .portal-ui.resident-violations-page .resident-violation-stat { align-items:center; gap:14px; padding:22px 18px; border:1px solid var(--border-color); border-radius:14px; background:var(--surface-card); box-shadow:none; }
 .portal-ui.resident-violations-page .resident-violation-stat > div { min-width:0; }
-.portal-ui.resident-violations-page .resident-violation-stat .stat-icon { display:flex; align-items:center; justify-content:center; flex:0 0 42px; width:42px; height:42px; border-radius:12px; background:#d977061c; color:#ffba68; }
+.portal-ui.resident-violations-page .resident-violation-stat .stat-icon { display:flex; align-items:center; justify-content:center; flex:0 0 42px; width:42px; height:42px; border-radius:12px; background:#d977061c; color:var(--theme-brand,#ffba68); }
 .portal-ui.resident-violations-page .resident-violation-stat .stat-icon svg { width:21px; height:21px; }
-.portal-ui.resident-violations-page .resident-violation-stat.stat-paid .stat-icon { background:#34d3991a; color:#6ee7b7; }
-.portal-ui.resident-violations-page .resident-violation-stat.stat-review .stat-icon { background:#60a5fa1a; color:#93c5fd; }
+.portal-ui.resident-violations-page .resident-violation-stat.stat-paid .stat-icon { background:#34d3991a; color:var(--theme-success,#6ee7b7); }
+.portal-ui.resident-violations-page .resident-violation-stat.stat-review .stat-icon { background:#60a5fa1a; color:var(--theme-info,#93c5fd); }
 .portal-ui.resident-violations-page .resident-violation-stat small { font-size:12px; line-height:1.5; color:var(--text-secondary); }
 .portal-ui.resident-violations-page .resident-violation-stat strong { margin-top:6px; font-size:clamp(22px,2vw,30px); line-height:1.2; letter-spacing:-.03em; }
 .portal-ui.resident-violations-page .resident-violation-workspace { grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); align-items:start; gap:24px; }
@@ -26,13 +26,13 @@
 .portal-ui.resident-violations-page .violation-history-search button { margin:0; }
 .portal-ui.resident-violations-page .resident-violation-filters { gap:6px; padding:0 0 18px; margin-bottom:18px; border:0; border-bottom:1px solid var(--border-color); border-radius:0; background:transparent; }
 .portal-ui.resident-violations-page .resident-violation-filter { flex:0 1 auto; gap:7px; min-height:36px; padding:7px 10px; border:1px solid transparent; border-radius:8px; color:var(--text-secondary); font-size:12px; font-weight:500; }
-.portal-ui.resident-violations-page .resident-violation-filter.active { border-color:#d9770666; background:#d977061c; color:#ffca83; }
-.portal-ui.resident-violations-page .resident-violation-filter span { background:#ffffff0c; font-size:11px; }
+.portal-ui.resident-violations-page .resident-violation-filter.active { border-color:var(--theme-brand,#d9770666); background:#d977061c; color:var(--theme-brand,#ffca83); }
+.portal-ui.resident-violations-page .resident-violation-filter span { background:var(--theme-hover,#ffffff0c); font-size:11px; }
 .portal-ui.resident-violations-page .resident-violation-card { padding:18px; margin-bottom:12px; border:1px solid var(--border-color); border-radius:12px; background:var(--bg-sidebar); transition:border-color .16s,background .16s; }
-.portal-ui.resident-violations-page .resident-violation-card:is(.selected,:hover) { border-color:#d9770680; background:#d977060a; }
+.portal-ui.resident-violations-page .resident-violation-card:is(.selected,:hover) { border-color:var(--theme-brand,#d9770680); background:#d977060a; }
 .portal-ui.resident-violations-page .resident-violation-card.selected { box-shadow:inset 3px 0 0 var(--accent-primary); }
 .portal-ui.resident-violations-page .resident-violation-card-main { grid-template-columns:40px minmax(0,1fr) auto; align-items:start; gap:12px; }
-.portal-ui.resident-violations-page .resident-violation-type-icon { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:40px; height:40px; border-radius:10px; background:#d977061c; color:#ffba68; }
+.portal-ui.resident-violations-page .resident-violation-type-icon { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:40px; height:40px; border-radius:10px; background:#d977061c; color:var(--theme-brand,#ffba68); }
 .portal-ui.resident-violations-page .resident-violation-type-icon svg { width:20px; height:20px; }
 .portal-ui.resident-violations-page .resident-violation-card-copy { gap:8px; }
 .portal-ui.resident-violations-page .resident-violation-card-copy > strong { font-size:15px; line-height:1.5; }
@@ -74,7 +74,7 @@
 .portal-ui.resident-violations-page .resident-violation-dispute-form button { width:100%; min-height:46px; border:1px solid var(--border-color); border-radius:9px; background:var(--surface-elevated); color:var(--text-primary); font-size:14px; font-weight:600; }
 .portal-ui.resident-violations-page .resident-violation-dispute-form button:hover { border-color:var(--accent-primary); background:#d977061c; }
 .portal-ui.resident-violations-page :is(.resident-violation-dispute-note,.violation-resolution-note) { margin-top:20px; padding:18px; border:1px solid #60a5fa40; border-radius:10px; background:#60a5fa0c; color:var(--text-primary); }
-.portal-ui.resident-violations-page :is(.resident-violation-dispute-note,.violation-resolution-note) strong { color:#bfdbfe; font-size:14px; }
+.portal-ui.resident-violations-page :is(.resident-violation-dispute-note,.violation-resolution-note) strong { color:var(--theme-info,#bfdbfe); font-size:14px; }
 .portal-ui.resident-violations-page :is(.resident-violation-dispute-note,.violation-resolution-note) p { color:var(--text-secondary); margin:8px 0 0; font-size:13px; line-height:1.7; overflow-wrap:anywhere; }
 .portal-ui.resident-violations-page .resident-violation-dispute-note small { display:block; margin-top:10px; font-size:12px; }
 .portal-ui.resident-violations-page :is(.resident-violation-empty,.resident-violation-filter-empty) { padding:48px 20px; border:1px dashed var(--border-color); border-radius:14px; background:var(--bg-sidebar); color:var(--text-secondary); font-size:14px; line-height:1.7; }

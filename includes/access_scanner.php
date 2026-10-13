@@ -5,7 +5,15 @@ function verifyAccessScan(mysqli $db, string $content): array {
     $invalid=['recognized'=>false,'valid'=>false,'verification_result'=>'invalid','qr_type'=>'unknown','message'=>'Unrecognized QR code. No access authorization.','remarks'=>'Unknown or invalid QR verification attempt.'];
     if(!is_array($parts) || !isset($parts['host'],$parts['scheme'],$parts['path']) || isset($parts['user']) || isset($parts['pass']) || $parts['host']!==($base['host'] ?? '') || $parts['scheme']!==($base['scheme'] ?? '') || ($parts['port'] ?? null)!==($base['port'] ?? null)) return $invalid;
     $root=rtrim($base['path'] ?? '', '/'); parse_str($parts['query'] ?? '',$query); $pass=null; $type='unknown';
-    if($parts['path']===$root.'/resident_service_pass.php') {
+    if($parts['path']===$root.'/digital_id_verify.php') {
+        if (!digitalIdCanReview()) return array_replace($invalid, ['recognized'=>true,'qr_type'=>'digital_id','message'=>'Access Not Authorized']);
+        parse_str($parts['fragment'] ?? '', $fragment);
+        $token = $fragment['credential'] ?? '';
+        if (!is_string($token)) return $invalid;
+        $verification = digitalIdVerify($db, $token, true);
+        if ($verification['valid']) $verification['pass_url'] = $content;
+        return $verification;
+    } elseif($parts['path']===$root.'/resident_service_pass.php') {
         $id=filter_var($query['id'] ?? null,FILTER_VALIDATE_INT); $token=$query['token'] ?? '';
         if($id && is_string($token)) { ensureResidentServicesTables($db); $pass=getResidentServicePass($db,$id,$token); }
         if($pass) $type=!empty($pass['gate_data'])?'property':($pass['request_kind']==='visitor'?'visitor':'permit');

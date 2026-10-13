@@ -101,8 +101,8 @@ function parkingFormValue(string $field, string $default = ''): string { return 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences - Parking &amp; Vehicles</title>
-    <link rel="stylesheet" href="../resident.css">
+    <title>The Celandine - Parking &amp; Vehicles</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('resident.css'), ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="../services.css?v=<?php echo filemtime(__DIR__ . '/../services.css'); ?>">
 <?php renderPortalUiHead(); ?>
 <link rel="stylesheet" href="../assets/css/parking-workspace.css?v=<?= filemtime(__DIR__.'/../assets/css/parking-workspace.css') ?>">
@@ -115,7 +115,6 @@ function parkingFormValue(string $field, string $default = ''): string { return 
         <aside class="sidebar" id="sidebar">
             <a href="dashboard.php" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
-                <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
 
             <nav class="sidebar-nav"><?php renderResidentSidebarNavigation(); ?></nav>
@@ -130,7 +129,7 @@ function parkingFormValue(string $field, string $default = ''): string { return 
                         <?php echo systemIcon('menu', 'menu-icon'); ?>
                     </button>
                     <div>
-                        <span class="dash-subtitle">CELANDINE RESIDENCES</span>
+                        <span class="dash-subtitle">THE CELANDINE</span>
                         <h1 class="dash-title">Parking &amp; Vehicles</h1>
                     </div>
                 </div>

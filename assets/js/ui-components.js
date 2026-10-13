@@ -53,7 +53,9 @@
       link.setAttribute('aria-label',label);
     });
     const close = document.createElement('button'); close.type = 'button'; close.className = 'sidebar-close';
-    close.setAttribute('aria-label','Close navigation'); close.textContent = '\u00d7'; sidebar.prepend(close);
+    close.setAttribute('aria-label','Close navigation');
+    close.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>';
+    sidebar.prepend(close);
     on(close,'click',() => setDrawer(false));
     menu?.setAttribute('aria-controls',sidebar.id);
     try { setCollapsed(localStorage.getItem(storageKey)==='1'); } catch { setCollapsed(false); }

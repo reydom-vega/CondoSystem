@@ -5,6 +5,7 @@
                     <p class="bookings-empty">You have no parking requests yet.</p>
                 <?php else: ?>
                     <?php foreach ($myRequests as $request): ?>
+                        <?php $parkingPassNotice = $request['request_type'] === 'visitor' ? parkingPassApprovalNotice($request) : null; ?>
                         <div class="booking-item" id="parking-request-<?php echo (int)$request['id']; ?>">
                             <?php echo systemIconFromGlyph('🚗', 'booking-icon'); ?>
                             <div class="booking-content">
@@ -15,9 +16,12 @@
                                     <?php if ($request['end_date']): ?> to <?php echo htmlspecialchars(date('M j, Y', strtotime($request['end_date']))); ?><?php endif; ?>
                                     <?php if ($request['status'] === 'approved' && !empty($request['slot_code'])): ?> · Slot <?php echo htmlspecialchars($request['slot_code']); ?><?php endif; ?>
                                 </p>
+                                <?php if ($request['request_type'] === 'visitor' && $request['status'] === 'approved' && $parkingPassNotice !== null): ?>
+                                    <div class="pass-note"><p><?= htmlspecialchars($parkingPassNotice, ENT_QUOTES, 'UTF-8') ?></p><?php if (!empty($request['visitor_registration_id']) && residentHasPermission('resident.visitors.register')): ?><a href="visitors.php?tab=requests" class="service-btn service-btn-secondary">View visitor registration</a><?php endif; ?></div>
+                                <?php endif; ?>
                             </div>
                             <span class="badge badge-success unit-status <?php echo htmlspecialchars($request['status']); ?>"><?php echo htmlspecialchars(ucfirst($request['status'])); ?></span>
-                            <?php if ($request['request_type'] === 'visitor' && $request['status'] === 'approved' && (empty($request['visitor_registration_id']) || in_array($request['visitor_status'], ['approved','checked_in'], true))): ?>
+                            <?php if ($request['request_type'] === 'visitor' && $request['status'] === 'approved' && $parkingPassNotice === null): ?>
                                 <a href="../parking_pass.php?request_id=<?php echo (int)$request['id']; ?>&amp;signature=<?php echo htmlspecialchars(parkingPassSignature((int)$request['id'])); ?>" class="service-btn service-btn-secondary">Download QR Pass</a>
                             <?php endif; ?>
                             <?php if ($request['request_type'] === 'visitor' && in_array($request['status'], ['pending','approved'], true)): ?><form method="post" action="parking.php"><?php echo workflowCsrfField(); ?><input type="hidden" name="form_action" value="cancel_visitor_request"><input type="hidden" name="request_id" value="<?php echo (int)$request['id']; ?>"><button type="submit" class="service-btn service-btn-danger">Cancel parking</button></form><?php endif; ?>

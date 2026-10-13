@@ -42,7 +42,7 @@ try {
         (8,'maintenance','Maintenance Staff','maintenance@example.invalid','fixture',NULL,'maintenance',1,'approved',NULL,NULL)");
     $db->query("INSERT INTO parking_slots(slot_code,slot_type,status) VALUES('ID-V1','visitor','available')");
     identityCheck(ensureVisitorIdentitySchema($db) && ensureVisitorIdentitySchema($db), 'identity migration is repeatable');
-    $manifest = [['path'=>'resident/visitors.php','actor'=>1],['path'=>'superadmin/service_requests.php?kind=visitor','actor'=>4],['path'=>'resident_service_pass.php','actor'=>1],['path'=>'visitor_id_document.php','actor'=>4],['path'=>'security/scanner.php','actor'=>5],['path'=>'security/security_dashboard.php','actor'=>5]];
+    $manifest = [['path'=>'resident/visitors.php','actor'=>1],['path'=>'resident/parking.php','actor'=>1],['path'=>'parking_pass.php','actor'=>1],['path'=>'superadmin/service_requests.php?kind=visitor','actor'=>4],['path'=>'resident_service_pass.php','actor'=>1],['path'=>'visitor_id_document.php','actor'=>4],['path'=>'security/scanner.php','actor'=>5],['path'=>'security/security_dashboard.php','actor'=>5]];
     putenv('CONDO_UI_MANIFEST='.json_encode($manifest));
     $log=tempnam(sys_get_temp_dir(),'condo-identity-http-'); $temps[]=$log;
     $http=proc_open([PHP_BINARY,'-S','127.0.0.1:'.$port,__DIR__.'/ui_fixture_router.php'],[0=>['pipe','r'],1=>['file',$log,'a'],2=>['file',$log,'a']],$pipes,dirname(__DIR__)); fclose($pipes[0]);
@@ -100,11 +100,30 @@ try {
     identityActor(5,'security');
     identityCheck(decideResidentServiceRequest($db,$id,'approved','Visit approved'),'visit approval remains separate');
     identityCheck(!checkInRegisteredVisitor($db,$id,$row['access_token']) && !verifyAccessScan($db,$passUrl)['valid'], 'visit approval without identity cannot admit visitor');
+    // Reproduce legacy parking approval while the visitor ID is still pending.
+    $parkingPath='parking_pass.php?request_id='.$parkingId.'&signature='.parkingPassSignature($parkingId);
+    $db->query("UPDATE parking_requests SET status='approved',slot_id=1 WHERE id=$parkingId");
+    identityCheck(getParkingPass($parkingId,parkingPassSignature($parkingId))===null && !verifyAccessScan($db,parkingPassUrl($parkingId))['valid'],'pending visitor identity never authorizes approved parking');
+    [$status,$body]=identityHttp($parkingPath,2);
+    identityCheck($status===200 && str_contains($body,'Visitor identity verification is pending') && !str_contains($body,'id="qrCode"') && !str_contains($body,'id="downloadPass"'),'authorized owner sees pending verification instead of a false access-denied page');
+    identityCheck(identityHttp($parkingPath,3)[0]===404 && identityHttp($parkingPath,7)[0]===404 && identityHttp($parkingPath,4)[0]===200,'status explanation preserves owner and gate-personnel access restrictions');
+    [$deniedStatus,$deniedBody]=identityHttp($parkingPath,3);
+    identityCheck($deniedStatus===404 && str_contains($deniedBody,'Parking pass unavailable') && str_contains($deniedBody,'You are signed in as') && str_contains($deniedBody,'Return to dashboard') && !str_contains($deniedBody,'ID Protected Guest') && !str_contains($deniedBody,'ID1234'),'denied pass shows the current account and recovery navigation without exposing visitor details');
+    identityCheck(identityHttp('parking_pass.php?request_id='.$parkingId.'&signature=forged',2)[0]===404,'status page still rejects forged signatures');
+    $db->query("UPDATE resident_service_requests SET id_document_name=NULL WHERE id=$id");
+    [$status,$body]=identityHttp($parkingPath,2);
+    identityCheck($status===200 && str_contains($body,'Upload a valid ID in Visitor Registration') && !str_contains($body,'id="qrCode"'),'missing legacy ID explains how to complete verification without issuing a QR');
+    [, $list]=identityHttp('resident/parking.php?tab=requests',2);
+    identityCheck(str_contains($list,'View visitor registration') && !str_contains($list,'Download QR Pass'),'parking requests do not offer a download before ID verification');
+    $restore=$db->prepare('UPDATE resident_service_requests SET id_document_name=? WHERE id=?');$restore->bind_param('si',$row['id_document_name'],$id);$restore->execute();
+    $db->query("UPDATE parking_requests SET status='pending',slot_id=NULL WHERE id=$parkingId");
     identityCheck(identityHttp('superadmin/service_requests.php?kind=visitor',4,$review)[0]===302,'admin verifies the uploaded identity');
     $row=identityRow($db,$id);
     identityCheck($row['identity_status']==='verified' && (int)$row['identity_reviewed_by']===4 && $row['identity_reviewed_at']!==null,'review records actual staff actor and timestamp');
     identityCheck(!verifyAccessScan($db,$passUrl)['valid'] && !checkInRegisteredVisitor($db,$id,$row['access_token']), 'identity approval still waits for linked parking');
     identityCheck(decideParkingRequest($parkingId,'approved',1,''),'existing parking approval works');
+    [$status,$body]=identityHttp($parkingPath,2);
+    identityCheck($status===200 && str_contains($body,'id="qrCode"') && str_contains($body,'id="downloadPass"') && !str_contains($body,'cdnjs.cloudflare.com/ajax/libs/qrcodejs'),'verified and approved parking pass opens with the local QR renderer');
     $scan=verifyAccessScan($db,$passUrl);
     identityCheck($scan['valid'] && $scan['identity_status']==='verified' && $scan['vehicle_plate']==='ID1234' && $scan['visit_purpose']==='Family visit' && $scan['visitor_count']===2,'scanner shows visitor, visit, identity and vehicle information');
     $json=json_encode($scan);
@@ -177,6 +196,15 @@ try {
     identityCheck(visitorAccessApprovalsComplete($db,$legacy) && visitorPassVehicle($db,$legacyId)===null,'cancelled latest parking permits walking in without reviving an old rejected request');
     // Keep one pending registration for optional browser review; no test ID data is real.
     identityHttp('resident/visitors.php',1,array_replace($input,['visitor_name'=>'Browser Identity Guest','id_number'=>'','valid_id'=>$upload()]));
+    if (in_array('--preview',$argv,true)) {
+        [$browserStatus]=identityHttp('resident/visitors.php',1,array_replace($input,['visitor_name'=>'Browser Parking Guest','id_number'=>'','valid_id'=>$upload(),'needs_parking'=>'1','vehicle_plate'=>'BROWSER-PARK','vehicle_description'=>'Browser fixture vehicle']));
+        identityCheck($browserStatus===302,'browser parking fixture registers with a current CSRF token');
+        $browserVisitor=$db->query("SELECT * FROM resident_service_requests WHERE visitor_name='Browser Parking Guest' ORDER BY id DESC LIMIT 1")->fetch_assoc();
+        $browserId=(int)$browserVisitor['id'];$browserParking=(int)$db->query('SELECT id FROM parking_requests WHERE visitor_registration_id='.$browserId)->fetch_assoc()['id'];
+        $db->query("INSERT INTO parking_slots(slot_code,slot_type,status) VALUES('BROWSER-V1','visitor','available')");$browserSlot=(int)$db->insert_id;
+        identityActor(4,'admin');
+        identityCheck(decideResidentServiceRequest($db,$browserId,'approved','Browser fixture') && reviewVisitorIdentity($db,$browserId,'verified','Browser fixture') && decideParkingRequest($browserParking,'approved',$browserSlot,''),'browser parking fixture completes existing visit, identity and parking approvals');
+    }
     echo "Passed $checks visitor identity upload, approval, privacy, QR and retention checks in a disposable database.\n";
     if (in_array('--preview',$argv,true)) { echo 'Identity preview: '.$base."\nPress Enter to finish.\n"; fgets(STDIN); }
     $logContents=file_get_contents($log);

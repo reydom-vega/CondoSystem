@@ -11,7 +11,7 @@ Resident cards use responsive cropped images and a larger, uncropped lightbox. P
 ## Pool schedule and pricing
 
 - Exclusive sessions, 1–3 whole hours, on the hour, within the existing 6 AM–9 PM operating schedule.
-- Maximum 20 guests. Guest count never changes the fixed PHP 300/hour price.
+- Maximum 20 guests. Guest count never changes the fixed PHP 1,000/hour price. The pool location is Pool Area.
 - Date/time display and validation use Asia/Manila.
 - Pending requests do not block pool availability. Approved, confirmed and completed reservations occupy their original interval.
 - Two intervals conflict exactly when `requested_start < existing_end AND requested_end > existing_start`. Adjacent sessions are allowed.
@@ -26,11 +26,11 @@ Approval creates a dedicated `payments` statement and one `bill_items` line of t
 
 The requesting tenant's stored unit-owner relationship determines the unit billing account. Exactly one owner-account bill is issued; tenants retain their existing read-only access to shared unit bills. Pool invoices have the `amenity_reservation` billing scope and cannot be extended with arbitrary bill items or recalculated away from the booking snapshot.
 
-Repeated approval is idempotent. A failed conflict, charge insert or audit rolls the whole approval back. Money snapshots use DECIMAL, with the fixed hourly calculation performed on the backend.
+Repeated approval is idempotent. A failed conflict, charge insert or audit rolls the whole approval back. Money snapshots use DECIMAL, with the fixed hourly calculation performed on the backend. Shared rates in `includes/amenity_catalog.php` drive reservation calculations, availability responses, and displayed prices. Existing bookings retain their saved rates when approved, and issued or paid statements are not repriced.
 
 Selected policy: future unpaid reservations without an online checkout can be cancelled, releasing their hours and voiding the dedicated unpaid statement (`payments.status = rejected`, `gateway_status = booking_cancelled`). Paid reservations and reservations bound to an online checkout require PMO review and remain active until that review. A staff member with both booking review and billing management permissions (currently Superadmin) can record an explicit reviewed cancellation and reason. Paid amounts and online checkout references remain intact for financial review; **the system does not issue an automatic gateway refund**. A late trusted payment for a PMO-cancelled reservation settles its financial record without reopening the cancelled reservation. Residency revocation releases the reservation and flags retained paid/checkout records for PMO review.
 
-Function Hall retains its exclusive full-day reservation behavior, including a pending hold. This change does not introduce automatic Function Hall billing.
+Function Hall costs PHP 10,000/day and retains its exclusive full-day reservation behavior, including a pending hold. Payment arrangements remain handled by PMO; this change does not introduce automatic Function Hall billing.
 
 ## Database and upgrade
 

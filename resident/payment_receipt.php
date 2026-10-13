@@ -47,10 +47,6 @@ $billingPeriod = !empty($receipt['billing_period_start'])
     ? date('F Y', strtotime($receipt['billing_period_start']))
     : date('F Y', strtotime($paidAt));
 $receiptReference = 'DUES-' . $paymentId;
-$brandImagePath = __DIR__ . '/../assets/building-icon.jpg';
-$brandImage = is_file($brandImagePath)
-    ? 'data:image/jpeg;base64,' . base64_encode((string)file_get_contents($brandImagePath))
-    : '';
 
 ob_start();
 ?>
@@ -64,7 +60,7 @@ ob_start();
         .brand { width: 100%; padding-bottom: 16px; border-bottom: 2px solid #e6a440; }
         .brand td { vertical-align: middle; }
         .brand img { width: 42px; height: 42px; margin-right: 12px; }
-        .brand-name { font-size: 15px; font-weight: bold; }
+        <?= brandDocumentStyles() ?>
         .muted { color: #657186; font-size: 10px; }
         h1 { margin: 22px 0 4px; font-size: 24px; }
         .meta { width: 100%; margin: 20px 0 24px; border-collapse: collapse; background: #f6f8fb; }
@@ -83,8 +79,7 @@ ob_start();
 <body>
     <div class="receipt">
         <table class="brand"><tr>
-            <?php if ($brandImage !== ''): ?><td style="width:54px"><img src="<?php echo $brandImage; ?>" alt=""></td><?php endif; ?>
-            <td><div class="brand-name">CELANDINE RESIDENCES</div><div class="muted">Official payment receipt</div></td>
+            <td><?= brandDocumentHtml() ?><div class="muted">Official payment receipt</div></td>
             <td style="text-align:right;color:#187344;font-weight:bold">PAID</td>
         </tr></table>
         <h1>Payment Receipt</h1>
@@ -104,7 +99,7 @@ ob_start();
                 <tr class="total"><td>Total Paid</td><td class="amount">₱<?php echo number_format((float)$receipt['amount'], 2); ?></td></tr>
             </tbody>
         </table>
-        <div class="footer">This receipt confirms payment recorded by Celandine Residences. Keep the reference number for your records.</div>
+        <div class="footer">This receipt confirms payment recorded by The Celandine. Keep the reference number for your records.</div>
     </div>
 </body>
 </html>

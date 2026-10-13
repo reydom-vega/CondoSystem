@@ -1,9 +1,23 @@
--- The Celandine Homes: complete application schema (2026.10.09.5).
+-- The Celandine Homes: complete application schema (2026.10.13.1).
 -- Import into an EMPTY database. Existing installations: php scripts/migrate.php --apply.
 -- Contains no resident data, credentials or private signing keys.
 -- After importing, run the migration to seed installation settings and record readiness.
 
 SET NAMES utf8mb4;
+
+CREATE TABLE `digital_id_credentials` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `token_hash` char(64) NOT NULL,
+  `account_fingerprint` char(64) NOT NULL,
+  `issued_at` datetime NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `revoked_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_digital_id_token` (`token_hash`),
+  KEY `ix_digital_id_user` (`user_id`,`revoked_at`),
+  KEY `ix_digital_id_expiry` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `access_signing_keys` (
   `key_name` varchar(30) NOT NULL,

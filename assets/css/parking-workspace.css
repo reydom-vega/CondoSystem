@@ -1,14 +1,14 @@
 /* Same segmented tabs as QR Scanner, with wrapping for six management sections. */
-.portal-ui .parking-tabs { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 24px; padding:5px; width:fit-content; max-width:100%; border:1px solid #344056; border-radius:12px; background:#141b29; }
-.portal-ui .parking-tabs [role=tab] { display:block; margin:0; padding:11px 23px; border:1px solid transparent; border-radius:8px; background:transparent; color:#aebdd2; box-shadow:none; font:600 14px/1.4 Inter,"Segoe UI",sans-serif; text-decoration:none; cursor:pointer; }
-.portal-ui .parking-tabs [aria-selected=true] { background:#30394b; border-color:#536179; color:#fff; box-shadow:0 2px 5px #0003; }
+.portal-ui .parking-tabs { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 24px; padding:5px; width:fit-content; max-width:100%; border:1px solid var(--theme-line,#344056); border-radius:12px; background:var(--theme-inset,#141b29); }
+.portal-ui .parking-tabs [role=tab] { display:block; margin:0; padding:11px 23px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--theme-copy,#aebdd2); box-shadow:none; font:600 14px/1.4 Inter,"Segoe UI",sans-serif; text-decoration:none; cursor:pointer; }
+.portal-ui .parking-tabs [aria-selected=true] { background:var(--theme-inset,#30394b); border-color:var(--theme-line,#536179); color:var(--theme-ink,#fff); box-shadow:0 2px 5px #0003; }
 .portal-ui .parking-tabs [role=tab]:focus-visible { outline:2px solid #fbbf24; outline-offset:3px; }
-.portal-ui .resident-parking-workspace .parking-tabs { gap:8px; margin-bottom:28px; border-color:#3b4559; border-radius:11px; background:#131a28; }
-.portal-ui .resident-parking-workspace .parking-tabs [role=tab] { display:flex; align-items:center; justify-content:center; gap:9px; min-height:42px; padding:10px 18px; border-radius:7px; color:#b5bfd0; }
-.portal-ui .resident-parking-workspace .parking-tabs [aria-selected=true] { background:#303044; border-color:#716047; color:#ffe1ac; box-shadow:none; }
-.portal-ui .resident-parking-workspace .parking-tabs [role=tab]:hover { color:#fff; }
-.parking-tab-count { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; min-width:23px; height:23px; padding:0 5px; border-radius:6px; background:#ffffff12; font-size:11px; }
-.resident-parking-workspace #parking-panel-requests > section + section { margin-top:24px; }
+.portal-ui .resident-parking-workspace .parking-tabs { gap:8px; margin-bottom:28px; border-color:var(--theme-line,#3b4559); border-radius:11px; background:var(--theme-inset,#131a28); }
+.portal-ui .resident-parking-workspace .parking-tabs [role=tab] { display:flex; align-items:center; justify-content:center; gap:9px; min-height:42px; padding:10px 18px; border-radius:7px; color:var(--theme-copy,#b5bfd0); }
+.portal-ui .resident-parking-workspace .parking-tabs [aria-selected=true] { background:var(--theme-inset,#303044); border-color:var(--theme-line,#716047); color:var(--theme-brand,#ffe1ac); box-shadow:none; }
+.portal-ui .resident-parking-workspace .parking-tabs [role=tab]:hover { color:var(--theme-ink,#fff); }
+.parking-tab-count { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; min-width:23px; height:23px; padding:0 5px; border-radius:6px; background:var(--theme-hover,#ffffff12); font-size:11px; }
+.resident-parking-workspace [data-parking-panel] > section + section { margin-top:24px; }
 .parking-workspace [data-parking-panel][hidden] { display:none !important; }
 .parking-workspace [data-parking-record][hidden] { display:none !important; }
 .parking-workspace [data-parking-panel] { min-width:0; }
@@ -22,7 +22,7 @@
 .parking-workspace .parking-record-table { min-width:760px; }
 .parking-workspace .unit-table-wrap { max-width:100%; overflow:auto; }
 .parking-workspace .vehicle-card { overflow-wrap:anywhere; }
-.parking-workspace .parking-record-count { color:#aebdd2; margin:12px 0; }
+.parking-workspace .parking-record-count { color:var(--theme-copy,#aebdd2); margin:12px 0; }
 .parking-workspace .parking-inventory-actions { margin:0 0 20px; }
 @media(max-width:700px) {
   .portal-ui .parking-tabs { width:100%; }

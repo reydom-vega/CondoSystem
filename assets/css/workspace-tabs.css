@@ -1,12 +1,12 @@
 /* Shared segmented navigation matches amenities and the existing module tabs. */
-.portal-ui .workspace-tabs { display:flex; gap:8px; margin:0 0 28px; padding:5px; width:fit-content; max-width:100%; border:1px solid #3b4559; border-radius:11px; background:#131a28; }
-.portal-ui .workspace-tabs [role=tab] { display:flex; align-items:center; justify-content:center; gap:9px; min-height:42px; padding:10px 18px; border:1px solid transparent; border-radius:7px; background:transparent; color:#b5bfd0; font:600 14px/1.4 Inter,"Segoe UI",sans-serif; text-decoration:none; box-shadow:none; }
-.portal-ui .workspace-tabs [aria-selected=true] { background:#303044; border-color:#716047; color:#ffe1ac; }
-.portal-ui .workspace-tabs [role=tab]:hover { color:#fff; }
+.portal-ui .workspace-tabs { display:flex; gap:8px; margin:0 0 28px; padding:5px; width:fit-content; max-width:100%; border:1px solid var(--theme-line,#3b4559); border-radius:11px; background:var(--theme-inset,#131a28); }
+.portal-ui .workspace-tabs [role=tab] { display:flex; align-items:center; justify-content:center; gap:9px; min-height:42px; padding:10px 18px; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--theme-copy,#b5bfd0); font:600 14px/1.4 Inter,"Segoe UI",sans-serif; text-decoration:none; box-shadow:none; }
+.portal-ui .workspace-tabs [aria-selected=true] { background:var(--theme-inset,#303044); border-color:var(--theme-line,#716047); color:var(--theme-brand,#ffe1ac); }
+.portal-ui .workspace-tabs [role=tab]:hover { color:var(--theme-ink,#fff); }
 .portal-ui .workspace-tabs [role=tab]:focus-visible { outline:2px solid #fbbf24; outline-offset:3px; }
 [data-workspace-tabs] [data-workspace-panel][hidden] { display:none !important; }
 [data-workspace-tabs] [data-workspace-panel] { min-width:0; }
-.workspace-tab-count { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; min-width:23px; height:23px; padding:0 5px; border-radius:6px; background:#ffffff12; font-size:11px; }
+.workspace-tab-count { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; min-width:23px; height:23px; padding:0 5px; border-radius:6px; background:var(--theme-hover,#ffffff12); font-size:11px; }
 .visitor-workspace .workspace-tabs [role=tab],.permit-workspace .workspace-tabs [role=tab] { flex-wrap:wrap; }
 @media(max-width:700px) {
   .portal-ui .workspace-tabs { width:100%; gap:3px; margin-bottom:24px; }

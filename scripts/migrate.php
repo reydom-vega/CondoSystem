@@ -31,7 +31,7 @@ try {
         'ensureRememberTokensTable', 'ensurePhoneVerificationColumns', 'ensureAuditLogTable',
         'ensureParkingTables', 'ensureParkingPolicyTable', 'ensureParkingStickerOrdersTable',
         'ensureVehiclesTable', 'ensureStickerVehicleLinks', 'ensureViolationsTable',
-        'ensureVisitorLogsTable', 'ensureVisitorLogColumns', 'ensureResidentServicesTables', 'ensureQrScanHistorySchema',
+        'ensureVisitorLogsTable', 'ensureVisitorLogColumns', 'ensureResidentServicesTables', 'ensureQrScanHistorySchema', 'ensureDigitalIdSchema',
     ];
     foreach ($functions as $function) {
         $step = $function;

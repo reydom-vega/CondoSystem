@@ -87,7 +87,7 @@ $violationIcons = [
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Celandine Residences - Violations</title>
+	<title>The Celandine - Violations</title>
 	<link rel="stylesheet" href="../resident.css?v=<?php echo (int)filemtime(__DIR__ . '/../resident.css'); ?>">
 <?php renderPortalUiHead(); ?>
     <link rel="stylesheet" href="../assets/css/violation-workspace.css?v=<?php echo (int)filemtime(__DIR__ . '/../assets/css/violation-workspace.css'); ?>">
@@ -97,7 +97,7 @@ $violationIcons = [
 <body class="portal-ui dashboard-page resident-violations-page">
 	<div class="dash-layout">
 		<aside class="sidebar" id="sidebar">
-			<a href="dashboard.php" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
+			<a href="dashboard.php" class="sidebar-brand"><?php include '../buildingicon.php'; ?></a>
 			<nav class="sidebar-nav"><?php renderResidentSidebarNavigation(); ?></nav>
 		</aside>
 		<div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -106,7 +106,7 @@ $violationIcons = [
 			<header class="dash-header">
 				<div class="dash-header-left">
 					<button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button>
-					<div><span class="dash-subtitle">CELANDINE RESIDENCES</span><h1 class="dash-title">Violations</h1></div>
+					<div><span class="dash-subtitle">THE CELANDINE</span><h1 class="dash-title">Violations</h1></div>
 				</div>
 				<div class="dash-header-right">
 					<?php include '../notifications.php'; ?>

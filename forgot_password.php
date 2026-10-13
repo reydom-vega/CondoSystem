@@ -30,13 +30,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $subject = 'Reset your password';
             $safeUsername = htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8');
             $safeResetLink = htmlspecialchars($resetLink, ENT_QUOTES, 'UTF-8');
-            $message = '<!doctype html><html><body style="margin:0;background:#0a0f1d;color:#ffffff;font-family:Arial,sans-serif;padding:24px;">'
-                . '<div style="max-width:560px;margin:0 auto;background:#111827;border:1px solid #374151;border-radius:12px;padding:32px;">'
-                . '<div style="color:#f59e0b;font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;">Celandine Residences</div>'
+            $message = '<!doctype html><html><body style="margin:0;background:var(--theme-surface,#0a0f1d);color:var(--theme-ink,#ffffff);font-family:Arial,sans-serif;padding:24px;">'
+                . '<div style="max-width:560px;margin:0 auto;background:var(--theme-surface,#111827);border:1px solid var(--theme-line,#374151);border-radius:12px;padding:32px;">'
+                . brandEmailHtml()
                 . '<h1 style="font-size:24px;margin:14px 0 8px;">Reset your password</h1>'
-                . '<p style="color:#cbd5e1;line-height:1.6;">Hello ' . $safeUsername . ', click the button below to create a new password for your account.</p>'
-                . '<div style="text-align:center;"><a href="' . $safeResetLink . '" style="display:inline-block;background:#d97706;color:#ffffff;text-decoration:none;border-radius:8px;padding:13px 22px;font-weight:bold;margin:16px 0;">Reset Password</a></div>'
-                . '<p style="color:#9ca3af;font-size:12px;line-height:1.5;">This link expires in 1 hour. If you did not request a password reset, you can ignore this email.</p>'
+                . '<p style="color:var(--theme-copy,#cbd5e1);line-height:1.6;">Hello ' . $safeUsername . ', click the button below to create a new password for your account.</p>'
+                . '<div style="text-align:center;"><a href="' . $safeResetLink . '" style="display:inline-block;background:#d97706;color:var(--theme-ink,#ffffff);text-decoration:none;border-radius:8px;padding:13px 22px;font-weight:bold;margin:16px 0;">Reset Password</a></div>'
+                . '<p style="color:var(--theme-copy,#9ca3af);font-size:12px;line-height:1.5;">This link expires in 1 hour. If you did not request a password reset, you can ignore this email.</p>'
                 . '</div></body></html>';
             $sent = sendMail($email, $subject, $message);
 
@@ -57,16 +57,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forgot Password</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Forgot Password | The Celandine</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('styles.css'), ENT_QUOTES, 'UTF-8') ?>">
 <?php renderPortalUiHead(); ?>
 </head>
 <body class="portal-ui portal-account-page">
     <div class="card">
         <div class="panel-hero">
             <div class="brand">
-                <div class="logo">LM</div>
-                <h1>Password reset</h1>
+                <?= brandHtml('compact') ?>
             </div>
             <p class="subtitle">We will send a secure reset link to your email.</p>
         </div>

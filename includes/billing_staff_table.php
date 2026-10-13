@@ -8,7 +8,7 @@
                                 <strong>₱<?php echo number_format((float)$payment['amount'], 2); ?></strong>
                             <?php else: ?>
                                 <details><summary><strong>₱<?php echo number_format((float)$payment['amount'], 2); ?></strong></summary>
-                                    <div style="margin-top:6px; font-size:12px; color:#9ca3af;">
+                                    <div style="margin-top:6px; font-size:12px; color:var(--theme-copy,#9ca3af);">
                                         <?php foreach ($items as $item): ?><div><?php echo htmlspecialchars($item['category']); ?>: ₱<?php echo number_format((float)$item['amount'], 2); ?></div><?php endforeach; ?>
                                     </div>
                                 </details>

@@ -40,21 +40,33 @@ function portalWorkspaceModule(): ?string {
     return $pages[$route] ?? null;
 }
 
+/** Local asset versions prevent cached legacy colors mixing with a new theme. */
+function portalUiAssetUrl(string $path): string {
+    return buildUrl($path) . '?v=' . filemtime(dirname(__DIR__) . '/' . $path);
+}
+
 function renderPortalUiHead(): void {
     static $rendered = false;
     if ($rendered) return;
     $rendered = true;
     $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+    // Synchronous bootstrap restores the saved theme before body content renders.
+    $themeScript = 'assets/js/theme.js';
+    echo '<script src="'.$escape(buildUrl($themeScript)).'?v='.filemtime(dirname(__DIR__).'/'.$themeScript).'"></script>';
+    echo '<meta name="loading-logo-dark" content="'.$escape(portalUiAssetUrl('celandine.svg')).'">';
+    echo '<meta name="loading-logo-light" content="'.$escape(portalUiAssetUrl('celandineorange.svg')).'">';
+    echo '<link rel="stylesheet" href="'.$escape(portalUiAssetUrl('assets/css/loading-ui.css')).'">';
+    echo '<script src="'.$escape(portalUiAssetUrl('assets/js/loading-ui.js')).'"></script>';
     echo '<link rel="icon" type="image/svg+xml" sizes="any" href="'.$escape(buildUrl('celandine-favicon.svg')).'?v='.filemtime(dirname(__DIR__).'/celandine-favicon.svg').'">';
     echo '<meta name="portal-role" content="'.$escape(portalUiRoleLabel()).'">';
     foreach (['assets/css/design-system.css','assets/css/components.css','assets/css/responsive.css'] as $path) {
-        echo '<link rel="stylesheet" href="'.$escape(buildUrl($path)).'?v='.filemtime(dirname(__DIR__).'/'.$path).'">';
+        echo '<link rel="stylesheet" href="'.$escape(portalUiAssetUrl($path)).'">';
     }
     $module = portalWorkspaceModule();
     if ($module !== null) {
         echo '<meta name="portal-workspace" content="'.$escape($module).'">';
         $path = 'assets/css/workspace.css';
-        echo '<link rel="stylesheet" href="'.$escape(buildUrl($path)).'?v='.filemtime(dirname(__DIR__).'/'.$path).'">';
+        echo '<link rel="stylesheet" href="'.$escape(portalUiAssetUrl($path)).'">';
     }
     foreach (['assets/vendor/gsap/gsap.min.js','js/confirmation-ui.js','assets/js/ui-components.js','assets/js/animations.js'] as $path) {
         echo '<script defer src="'.$escape(buildUrl($path)).'?v='.filemtime(dirname(__DIR__).'/'.$path).'"></script>';
@@ -63,6 +75,12 @@ function renderPortalUiHead(): void {
         $path = 'assets/js/workspace.js';
         echo '<script defer src="'.$escape(buildUrl($path)).'?v='.filemtime(dirname(__DIR__).'/'.$path).'"></script>';
     }
+    $themeStyles = 'assets/css/theme.css';
+    echo '<link rel="stylesheet" href="'.$escape(portalUiAssetUrl($themeStyles)).'">';
+    renderDigitalIdHead();
+    echo '<link rel="preload" as="font" type="font/ttf" href="'.$escape(buildUrl('assets/fonts/cinzel/Cinzel-Regular.ttf')).'" crossorigin>';
+    echo '<link rel="stylesheet" href="'.$escape(portalUiAssetUrl('assets/css/branding.css')).'">';
+    echo '<template data-celandine-brand>'.brandHtml('compact').'</template>';
 }
 
 function renderPortalSidebarFooter(): void {
@@ -75,15 +93,15 @@ function renderPortalSidebarFooter(): void {
 function renderPortalWorkspaceHeader(string $title): void {
     $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
     $name = (string)($_SESSION['username'] ?? portalUiRoleLabel());
-    echo '<header class="dash-header"><div class="dash-header-left"><button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu">'.systemIcon('menu','menu-icon').'</button><div><span class="dash-subtitle">CELANDINE RESIDENCES</span><h1 class="dash-title">'.$escape($title).'</h1></div></div><div class="dash-header-right">';
+    echo '<header class="dash-header"><div class="dash-header-left"><button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu">'.systemIcon('menu','menu-icon').'</button><div><span class="dash-subtitle">THE CELANDINE</span><h1 class="dash-title">'.$escape($title).'</h1></div></div><div class="dash-header-right">';
     include dirname(__DIR__).'/notifications.php';
-    echo '<div class="profile-menu" id="profileMenu"><button class="btn-profile-nav" id="profileToggle" type="button" aria-label="Profile menu" aria-haspopup="true" aria-expanded="false"><span class="profile-avatar">'.$escape(strtoupper(substr($name,0,1))).'</span><span class="profile-nav-name">'.$escape($name).'</span><span class="profile-caret">&#9662;</span></button><div class="profile-dropdown" id="profileDropdown"><div class="profile-dropdown-header"><span class="profile-dropdown-avatar">'.$escape(strtoupper(substr($name,0,1))).'</span><div class="profile-dropdown-info"><span class="profile-dropdown-name">'.$escape($name).'</span><span class="profile-dropdown-unit">'.$escape(portalUiRoleLabel()).'</span></div></div><a class="profile-dropdown-item profile-dropdown-danger" href="'.$escape(buildUrl('logout.php')).'">'.systemIcon('arrow-right','system-action-icon').' Sign out</a></div></div></div></header>';
+    echo '<div class="profile-menu" id="profileMenu"><button class="btn-profile-nav" id="profileToggle" type="button" aria-label="Profile menu" aria-haspopup="true" aria-expanded="false"><span class="profile-avatar">'.$escape(strtoupper(substr($name,0,1))).'</span><span class="profile-nav-name">'.$escape($name).'</span><span class="profile-caret">&#9662;</span></button><div class="profile-dropdown" id="profileDropdown"><div class="profile-dropdown-header"><span class="profile-dropdown-avatar">'.$escape(strtoupper(substr($name,0,1))).'</span><div class="profile-dropdown-info"><span class="profile-dropdown-name">'.$escape($name).'</span><span class="profile-dropdown-unit">'.$escape(portalUiRoleLabel()).'</span></div></div><a class="profile-dropdown-item profile-dropdown-danger" href="'.$escape(buildUrl('logout.php')).'">'.systemIcon('arrow-right','system-action-icon').' Logout</a></div></div></div></header>';
 }
 
 /** Keep existing HTTP status and denial semantics while offering a useful recovery link. */
 function renderPortalError(string $message, string $title = 'Access denied'): void {
     $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
-    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'.$escape($title).' · Celandine Residences</title>';
+    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'.$escape($title).' · The Celandine</title>';
     renderPortalUiHead();
-    echo '</head><body class="portal-ui portal-account-page"><main class="portal-error-card"><p class="portal-eyebrow">CELANDINE RESIDENCES</p><h1>'.$escape($title).'</h1><p>'.$escape($message).'</p><a class="service-btn" href="'.$escape(buildUrl(isset($_SESSION['user_id']) ? dashboardPathForRole() : 'login.php')).'">'.(isset($_SESSION['user_id']) ? 'Return to dashboard' : 'Sign in').'</a></main></body></html>';
+    echo '</head><body class="portal-ui portal-account-page"><main class="portal-error-card">'.brandHtml('compact').'<h1>'.$escape($title).'</h1><p>'.$escape($message).'</p><a class="service-btn" href="'.$escape(buildUrl(isset($_SESSION['user_id']) ? dashboardPathForRole() : 'login.php')).'">'.(isset($_SESSION['user_id']) ? 'Return to dashboard' : 'Sign in').'</a></main></body></html>';
 }

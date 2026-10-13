@@ -96,8 +96,8 @@ $pageFlash = getFlash();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $isRejected ? 'Application Rejected' : 'Account Pending Approval'; ?> | The Celandine Homes</title>
-    <link rel="stylesheet" href="styles.css">
+    <title><?php echo $isRejected ? 'Application Rejected' : 'Account Pending Approval'; ?> | The Celandine</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('styles.css'), ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="rejection.css?v=<?php echo filemtime(__DIR__ . '/rejection.css'); ?>">
 
     <?php renderPortalUiHead(); ?>
@@ -107,8 +107,8 @@ $pageFlash = getFlash();
     <div class="status-shell">
         <main class="pending-card<?php echo $isRejected ? ' rejected-card' : ''; ?>" aria-labelledby="signupStatusTitle">
             <div class="signup-status-brand">
-                <?php echo systemIcon('dashboard'); ?>
-                <span>The Celandine Homes<small>Resident registration</small></span>
+                <?= brandHtml('compact') ?>
+                <small>Resident registration</small>
             </div>
             <?php if ($isRejected): ?>
                 <header class="signup-status-header">

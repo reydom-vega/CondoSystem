@@ -120,10 +120,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences - Maintenance Request</title>
-    <link rel="stylesheet" href="../resident.css">
+    <title>The Celandine - Maintenance Request</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('resident.css'), ENT_QUOTES, 'UTF-8') ?>">
 <?php renderPortalUiHead(); ?>
-    <link rel="stylesheet" href="../assets/css/maintenance-workspace.css">
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('assets/css/maintenance-workspace.css'), ENT_QUOTES, 'UTF-8') ?>">
     <script src="../assets/js/maintenance-workspace.js" defer></script>
 </head>
 <body class="portal-ui dashboard-page">
@@ -133,7 +133,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
         <aside class="sidebar" id="sidebar">
             <a href="dashboard.php" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
-                <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
 
             <nav class="sidebar-nav"><?php renderResidentSidebarNavigation(); ?></nav>
@@ -148,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
                         <?php echo systemIcon('menu', 'menu-icon'); ?>
                     </button>
                     <div>
-                        <span class="dash-subtitle">CELANDINE RESIDENCES</span>
+                        <span class="dash-subtitle">THE CELANDINE</span>
                         <h1 class="dash-title">Maintenance Request</h1>
                     </div>
                 </div>

@@ -23,8 +23,8 @@ $announcements = getAnnouncements(100, true);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Announcements - Celandine Residences</title>
-    <link rel="stylesheet" href="../resident.css">
+    <title>Announcements - The Celandine</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('resident.css'), ENT_QUOTES, 'UTF-8') ?>">
 <?php renderPortalUiHead(); ?>
 </head>
 <body class="portal-ui dashboard-page">
@@ -34,7 +34,6 @@ $announcements = getAnnouncements(100, true);
         <aside class="sidebar" id="sidebar">
             <a href="dashboard.php" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
-                <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
 
             <nav class="sidebar-nav"><?php renderResidentSidebarNavigation(); ?></nav>
@@ -49,7 +48,7 @@ $announcements = getAnnouncements(100, true);
                         <?php echo systemIcon('menu', 'menu-icon'); ?>
                     </button>
                     <div>
-                        <span class="dash-subtitle">CELANDINE RESIDENCES</span>
+                        <span class="dash-subtitle">THE CELANDINE</span>
                         <h1 class="dash-title">All Announcements</h1>
                     </div>
                 </div>

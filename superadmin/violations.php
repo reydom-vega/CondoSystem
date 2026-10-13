@@ -199,7 +199,7 @@ if (!is_string($activeTab) || !isset($violationTabs[$activeTab])) $activeTab = '
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences</title>
+    <title>The Celandine</title>
     <link rel="stylesheet" href="../styles.css?v=<?php echo filemtime(__DIR__ . '/../styles.css'); ?>">
     <link rel="stylesheet" href="../assets/css/vehicle-violations.css?v=<?= filemtime(__DIR__.'/../assets/css/vehicle-violations.css') ?>">
 <?php renderPortalUiHead(); ?>
@@ -209,14 +209,14 @@ if (!is_string($activeTab) || !isset($violationTabs[$activeTab])) $activeTab = '
 <body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?></a>
             <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
         <main class="dashboard-main violation-workspace">
             <header class="dash-header">
-                <div class="dash-header-left"><button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button><div><span class="dash-subtitle">CELANDINE RESIDENCES</span><h1 class="dash-title">Violation Management</h1></div></div>
+                <div class="dash-header-left"><button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button><div><span class="dash-subtitle">THE CELANDINE</span><h1 class="dash-title">Violation Management</h1></div></div>
                 <div class="dash-header-right">
                     <?php include '../notifications.php'; ?>
                     <div class="profile-menu" id="profileMenu">

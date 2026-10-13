@@ -59,7 +59,7 @@
       if(step) {
         state.index = (state.index + Number(step.dataset.galleryStep) + images.length) % images.length;
         gallery.querySelector('[data-open-image]').hidden = false; fallback.hidden = true;
-        img.src = images[state.index]; img.alt = `${state.name} at The Celandine Homes, photo ${state.index+1}`;
+        img.src = images[state.index]; img.alt = `${state.name} at The Celandine, photo ${state.index+1}`;
         gallery.querySelector('[data-gallery-count]').textContent = `${state.index+1} / ${images.length}`;
       }
       if(event.target.closest('[data-open-image]') && images.length) { activeGallery = state; showPhoto(); lightbox.showModal(); }
@@ -69,7 +69,7 @@
     const {name,images,index} = activeGallery;
     document.getElementById('amenityLightboxTitle').textContent = name;
     document.getElementById('amenityLightboxFallback').hidden = true;
-    lightboxImage.hidden = false; lightboxImage.src = images[index]; lightboxImage.alt = `${name} at The Celandine Homes, photo ${index+1}`;
+    lightboxImage.hidden = false; lightboxImage.src = images[index]; lightboxImage.alt = `${name} at The Celandine, photo ${index+1}`;
     document.getElementById('amenityLightboxCount').textContent = `${index+1} / ${images.length}`;
     lightbox.querySelectorAll('[data-lightbox-step]').forEach(button => button.hidden = images.length < 2);
   }
@@ -112,7 +112,7 @@
       const selected = slots.find(slot => slot.start === poolForm.elements.booking_time.value && slot.status === 'available');
       poolForm.querySelector('[data-summary-date]').textContent = date ? new Date(`${date}T12:00:00`).toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'}) : 'Choose a date';
       poolForm.querySelector('[data-summary-duration]').textContent = `${duration} hour${duration === 1 ? '' : 's'}`;
-      poolForm.querySelector('[data-summary-fee]').textContent = money(duration * 300);
+      poolForm.querySelector('[data-summary-fee]').textContent = money(duration * Number(poolForm.dataset.hourlyRate));
       poolForm.querySelector('[data-summary-time]').textContent = selected ? `${time(selected.start)} – ${time(selected.end)}` : 'Choose a time';
       submit.disabled = submitting || !validSelection();
       slotContainer.querySelectorAll('button').forEach(button => {

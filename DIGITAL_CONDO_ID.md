@@ -1,0 +1,27 @@
+# Digital Condo ID
+
+The shared navbar and the profile dropdown's My QR ID option open the same vertical ID card for authenticated accounts. The dropdown closes before opening the card, and dismissing the card returns focus to its profile menu button. Both entry points share one credential lifecycle, generator, countdown and verification workflow; opening a profile menu does not issue a QR. Existing Edit Profile links remain unchanged. Unit owners and tenants use the existing resident relationship and approval rules. Other roles use their actual staff role. Unknown account types cannot receive an active code. The current users schema has no profile-photo, tower or lease-expiration field, so the card uses initials and displays only recorded information.
+
+QR generation starts only when the modal opens. Each code expires after 60 seconds, using the server's UTC clock. An open modal renews at expiry; closing aborts pending work, clears the QR and stops timers. Only one request runs at a time. Network failures clear the code and retry with backoff; authentication and eligibility failures require user action. “Revoke QR” cancels the current credential; reopening creates a new one.
+
+## Verification and privacy
+
+The QR contains an application URL with a random 256-bit credential in its fragment, never personal data, database IDs, passwords or authentication session tokens. Fragments are not sent in ordinary HTTP request URLs, access logs or referrers. The verification page removes the fragment from browser history and submits it in a no-store POST. Only SHA-256 hashes are persisted. New issuance revokes previous codes for the same user, including codes opened in another tab.
+
+Verification checks the database expiry, revocation, current account status, role, session version, unit and owner relationship. Existing tenant policy changes also invalidate issued codes. Disabling an account, resetting its sessions/password or changing its role rejects its existing credentials. Public visitors receive only a validity result. Private identity and eligibility details require the existing `security.gate` capability (Admin, Super Admin or Security), checked on the server. Successful/failed staff scans use the existing deduplicated QR scan history; tokens and verification URLs are excluded from stored events. Anonymous verification does not create an identity audit snapshot.
+
+An active screenshot can still be reused during its remaining lifetime. Security must compare the displayed identity to the person and separately check access permissions. Digital ID verification never checks a person in, assigns parking, approves a booking, or grants restricted access. Visitor, parking and property gate passes retain their existing workflows.
+
+## Deployment
+
+Run `php scripts/migrate_digital_id.php --apply` on an existing current installation, or use the normal `php scripts/migrate.php --apply` release migration. `migrations/2026_10_13_digital_id.sql` contains the additive table definition, also included in `database.sql` for fresh installs. No account, parking, visitor or payment records are overwritten. Production issuance requires an HTTPS `CONDO_APP_URL`; camera scanning also needs HTTPS or localhost.
+
+Expired credentials older than one day are removed in bounded batches during issuance. The existing scan history retains token-redacted audit snapshots. Rate limits reuse `authentication_limits`: 120 issue/revoke requests per account/address per 15 minutes, and 600 public verification requests per address per 15 minutes.
+
+QR rendering reuses the project's QRCode.js 1.0.0 generator, now served locally for this feature (`assets/vendor/qrcode/`, MIT license). Its matrix is drawn on an integer pixel grid to avoid fractional tile artifacts. It sends no credential to an external QR service. QR pixels remain black on white with a quiet zone in both themes.
+
+## Validation
+
+`php scripts/test_digital_id.php` tests credentials, account/role changes, authorization, expiry, revocation, safe responses, HTTP guards and scan history against disposable MySQL data. `php scripts/test_ui_redesign.php --preview` supplies the disposable browser fixture for `node scripts/test_digital_id_browser.cjs <fixture-base-url>`. The browser checks all roles, both themes, mobile layout, timer renewal, close/reopen races, request serialization and existing scanner integration. A real camera and real person's identity still require an on-device/manual check.
+
+Use `node scripts/test_digital_id_browser.cjs <fixture-base-url> --profile-only` for dropdown integration: role-specific menu ordering, unchanged navbar controls, synchronized theme switching without closing the menu, saved preferences, shared QR issuance and focus cleanup, existing Edit Profile links across routes, persisted owner/tenant profile updates, and the existing CSRF-protected logout flow. This mode also uses only the disposable fixture database.

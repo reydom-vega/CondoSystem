@@ -40,8 +40,8 @@ $escape=static fn($value)=>htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences - Book Amenities</title>
-    <link rel="stylesheet" href="../resident.css">
+    <title>The Celandine - Book Amenities</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('resident.css'), ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="../services.css?v=<?php echo filemtime(__DIR__ . '/../services.css'); ?>">
     <link rel="stylesheet" href="../amenities.css?v=<?= filemtime(__DIR__ . '/../amenities.css') ?>">
 <?php renderPortalUiHead(); ?>
@@ -53,7 +53,6 @@ $escape=static fn($value)=>htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');
         <aside class="sidebar" id="sidebar">
             <a href="dashboard.php" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
-                <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
 
             <nav class="sidebar-nav"><?php renderResidentSidebarNavigation(); ?></nav>
@@ -68,7 +67,7 @@ $escape=static fn($value)=>htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');
                         <?php echo systemIcon('menu', 'menu-icon'); ?>
                     </button>
                     <div>
-                        <span class="dash-subtitle">CELANDINE RESIDENCES</span>
+                        <span class="dash-subtitle">THE CELANDINE</span>
                         <h1 class="dash-title">Book Amenity</h1>
                     </div>
                 </div>
@@ -143,8 +142,8 @@ $escape=static fn($value)=>htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');
             <dialog id="amenityBookingDialog" class="amenity-dialog" aria-labelledby="amenityBookingTitle">
                 <div class="amenity-dialog-heading"><div><p class="amenity-kicker">REQUEST A RESERVATION</p><h2 id="amenityBookingTitle">Swimming Pool reservation</h2></div><button class="service-btn service-btn-secondary" type="button" data-close-amenity aria-label="Close reservation dialog">Close</button></div>
                 <div data-booking-pane="swimming-pool">
-                    <div class="amenity-booking-overview"><?php renderAmenityGallery('Swimming Pool'); ?><div><span class="amenity-overview-tag">Exclusive use</span><h3>A pool day, just for your group</h3><p>6 AM–9 PM &middot; Up to 20 guests</p><p>Choose 1–3 hours. &#8369;300 per hour, regardless of guest count.</p></div></div>
-                    <form method="post" id="poolBookingForm" data-pool-reservation class="amenity-booking-layout">
+                    <div class="amenity-booking-overview"><?php renderAmenityGallery('Swimming Pool'); ?><div><span class="amenity-overview-tag">Exclusive use</span><h3>A pool day, just for your group</h3><p>6 AM–9 PM &middot; Up to 20 guests</p><p>Choose 1–3 hours. &#8369;<?= number_format(AMENITY_POOL_HOURLY_RATE) ?> per hour, regardless of guest count.</p></div></div>
+                    <form method="post" id="poolBookingForm" data-pool-reservation data-hourly-rate="<?= AMENITY_POOL_HOURLY_RATE ?>" class="amenity-booking-layout">
                         <?= workflowCsrfField() ?><input type="hidden" name="amenity" value="Swimming Pool"><input type="hidden" name="booking_time" value="">
                         <div class="amenity-booking-fields">
                             <h3 class="amenity-step-heading"><span>1</span> Plan your visit</h3>
@@ -155,7 +154,7 @@ $escape=static fn($value)=>htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');
                             <noscript><p>Enable JavaScript to load schedule availability and choose a pool starting time.</p></noscript>
                         </div>
                         <aside class="amenity-booking-review" aria-label="Review pool reservation">
-                            <div class="amenity-reservation-summary" aria-live="polite"><p class="amenity-kicker">REVIEW YOUR VISIT</p><h3>Booking summary</h3><dl><div><dt>Amenity</dt><dd>Swimming Pool</dd></div><div><dt>Date</dt><dd data-summary-date>Choose a date</dd></div><div><dt>Time</dt><dd data-summary-time>Choose a time</dd></div><div><dt>Duration</dt><dd data-summary-duration>1 hour</dd></div><div><dt>Hourly rate</dt><dd>&#8369;300/hour</dd></div><div class="amenity-summary-total"><dt>Total fee</dt><dd data-summary-fee>&#8369;300.00</dd></div></dl>
+                            <div class="amenity-reservation-summary" aria-live="polite"><p class="amenity-kicker">REVIEW YOUR VISIT</p><h3>Booking summary</h3><dl><div><dt>Amenity</dt><dd>Swimming Pool</dd></div><div><dt>Date</dt><dd data-summary-date>Choose a date</dd></div><div><dt>Time</dt><dd data-summary-time>Choose a time</dd></div><div><dt>Duration</dt><dd data-summary-duration>1 hour</dd></div><div><dt>Hourly rate</dt><dd>&#8369;<?= number_format(AMENITY_POOL_HOURLY_RATE) ?>/hour</dd></div><div class="amenity-summary-total"><dt>Total fee</dt><dd data-summary-fee>&#8369;<?= number_format(AMENITY_POOL_HOURLY_RATE, 2) ?></dd></div></dl>
                             <p class="amenity-payment-note">Admin approval creates one charge on your unit owner's billing account. Pending requests do not hold a time slot.</p>
                             <div class="amenity-form-feedback" data-booking-feedback role="status" aria-live="polite"></div><button type="submit" class="service-btn" data-reservation-submit disabled>Submit reservation</button>
                             <p class="amenity-submit-hint">Select a date and available time to continue.</p>
@@ -165,10 +164,10 @@ $escape=static fn($value)=>htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');
                     </form>
                 </div>
                 <div data-booking-pane="function-hall" hidden>
-                    <div class="amenity-booking-overview"><?php renderAmenityGallery('Function Hall'); ?><div><span class="amenity-overview-tag">Full-day reservation</span><h3>A space to bring everyone together</h3><p>Arrival: 6 AM–8 PM &middot; Up to 100 guests</p><p>&#8369;3,000 per day. Admin approval is required.</p></div></div>
+                    <div class="amenity-booking-overview"><?php renderAmenityGallery('Function Hall'); ?><div><span class="amenity-overview-tag">Full-day reservation</span><h3>A space to bring everyone together</h3><p>Arrival: 6 AM–8 PM &middot; Up to 100 guests</p><p>&#8369;<?= number_format(AMENITY_HALL_DAILY_RATE) ?> per day. Admin approval is required.</p></div></div>
                     <form method="post" class="amenity-hall-form amenity-booking-layout"><?= workflowCsrfField() ?><input type="hidden" name="amenity" value="Function Hall">
                         <div class="amenity-booking-fields"><h3 class="amenity-step-heading"><span>1</span> Plan your event</h3><div class="amenity-form-grid"><label class="field-label">Reservation date<input type="date" name="booking_date" min="<?= date('Y-m-d') ?>" required></label><label class="field-label">Arrival time<input type="time" name="booking_time" min="06:00" max="20:00" step="3600" required></label><label class="field-label">Number of guests<input type="number" name="attendees" min="1" max="100" value="1" required></label></div><div class="amenity-hall-guidance"><h3>Before you submit</h3><p><?= $escape($catalog['Function Hall']['rules']) ?></p><p>PMO will confirm your request and coordinate payment arrangements.</p></div></div>
-                        <aside class="amenity-booking-review" aria-label="Function Hall reservation rate"><div class="amenity-reservation-summary"><p class="amenity-kicker">YOUR RESERVATION</p><h3>Function Hall</h3><dl><div><dt>Reservation type</dt><dd>Full day</dd></div><div><dt>Maximum guests</dt><dd>100</dd></div><div class="amenity-summary-total"><dt>Daily fee</dt><dd>&#8369;3,000.00</dd></div></dl><p class="amenity-payment-note">Payment arrangements are handled by PMO after approval.</p><button class="service-btn" type="submit">Submit reservation</button></div></aside>
+                        <aside class="amenity-booking-review" aria-label="Function Hall reservation rate"><div class="amenity-reservation-summary"><p class="amenity-kicker">YOUR RESERVATION</p><h3>Function Hall</h3><dl><div><dt>Reservation type</dt><dd>Full day</dd></div><div><dt>Maximum guests</dt><dd>100</dd></div><div class="amenity-summary-total"><dt>Daily fee</dt><dd>&#8369;<?= number_format(AMENITY_HALL_DAILY_RATE, 2) ?></dd></div></dl><p class="amenity-payment-note">Payment arrangements are handled by PMO after approval.</p><button class="service-btn" type="submit">Submit reservation</button></div></aside>
                     </form>
                 </div>
             </dialog>

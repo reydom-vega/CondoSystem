@@ -1,0 +1,135 @@
+/* The original styles own Dark Mode. Only Light Mode sets these overrides.
+   Legacy color references retain their exact original values as fallbacks. */
+html[data-theme=dark] { color-scheme:dark; }
+html[data-theme=light] {
+  color-scheme:light;
+  --bg-primary:#f5f7fa; --bg-secondary:#edf1f6; --bg-sidebar:#fff;
+  --surface-card:#fff; --surface-elevated:#edf1f6;
+  --text-primary:#1a2233; --text-secondary:#475569; --text-muted:#58677c;
+  --border-color:#c7d0dd; --input-bg:#f8fafc; --input-border:#7a899e;
+  --card-bg:#fff; --card-border:#c7d0dd; --dash-card-bg:#fff; --dash-card-border:#c7d0dd;
+  --dash-header-btn:#edf1f6; --dash-header-btn-hover:#e2e8f0;
+  --bg-gradient-start:#f5f7fa; --bg-gradient-end:#edf1f6;
+  --accent-primary:#b45309; --accent-hover:#92400e;
+  --accent-link:#8a4b04; --link-orange:#8a4b04;
+  --status-success:#047857; --status-warning:#925900; --status-danger:#b42335; --status-info:#1d4ed8;
+  --shadow-card:0 4px 20px #19233308; --shadow-overlay:0 20px 60px #19233326;
+  /* Public pages share the same palette without changing their geometry. */
+  --bg:#f5f7fa; --bg-soft:#edf1f6; --bg-card:#fff; --panel:#fff; --panel-soft:#edf1f6;
+  --text:#1a2233; --text-soft:#475569; --text-dark:#1a2233; --line:#c7d0dd;
+  --gold-dark:#8a4b04; --success:#047857; --shadow:0 24px 80px #19233314;
+  /* Shared semantic adapters for older CSS and inline presentation styles. */
+  --theme-ink:#1a2233; --theme-copy:#475569; --theme-muted:#58677c;
+  --theme-surface:#fff; --theme-inset:#f1f4f8; --theme-hover:#e9eef5; --theme-line:#c7d0dd;
+  --theme-brand:#8a4b04; --theme-success:#047857; --theme-danger:#b42335;
+  --theme-info:#1d4ed8; --theme-purple:#7e22ce; --theme-pink:#be185d;
+  --theme-template-fill:#0e7490;
+  --theme-success-surface:#e9f7f0; --theme-danger-surface:#fff0f1; --theme-brand-surface:#fff6e7;
+  --theme-info-surface:#edf4ff; --theme-purple-surface:#f6efff;
+  --theme-soft-shadow:0 4px 20px #1923330d;
+}
+/* Dimensions match the notification bell; this is the only new control. */
+.theme-toggle {
+  display:inline-flex; align-items:center; justify-content:center; flex:0 0 40px;
+  width:40px; height:40px; min-height:40px; margin:0; padding:0;
+  border:1px solid var(--border-color,#343d50); border-radius:10px;
+  background:var(--surface-card,#1a1e2b); color:var(--text-primary,#fff);
+  cursor:pointer; box-shadow:none; position:relative;
+}
+.theme-toggle:hover { background:var(--surface-elevated,#242a38); transform:none; }
+.theme-toggle:focus-visible { outline:2px solid var(--accent-primary,#d97706); outline-offset:3px; }
+.theme-toggle svg { position:absolute; width:20px; height:20px; }
+:is(.theme-toggle,.profile-theme-icons) .theme-sun { opacity:1; transform:rotate(0); }
+:is(.theme-toggle,.profile-theme-icons) .theme-moon { opacity:0; transform:rotate(-30deg); }
+html[data-theme=light] :is(.theme-toggle,.profile-theme-icons) .theme-sun { opacity:0; transform:rotate(30deg); }
+html[data-theme=light] :is(.theme-toggle,.profile-theme-icons) .theme-moon { opacity:1; transform:rotate(0); }
+.theme-toggle-floating { position:fixed; top:16px; right:16px; z-index:150; }
+/* Only during synchronous palette application; ordinary interactions and
+   CSS/GSAP animations keep their existing behavior afterward. */
+html.theme-changing, html.theme-changing *, html.theme-changing *::before, html.theme-changing *::after {
+  transition:none !important;
+}
+html[data-theme=light] body.portal-ui { color-scheme:light; }
+html[data-theme=light] :is(#qrScannerApp,#amenityApp,.portal-ui dialog,.form-date) { color-scheme:light; }
+html[data-theme=light] :is(#qrScannerApp,#amenityApp) { --scanner-muted:#58677c; --scanner-border:#c7d0dd; --amenity-muted:#58677c; --amenity-border:#c7d0dd; }
+html[data-theme=light] ::placeholder { color:#64748b; opacity:1; }
+html[data-theme=light] ::selection { background:#d9770633; color:#1a2233; }
+html[data-theme=light] :is(.sidebar,.notification-dropdown,.portal-table-scroll,.unit-table-wrap,.scanner-history-table-wrap) { scrollbar-color:#b4c0d0 #f1f4f8; }
+/* Shared brand marks use the orange SVG in Light Mode, without a backplate.
+   Logo dimensions and the original white SVG in Dark Mode stay unchanged. */
+/* Camera/photo overlays and QR paper keep their intentional contrast. */
+html[data-theme=light] :is(.image-caption,.amenity-image-hint,.amenity-home-preview-hint,.amenity-gallery-nav,.interior-slide-overlay) { --theme-ink:#fff; --theme-copy:#e2e8f0; --theme-muted:#cbd5e1; --theme-inset:#111827; --theme-surface:#1a1e2b; }
+html[data-theme=light] :is(.pass-qr,.visitor-pass-qr,.qr-code,#serviceQr) { background:#fff; }
+html[data-theme=light] .notification-count-badge { border-color:#fff !important; background:#c52f40 !important; color:#fff !important; }
+html[data-theme=light] .notice-danger { background:#fff0f1; color:#b42335; }
+html[data-theme=light] .notice-warning { background:#fff6e7; color:#925900; }
+html[data-theme=light] .notice-info { background:#edf4ff; color:#1d4ed8; }
+html[data-theme=light] .split-card .panel-image::before { background:linear-gradient(to top,rgba(0,0,0,.8) 0%,rgba(0,0,0,.15) 50%,transparent 100%); }
+html[data-theme=light] .split-card .image-caption { --link-orange:#f59e0b; }
+html[data-theme=light] .portal-ui .split-card .image-caption h2 { color:#fff; }
+html[data-theme=light] .portal-homepage .hero::before { background:linear-gradient(180deg,#f5f7faf2,#f5f7fad9),linear-gradient(90deg,#f5f7faf2,#f5f7fa99); }
+html[data-theme=light] .portal-homepage :is(.amenity-home-preview,.amenity-card-content,.interior-slide .slide-content,.overview-card .overlay) { --theme-ink:#fff; --theme-copy:#e2e8f0; --text:#fff; --text-soft:#e2e8f0; }
+/* Preserve white foregrounds on filled primary/action controls. */
+html[data-theme=light] :is(.btn-primary,.resubmit-submit,.portal-skip-link,.profile-avatar,.profile-dropdown-avatar,.amenity-book-btn,.maintenance-submit-btn,.maintenance-action-btn,.proceed-payment-btn,.resident-violation-primary-action,.maintenance-admin-button,.maintenance-back-button,.confirm-ok,.staff-confirm-submit,.vacancy-confirm-submit,.dialog-confirm-approve,.dialog-confirm-reject,.system-confirm-accept,.back-to-top) { color:#fff; }
+html[data-theme=light] .portal-homepage .btn-primary { color:#fff; }
+html[data-theme=light] .portal-homepage .nav-toggle span { background:#1a2233; }
+html[data-theme=light] .portal-ui :is(.workspace-tabs,.billing-tabs,.maintenance-tabs,.parking-tabs,.violation-tabs,.amenity-view-nav,.qr-tabs) [aria-selected=true] {
+  background:#fff6e7 !important; border-color:#b16a16 !important; color:var(--theme-brand) !important;
+}
+/* Keep status outlines and dashboard glyphs distinct on pale surfaces.
+   SVG outlines continue to inherit their component's color. */
+html[data-theme=light] .portal-ui :is(.badge,.service-status,.visitor-badge,.unit-status,.status-pill,.violation-status,.admin-pill,.maintenance-status-badge,.penalty-badge) { border-color:currentColor; }
+html[data-theme=light] .portal-ui :is(.badge-danger,.violation-status.status-unpaid,.violation-status.status-disputed) { background:var(--theme-danger-surface); color:var(--theme-danger); }
+html[data-theme=light] .portal-ui :is(.badge-success,.violation-status.status-paid) { background:var(--theme-success-surface); color:var(--theme-success); }
+html[data-theme=light] .portal-ui :is(.badge-warning,.penalty-warning,.penalty-fine,.violation-status.status-warning_issued) { background:var(--theme-brand-surface); color:var(--theme-brand); }
+html[data-theme=light] .portal-ui .badge-info { background:var(--theme-info-surface); color:var(--theme-info); }
+html[data-theme=light] .portal-ui .priority-high { background:var(--theme-danger-surface); color:var(--theme-danger); }
+html[data-theme=light] .portal-ui .priority-medium { background:var(--theme-brand-surface); color:var(--theme-brand); }
+html[data-theme=light] .portal-ui .priority-low { background:var(--theme-success-surface); color:var(--theme-success); }
+html[data-theme=light] .portal-ui :is(.icon-yellow,.admin-icon-yellow) { color:var(--theme-brand); }
+html[data-theme=light] .portal-ui :is(.icon-blue,.admin-icon-blue) { color:var(--theme-info); }
+html[data-theme=light] .portal-ui :is(.icon-pink,.admin-icon-pink) { color:var(--theme-pink); }
+html[data-theme=light] .portal-ui :is(.icon-purple,.admin-icon-purple) { color:var(--theme-purple); }
+html[data-theme=light] .portal-ui :is(.icon-green,.admin-icon-green) { color:var(--theme-success); }
+html[data-theme=light] .portal-ui :is(.service-btn,.btn-primary,.reply-send,button[type=submit]):not(.service-btn-secondary):not(.service-btn-danger):not(.btn-neutral):not(.btn-danger):not(.btn-success):not(.maintenance-admin-button) { color:#fff; }
+html[data-theme=light] .portal-ui.portal-account-page .button-link,
+html[data-theme=light] .portal-ui .pass-actions button,
+html[data-theme=light] .portal-ui .maintenance-nav-button:not(.secondary) { color:#fff; }
+html[data-theme=light] .portal-ui :is(.maintenance-admin-button.approve,.maintenance-action-btn.confirm) { color:var(--theme-success); }
+html[data-theme=light] .portal-ui .maintenance-admin-button.reject { color:var(--theme-danger); }
+html[data-theme=light] :is(.confirm-ok,.staff-confirm-submit,.vacancy-confirm-submit,.dialog-confirm-approve,.dialog-confirm-reject,.system-confirm-accept,.resubmit-submit) { background:var(--accent-primary); color:#fff; }
+html[data-theme=light] :is(.maintenance-back-button,.resubmit-submit):hover { background:var(--accent-hover); color:#fff; }
+html[data-theme=light] :is(.service-btn-danger,.btn-danger) { background:#fff0f1; color:#b42335; border-color:#e8a9b3; }
+html[data-theme=light] :is(.service-btn-danger,.btn-danger):hover { background:#ffe1e5; }
+html[data-theme=light] .btn-success { background:#e9f7f0; color:#047857; border-color:#94cdb8; }
+html[data-theme=light] .dashboard-page .service-actions button.service-btn-danger { color:#b42335; }
+html[data-theme=light] .dashboard-page .service-actions button.service-btn-approve { color:#047857; }
+@media(max-width:1023px) {
+  html[data-theme=light] .portal-ui .sidebar:not(.open) { box-shadow:none; }
+}
+@media(max-width:767px) {
+  /* Keep long titles from pushing the three header controls off screen. */
+  .portal-ui .dash-header-left { flex:1 1 auto; }
+  .portal-ui .dash-header-left > div { min-width:0; }
+  .portal-ui .dash-title { overflow-wrap:anywhere; }
+  .portal-ui .dash-header-right { flex:0 0 auto; }
+}
+@media(max-width:479px) {
+  .portal-ui .dash-header { flex-wrap:wrap; }
+  .portal-ui .dash-header-left { flex-basis:100%; }
+  .portal-ui .dash-header-right { margin-left:auto; }
+}
+@media(max-width:1180px) {
+  .portal-homepage .nav-cta:has(.theme-toggle) { display:flex; grid-column:2; grid-row:1; justify-self:end; }
+  .portal-ui.portal-homepage .nav-cta > a { display:none; }
+  .portal-homepage .nav-toggle { grid-column:3; grid-row:1; }
+  .portal-homepage .nav-toggle { flex-direction:column; }
+}
+@media(max-width:640px) {
+  .portal-homepage .nav-inner { grid-template-columns:minmax(0,1fr) 40px 48px; gap:8px; }
+  .portal-homepage .home-nav .brand span { white-space:normal; font-size:14px; line-height:1.2; }
+}
+@media(max-width:380px) {
+  .theme-toggle { width:36px; height:36px; min-height:36px; flex-basis:36px; }
+}
+@media print { .theme-toggle { display:none !important; } }

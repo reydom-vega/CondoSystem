@@ -17,10 +17,10 @@
   const placeholder = document.getElementById('cameraPlaceholder');
   const cameraState = document.getElementById('cameraState');
   let page = 1, pages = 1, controller, debounce;
-  let scanner, scannerRunning = false, cameraBusy = false, scanBusy = false, lastContent = '', lastAt = 0, pendingRequest;
+  let scanner, scannerRunning = false, cameraBusy = false, scanBusy = false, lastContent = '', lastAt = 0, pendingRequest, identityExpiry;
   const label = value => String(value || '').replaceAll('_', ' ').replace(/^./, c => c.toUpperCase());
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-  const typeLabel = type => ({visitor:'Visitor QR Pass',property:'Property Gate Pass',parking:'Visitor Parking',permit:'Other Permit',unknown:'Unknown QR'}[type] || type);
+  const typeLabel = type => ({visitor:'Visitor QR Pass',property:'Property Gate Pass',parking:'Visitor Parking',permit:'Other Permit',digital_id:'Digital Condo ID',unknown:'Unknown QR'}[type] || type);
   const uuid = () => crypto.randomUUID ? crypto.randomUUID() : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c => (Number(c) ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> Number(c) / 4).toString(16));
   function dates(form) {
     const period = form.elements.period.value;
@@ -70,6 +70,8 @@
   }));
   async function handleScan(content) {
     if(scanBusy || !content || (content === lastContent && Date.now()-lastAt<5000)) return false;
+    clearTimeout(identityExpiry);
+    const scanStarted = performance.now();
     scanBusy = true; openResult.style.display = 'none'; openResult.removeAttribute('href'); result.textContent = 'Verifying QR code…';
     manualButton.disabled = true; manualButton.textContent = 'Verifying…';
     resultCard.dataset.state = 'pending'; resultCard.setAttribute('aria-busy','true');
@@ -84,7 +86,7 @@
       resultLabel.textContent = label(verification.verification_result).toUpperCase();
       result.textContent = typeLabel(verification.qr_type);
       resultMessage.textContent = verification.message;
-      const fields = {'Visitor / Requester':verification.subject_name || verification.requester_name,'Unit':verification.unit_number,'Pass / Permit':verification.pass_number,'Visit date':verification.visit_date,'Purpose':verification.visit_purpose,'Number of visitors':verification.visitor_count,'Identity verification':verification.identity_status ? label(verification.identity_status) : '', 'Vehicle plate':verification.vehicle_plate,'Vehicle':verification.vehicle_description,'Parking approval':verification.parking_status ? label(verification.parking_status) : ''};
+      const fields = {'Visitor / Requester':verification.subject_name || verification.requester_name,'Role':verification.account_role,'Account status':verification.account_status,'Current eligibility':verification.privileges?.join('; '),'Unit':verification.unit_number,'Pass / Permit':verification.pass_number,'Visit date':verification.visit_date,'Purpose':verification.visit_purpose,'Number of visitors':verification.visitor_count,'Identity verification':verification.identity_status ? label(verification.identity_status) : '', 'Vehicle plate':verification.vehicle_plate,'Vehicle':verification.vehicle_description,'Parking approval':verification.parking_status ? label(verification.parking_status) : ''};
       Object.entries(fields).forEach(([name,value]) => {
         if(!value) return;
         const div = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd');
@@ -92,6 +94,13 @@
       });
       resultFields.hidden = !resultFields.childElementCount;
       if(verification.recognized && verification.pass_url) { openResult.href = verification.pass_url; openResult.style.display = 'flex'; }
+      if (verification.qr_type === 'digital_id' && verification.valid) {
+        identityExpiry = setTimeout(() => {
+          resultCard.dataset.state = 'expired'; resultLabel.textContent = 'EXPIRED';
+          resultMessage.textContent = 'QR Code Expired. Scan the refreshed Digital Condo ID.';
+          resultFields.replaceChildren(); resultFields.hidden = true; openResult.style.display = 'none'; openResult.removeAttribute('href');
+        }, Math.max(0,(verification.expires_at - verification.server_time) * 1000 - (performance.now() - scanStarted)));
+      }
       loadHistory();
       return true;
     } catch(error) { resultCard.dataset.state = 'error'; resultLabel.textContent = 'UNABLE TO VERIFY'; resultMessage.textContent = `${error.message} Try the scan again.`; result.textContent = 'Verification could not be saved'; return false; }

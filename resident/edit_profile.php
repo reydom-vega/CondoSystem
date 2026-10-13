@@ -193,7 +193,7 @@ $db->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences - Edit Profile</title>
+    <title>The Celandine - Edit Profile</title>
     <link rel="stylesheet" href="../resident.css?v=<?php echo filemtime(__DIR__ . '/../resident.css'); ?>">
 <?php renderPortalUiHead(); ?>
 </head>
@@ -202,7 +202,6 @@ $db->close();
         <aside class="sidebar" id="sidebar">
             <a href="dashboard.php" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
-                <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
             <nav class="sidebar-nav"><?php renderResidentSidebarNavigation(); ?></nav>
         </aside>
@@ -280,7 +279,7 @@ $db->close();
                             </div>
                             <div class="input-wrap float-field">
                                 <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9.5 12 3l9 6.5"></path><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"></path></svg></span>
-                                <input type="text" id="unit_number_display" value="<?php echo htmlspecialchars($unitRaw ? $unitRaw : 'Not yet assigned by admin'); ?>" readonly disabled style="background-color: #1f293d; color: #9ca3af;">
+                                <input type="text" id="unit_number_display" value="<?php echo htmlspecialchars($unitRaw ? $unitRaw : 'Not yet assigned by admin'); ?>" readonly disabled style="background-color: var(--theme-hover,#1f293d); color: var(--theme-copy,#9ca3af);">
                                 <label class="field-label" for="unit_number_display">Unit Number</label>
                             </div>
                         </div>

@@ -13,7 +13,8 @@
  body.portal-ui.portal-drawer-open { overflow:hidden; }
  .portal-ui .sidebar { position:fixed; left:0; top:0; width:260px; max-width:85vw; height:100dvh; transform:translateX(-100%); transition:transform .22s ease; z-index:140; }
  .portal-ui .sidebar.open { transform:translateX(0); }
- .portal-ui .sidebar-close { display:flex; align-items:center; justify-content:center; width:32px; min-height:32px; position:absolute; right:10px; top:10px; margin:0; padding:0; border:1px solid #44516a; border-radius:8px; background:#202c40; color:#fff; font-size:20px; }
+ .portal-ui .sidebar-brand { padding-right:44px; }
+ .portal-ui .sidebar-close { display:flex; position:absolute; right:16px; top:30px; }
  .portal-ui .sidebar-overlay.open { display:block; position:fixed; inset:0; z-index:130; background:#030815b3; backdrop-filter:blur(2px); }
  .portal-ui .dashboard-main { padding:22px 24px 32px; }
  .portal-ui .sidebar-link-label { display:inline; }
@@ -31,7 +32,7 @@
  .portal-ui .profile-nav-name, .portal-ui .profile-caret { display:none; }
  .portal-ui .btn-profile-nav { padding:3px; border-radius:50%; }
  .portal-ui :is(.profile-dropdown,.notification-dropdown) { position:fixed; right:16px; top:82px; max-width:calc(100vw - 32px); max-height:calc(100dvh - 105px); overflow:auto; }
- .portal-ui .profile-dropdown { width:260px; }
+ .portal-ui .profile-dropdown { position:absolute; right:0; top:calc(100% + 10px); width:260px; max-height:calc(100dvh - 170px); }
  .portal-ui :is(.admin-stats-grid,.stats-grid) { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
  .portal-ui :is(.admin-stat-card,.stat-card) { min-height:125px; padding:16px; }
  .portal-ui .admin-stat-card strong,.portal-ui .stat-value { font-size:24px; overflow-wrap:anywhere; }
@@ -80,7 +81,7 @@
 @media print {
  body.portal-ui { color:#111827; background:#fff; color-scheme:light; }
  .portal-ui :is(.sidebar,.sidebar-overlay,.dash-header,.portal-breadcrumb,.portal-skip-link,.service-actions,.gate-pass-controls) { display:none !important; }
- .portal-ui :is(.service-panel,.property-gate-print,.pass-shell,.service-pass) { color:#111827; background:#fff; box-shadow:none; border-color:#cbd5e1; margin:0 auto; width:100%; }
+ .portal-ui :is(.service-panel,.property-gate-print,.pass-shell,.service-pass) { color:#111827; background:#fff; box-shadow:none; border-color:var(--theme-line,#cbd5e1); margin:0 auto; width:100%; }
  .portal-ui :is(h1,h2,h3,p,dt,dd,td,th,strong,label) { color:inherit; }
  .portal-ui :is(#serviceQr,.pass-qr) { break-inside:avoid; }
 }

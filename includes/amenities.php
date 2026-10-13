@@ -41,9 +41,9 @@ function amenitySchedule(string $amenity,string $date,string $time,int $duration
         if($duration<1 || $duration>3) throw new InvalidArgumentException('Swimming Pool reservations must last 1, 2 or 3 hours.');
         $endHour=(int)substr($time,0,2)+$duration;
         if($endHour>21) throw new InvalidArgumentException('The reservation must end by the 9 PM closing time.');
-        return ['end_time'=>sprintf('%02d:00:00',$endHour),'duration_hours'=>$duration,'hourly_rate'=>'300.00','total_fee'=>sprintf('%d.00',$duration*300)];
+        return ['end_time'=>sprintf('%02d:00:00',$endHour),'duration_hours'=>$duration,'hourly_rate'=>sprintf('%d.00',AMENITY_POOL_HOURLY_RATE),'total_fee'=>sprintf('%d.00',$duration*AMENITY_POOL_HOURLY_RATE)];
     }
-    return ['end_time'=>'21:00:00','duration_hours'=>null,'hourly_rate'=>'0.00','total_fee'=>'3000.00'];
+    return ['end_time'=>'21:00:00','duration_hours'=>null,'hourly_rate'=>'0.00','total_fee'=>sprintf('%d.00',AMENITY_HALL_DAILY_RATE)];
 }
 
 /** Same database/amenity/date mutex held through the transaction's commit. */
@@ -115,7 +115,7 @@ function poolAvailability(mysqli $db,string $date,int $duration): array {
         $state=$conflict?'booked':($past?'past':'available'); if($state==='available') $available++;
         $slots[]=['start'=>substr($start,0,5),'end'=>substr($end,0,5),'status'=>$state];
     }
-    return ['success'=>true,'date'=>$date,'duration'=>$duration,'hourly_rate'=>300,'total_fee'=>$duration*300,'timezone'=>'Asia/Manila','slots'=>$slots,'booked'=>$booked,'fully_booked'=>$available===0 && count(array_filter($slots,fn($slot)=>$slot['status']==='booked'))===count($slots)];
+    return ['success'=>true,'date'=>$date,'duration'=>$duration,'hourly_rate'=>AMENITY_POOL_HOURLY_RATE,'total_fee'=>$duration*AMENITY_POOL_HOURLY_RATE,'timezone'=>'Asia/Manila','slots'=>$slots,'booked'=>$booked,'fully_booked'=>$available===0 && count(array_filter($slots,fn($slot)=>$slot['status']==='booked'))===count($slots)];
 }
 
 /** Match the existing full-day hall hold, including pending reservations. No identities are exposed. */
@@ -130,7 +130,7 @@ function functionHallAvailability(mysqli $db, string $date): array {
         $start = sprintf('%02d:00', $hour);
         $slots[] = ['start' => $start, 'end' => '21:00', 'status' => $reserved ? 'booked' : ($date . ' ' . $start . ':00' <= date('Y-m-d H:i:s') ? 'past' : 'available')];
     }
-    return ['success' => true, 'amenity' => 'Function Hall', 'date' => $date, 'reservation_type' => 'full_day', 'total_fee' => 3000, 'timezone' => 'Asia/Manila', 'slots' => $slots, 'fully_booked' => $reserved];
+    return ['success' => true, 'amenity' => 'Function Hall', 'date' => $date, 'reservation_type' => 'full_day', 'total_fee' => AMENITY_HALL_DAILY_RATE, 'timezone' => 'Asia/Manila', 'slots' => $slots, 'fully_booked' => $reserved];
 }
 
 /** One status per day, using the same exclusive full-day holds as booking validation. */
@@ -152,7 +152,7 @@ function functionHallCalendarAvailability(mysqli $db, string $month): array {
         $past = $date < $today || ($date === $today && date('H:i:s') >= '20:00:00');
         $days[] = ['date' => $date, 'status' => isset($reserved[$date]) ? 'booked' : ($past ? 'past' : 'available')];
     }
-    return ['success' => true, 'amenity' => 'Function Hall', 'month' => $month, 'reservation_type' => 'full_day', 'total_fee' => 3000, 'timezone' => 'Asia/Manila', 'first_weekday' => (int)$first->format('w'), 'days' => $days];
+    return ['success' => true, 'amenity' => 'Function Hall', 'month' => $month, 'reservation_type' => 'full_day', 'total_fee' => AMENITY_HALL_DAILY_RATE, 'timezone' => 'Asia/Manila', 'first_weekday' => (int)$first->format('w'), 'days' => $days];
 }
 
 /** Decision and bill share a transaction; approvals also share the schedule mutex. */
@@ -186,7 +186,10 @@ function decideAmenityBooking(mysqli $db,int $id,string $action,string $reason='
                 if(amenityHasConflict($db,$booking['amenity'],$booking['booking_date'],$booking['booking_time'],$schedule['end_time'],$id,false)) throw new AmenityScheduleConflict(true);
                 $target=$pool?'approved':'confirmed';
                 if($pool) {
-                    if($booking['hourly_rate']!==$schedule['hourly_rate'] || $booking['total_fee']!==$schedule['total_fee']) throw new InvalidArgumentException('This legacy request needs cancellation and resubmission with the current pool pricing.');
+                    // Honor the price saved when the request was submitted, including earlier rates.
+                    $rateCents=(int)round((float)$booking['hourly_rate']*100);
+                    $feeCents=(int)round((float)$booking['total_fee']*100);
+                    if($rateCents<=0 || $feeCents!==$rateCents*(int)$schedule['duration_hours']) throw new InvalidArgumentException('This legacy request needs cancellation and resubmission with the current pool pricing.');
                     $paymentId=createAmenityReservationBill($db,$booking,(int)$context['billing_user_id']);
                     $link=$db->prepare('UPDATE bookings SET payment_id=? WHERE id=? AND payment_id IS NULL'); $link->bind_param('ii',$paymentId,$id); $link->execute();
                     if($link->affected_rows!==1) throw new RuntimeException('Could not link reservation billing.');

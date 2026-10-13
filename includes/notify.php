@@ -7,8 +7,9 @@ function getAllResidentContacts(): array {
 function emailLayout(string $eyebrow, string $heading, string $bodyHtml): string {
     return '<!doctype html><html><body style="margin:0;background:#0a0f1d;color:#fff;font-family:Arial,sans-serif;padding:24px;">'
         . '<div style="max-width:560px;margin:auto;background:#111827;border:1px solid #374151;border-radius:12px;padding:32px;">'
+        . brandEmailHtml()
         . '<div style="color:#f59e0b;font-size:12px;font-weight:bold;">' . $eyebrow . '</div><h1 style="font-size:22px;">' . $heading . '</h1>'
-        . $bodyHtml . '<p style="color:#9ca3af;font-size:11px;margin-top:28px;">The Celandine Residences &middot; Automated resident portal message.</p></div></body></html>';
+        . $bodyHtml . '<p style="color:#9ca3af;font-size:11px;margin-top:28px;">The Celandine &middot; Automated resident portal message.</p></div></body></html>';
 }
 
 /** Financial notices go to the unit owner or the tenant billed for personal parking. */
@@ -44,7 +45,7 @@ function notifyResidentsOfAnnouncement(int $announcementId): array {
     $html=emailLayout('New Announcement',$title,'<p>' . nl2br(htmlspecialchars($announcement['content'],ENT_QUOTES,'UTF-8')) . '</p><p>Priority: ' . htmlspecialchars($announcement['priority'],ENT_QUOTES,'UTF-8') . '</p>');
     $revision=hash('sha256',$announcement['title'] . '|' . $announcement['content'] . '|' . $announcement['priority']);
     foreach (getAllResidentContacts() as $resident) {
-        $queued=queueResidentChannels($db,'announcement:' . $announcementId . ':' . $revision . ':user:' . $resident['id'],$resident,'[Celandine Residences] ' . $announcement['title'],$html,'Celandine Residences: ' . $announcement['title'] . '. Check the resident portal for details.','announcement',$announcementId);
+        $queued=queueResidentChannels($db,'announcement:' . $announcementId . ':' . $revision . ':user:' . $resident['id'],$resident,'[The Celandine] ' . $announcement['title'],$html,'The Celandine: ' . $announcement['title'] . '. Check the resident portal for details.','announcement',$announcementId);
         $counts['emails_queued']+=(int)$queued['email_queued']; $counts['sms_queued']+=(int)$queued['sms_queued'];
         $counts['emails_failed']+=(int)!$queued['email_queued']; $counts['sms_failed']+=(int)!$queued['sms_queued'];
     }
@@ -61,7 +62,7 @@ function notifyResidentOfViolation(int $violationId): array {
     if (!$row) return $empty;
     $fine=$row['penalty_type']==='fine' ? 'Fine: PHP ' . number_format((float)$row['fine_amount'],2) : 'Warning only';
     $html=emailLayout('Violation Notice',htmlspecialchars($row['violation_type'],ENT_QUOTES,'UTF-8'),'<p>Hi ' . htmlspecialchars($row['full_name'],ENT_QUOTES,'UTF-8') . ', a violation has been recorded.</p><p>' . $fine . '</p><p>' . nl2br(htmlspecialchars($row['description'] ?? '',ENT_QUOTES,'UTF-8')) . '</p><p>Review details or contact management through the resident portal.</p>');
-    $queued=queueResidentChannels($db,'violation:' . $violationId,$row,'[Celandine Residences] Violation Notice: ' . $row['violation_type'],$html,'Celandine Residences: Violation notice - ' . $row['violation_type'] . '. ' . $fine . '. Check the resident portal for details.','violation',$violationId);
+    $queued=queueResidentChannels($db,'violation:' . $violationId,$row,'[The Celandine] Violation Notice: ' . $row['violation_type'],$html,'The Celandine: Violation notice - ' . $row['violation_type'] . '. ' . $fine . '. Check the resident portal for details.','violation',$violationId);
     logAudit('notify','violation',$violationId,'Violation notifications accepted for queue delivery.');
     return array_merge($empty,$queued);
 }
@@ -81,7 +82,7 @@ function notifyResidentOfNewBill(int $paymentId): bool {
     $amount=number_format((float)$bill['amount'],2); $due=date('F j, Y',strtotime($bill['due_date']));
     $rows=''; foreach ($bill['items'] as $item) $rows.='<tr><td>' . htmlspecialchars($item['category'],ENT_QUOTES,'UTF-8') . '</td><td>PHP ' . number_format((float)$item['amount'],2) . '</td></tr>';
     $html=emailLayout('Billing Statement Available','Total: PHP ' . $amount,'<p>Hi ' . htmlspecialchars($resident['full_name'],ENT_QUOTES,'UTF-8') . ', your statement is ready.</p><table style="width:100%;">' . $rows . '</table><p>Due: ' . $due . '</p><p>View details and pay through Billing &amp; Payments in the resident portal.</p>');
-    $queued=queueResidentChannels($db,'new_bill:' . $paymentId . ':owner:' . $resident['id'],$resident,'[Celandine Residences] Your Billing Statement is Ready',$html,'Celandine Residences: Bill PHP ' . $amount . ' is ready, due ' . $due . '. Check the resident portal.','bill_notice',$paymentId);
+    $queued=queueResidentChannels($db,'new_bill:' . $paymentId . ':owner:' . $resident['id'],$resident,'[The Celandine] Your Billing Statement is Ready',$html,'The Celandine: Bill PHP ' . $amount . ' is ready, due ' . $due . '. Check the resident portal.','bill_notice',$paymentId);
     return $queued['email_queued'];
 }
 
@@ -97,7 +98,7 @@ function notifyResidentOfPayment(int $paymentId, ?mysqli $db = null): bool {
     $row=array_merge($row,$contact);
     $amount=number_format((float)$row['amount'],2);
     $html=emailLayout('Payment Confirmed','Payment received','<p>Hi ' . htmlspecialchars($row['full_name'],ENT_QUOTES,'UTF-8') . ', payment of PHP ' . $amount . ' for bill #' . $paymentId . ' has been confirmed. View the receipt in the resident portal.</p>');
-    $queued=queueResidentChannels($db,'payment_receipt:' . $paymentId . ':owner:' . $row['id'],$row,'[Celandine Residences] Payment Confirmed',$html,'Celandine Residences: Payment PHP ' . $amount . ' for bill #' . $paymentId . ' confirmed. View your receipt in the resident portal.','payment_receipt',$paymentId,$strict);
+    $queued=queueResidentChannels($db,'payment_receipt:' . $paymentId . ':owner:' . $row['id'],$row,'[The Celandine] Payment Confirmed',$html,'The Celandine: Payment PHP ' . $amount . ' for bill #' . $paymentId . ' confirmed. View your receipt in the resident portal.','payment_receipt',$paymentId,$strict);
     return $queued['email_queued'];
 }
 
@@ -120,7 +121,7 @@ function sendDueDateReminders(int $daysAhead = 3): array {
             $amount=number_format((float)$row['amount'],2); $due=date('F j, Y',strtotime($row['due_date']));
             $overdue=$row['due_date']<date('Y-m-d'); $label=$overdue ? 'overdue' : 'due soon';
             $html=emailLayout('Payment Reminder','Your dues are ' . $label,'<p>Hi ' . htmlspecialchars($row['full_name'],ENT_QUOTES,'UTF-8') . ', bill #' . $id . ' for PHP ' . $amount . ' is ' . $label . '. Due: ' . $due . '.</p><p>Settle through Billing &amp; Payments in the resident portal.</p>');
-            $queued=queueResidentChannels($db,'due:' . $id . ':' . date('Y-m-d') . ':owner:' . $row['id'],$row,$overdue ? '[Celandine Residences] Overdue Payment Reminder' : '[Celandine Residences] Upcoming Payment Due',$html,'Celandine Residences: Bill #' . $id . ' PHP ' . $amount . ' is ' . $label . ', due ' . $due . '. Please settle via the resident portal.','due_reminder',$id,true);
+            $queued=queueResidentChannels($db,'due:' . $id . ':' . date('Y-m-d') . ':owner:' . $row['id'],$row,$overdue ? '[The Celandine] Overdue Payment Reminder' : '[The Celandine] Upcoming Payment Due',$html,'The Celandine: Bill #' . $id . ' PHP ' . $amount . ' is ' . $label . ', due ' . $due . '. Please settle via the resident portal.','due_reminder',$id,true);
             if (!$queued['email_queued'] && !$queued['sms_queued']) { $db->rollback(); continue; }
             $update=$db->prepare('UPDATE payments SET reminder_sent_at=NOW() WHERE id=?');
             $update->bind_param('i',$id); $update->execute(); $db->commit();

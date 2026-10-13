@@ -93,7 +93,7 @@ function qrHistoryFilters(array $input): array {
     foreach(['q'=>120,'qr_type'=>20,'status'=>20,'role'=>20,'sort'=>10] as $name=>$max) {
         $value=$input[$name] ?? ''; if(!is_string($value) || mb_strlen($value)>$max) throw new InvalidArgumentException('Invalid history filter.'); $result[$name]=trim($value);
     }
-    foreach(['qr_type'=>['','visitor','property','parking','permit','unknown'],'status'=>['','valid','invalid','expired','cancelled','already_used','unknown'],'role'=>['','security','admin','superadmin'],'sort'=>['','newest','oldest']] as $name=>$allowed) if(!in_array($result[$name],$allowed,true)) throw new InvalidArgumentException('Invalid history filter.');
+    foreach(['qr_type'=>['','visitor','property','parking','permit','digital_id','unknown'],'status'=>['','valid','invalid','expired','revoked','suspended','unauthorized','not_found','cancelled','already_used','unknown'],'role'=>['','security','admin','superadmin'],'sort'=>['','newest','oldest']] as $name=>$allowed) if(!in_array($result[$name],$allowed,true)) throw new InvalidArgumentException('Invalid history filter.');
     $result['dates']=qrDateBounds($input);
     $result['page']=filter_var($input['page'] ?? 1,FILTER_VALIDATE_INT,['options'=>['min_range'=>1,'max_range'=>1000000]]);
     if($result['page']===false) throw new InvalidArgumentException('Invalid page number.');
@@ -115,7 +115,7 @@ function qrQuery(mysqli $db,string $sql,string $types='',array $params=[]): mysq
 }
 function qrSummary(mysqli $db,array $filters): array {
     [$where,$types,$params]=qrWhere($filters);
-    $row=qrQuery($db,"SELECT COUNT(*) AS total,COALESCE(SUM(verification_result='valid'),0) AS valid,COALESCE(SUM(verification_result IN ('invalid','already_used')),0) AS invalid,COALESCE(SUM(verification_result IN ('expired','cancelled')),0) AS expired_cancelled,COALESCE(SUM(qr_type='visitor'),0) AS visitor,COALESCE(SUM(qr_type='property'),0) AS property FROM qr_scan_logs".$where,$types,$params)->fetch_assoc();
+    $row=qrQuery($db,"SELECT COUNT(*) AS total,COALESCE(SUM(verification_result='valid'),0) AS valid,COALESCE(SUM(verification_result IN ('invalid','already_used','suspended','unauthorized','not_found')),0) AS invalid,COALESCE(SUM(verification_result IN ('expired','cancelled','revoked')),0) AS expired_cancelled,COALESCE(SUM(qr_type='visitor'),0) AS visitor,COALESCE(SUM(qr_type='property'),0) AS property FROM qr_scan_logs".$where,$types,$params)->fetch_assoc();
     return array_map('intval',$row);
 }
 function qrPublicRecord(array $row): array {

@@ -93,7 +93,7 @@ $nextDueDate = $dueDates[0] ?? null;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences - <?php echo htmlspecialchars($billingTitle); ?></title>
+    <title>The Celandine - <?php echo htmlspecialchars($billingTitle); ?></title>
     <link rel="stylesheet" href="../resident.css?v=<?php echo (int)filemtime(__DIR__ . '/../resident.css'); ?>">
 <?php renderPortalUiHead(); ?>
     <link rel="stylesheet" href="../assets/css/billing-workspace.css?v=<?php echo (int)filemtime(__DIR__ . '/../assets/css/billing-workspace.css'); ?>">
@@ -106,7 +106,6 @@ $nextDueDate = $dueDates[0] ?? null;
         <aside class="sidebar" id="sidebar">
             <a href="dashboard.php" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
-                <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
 
             <nav class="sidebar-nav">
@@ -123,7 +122,7 @@ $nextDueDate = $dueDates[0] ?? null;
                         <?php echo systemIcon('menu', 'menu-icon'); ?>
                     </button>
                     <div>
-                        <span class="dash-subtitle">CELANDINE RESIDENCES</span>
+                        <span class="dash-subtitle">THE CELANDINE</span>
                         <h1 class="dash-title"><?php echo htmlspecialchars($billingTitle); ?></h1>
                     </div>
                 </div>

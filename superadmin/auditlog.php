@@ -49,27 +49,27 @@ $logs = array_values(array_filter($allLogs, function (array $log) use ($search, 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences</title>
-    <link rel="stylesheet" href="../styles.css">
+    <title>The Celandine</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('styles.css'), ENT_QUOTES, 'UTF-8') ?>">
     <style>
         .audit-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
-        .audit-approve, .audit-create, .audit-mark_paid, .audit-webhook_confirm, .audit-assign, .audit-issue, .audit-waive, .audit-bulk_generate, .audit-checkin { background: #10b98122; color: #10b981; }
-        .audit-reject, .audit-delete { background: #ef444422; color: #ef4444; }
-        .audit-update, .audit-notify, .audit-send_reminders, .audit-release, .audit-update_status, .audit-auto_login, .audit-login, .audit-checkout { background: #3b82f622; color: #60a5fa; }
+        .audit-approve, .audit-create, .audit-mark_paid, .audit-webhook_confirm, .audit-assign, .audit-issue, .audit-waive, .audit-bulk_generate, .audit-checkin { background: #10b98122; color: var(--theme-success,#10b981); }
+        .audit-reject, .audit-delete { background: #ef444422; color: var(--theme-danger,#ef4444); }
+        .audit-update, .audit-notify, .audit-send_reminders, .audit-release, .audit-update_status, .audit-auto_login, .audit-login, .audit-checkout { background: #3b82f622; color: var(--theme-info,#60a5fa); }
     </style>
 <?php renderPortalUiHead(); ?>
 </head>
 <body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?></a>
             <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
         <main class="dashboard-main">
             <header class="dash-header">
-                <div class="dash-header-left"><button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button><div><span class="dash-subtitle">CELANDINE RESIDENCES</span><h1 class="dash-title">Audit Log</h1></div></div>
+                <div class="dash-header-left"><button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button><div><span class="dash-subtitle">THE CELANDINE</span><h1 class="dash-title">Audit Log</h1></div></div>
                 <div class="dash-header-right">
                     <?php include '../notifications.php'; ?>
                     <div class="profile-menu" id="profileMenu">

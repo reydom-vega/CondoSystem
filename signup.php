@@ -120,7 +120,7 @@ $showStepTwo = $_SERVER['REQUEST_METHOD'] === 'POST' && in_array($accountType, $
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up - Celandine Residences</title>
+    <title>Sign Up - The Celandine</title>
     <link rel="stylesheet" href="styles.css?v=<?php echo filemtime(__DIR__ . '/styles.css'); ?>">
     <style>
         .signup-step {
@@ -142,7 +142,7 @@ $showStepTwo = $_SERVER['REQUEST_METHOD'] === 'POST' && in_array($accountType, $
             width: 80px;
             height: 8px;
             border-radius: 999px;
-            background: rgba(255, 255, 255, 0.14);
+            background: var(--theme-hover,rgba(255, 255, 255, 0.14));
         }
 
         .step-progress .step-dot.active {
@@ -161,7 +161,7 @@ $showStepTwo = $_SERVER['REQUEST_METHOD'] === 'POST' && in_array($accountType, $
             width: 100%;
             border: 1px solid var(--input-border);
             border-radius: 12px;
-            background: rgba(255, 255, 255, 0.02);
+            background: var(--theme-hover,rgba(255, 255, 255, 0.02));
             padding: 14px 16px 14px 40px;
             position: relative;
             cursor: pointer;
@@ -207,7 +207,7 @@ $showStepTwo = $_SERVER['REQUEST_METHOD'] === 'POST' && in_array($accountType, $
             border-radius: 10px;
             background: rgba(239, 68, 68, 0.12);
             border: 1px solid rgba(239, 68, 68, 0.45);
-            color: #fca5a5;
+            color: var(--theme-danger,#fca5a5);
             font-size: 0.92rem;
             font-weight: 600;
         }
@@ -243,7 +243,6 @@ $showStepTwo = $_SERVER['REQUEST_METHOD'] === 'POST' && in_array($accountType, $
         <div class="form-panel">
             <div class="brand">
                 <?php include 'buildingicon.php'; ?>
-                <div class="brand-title">The Celandine<br>Residences</div>
             </div>
 
             <div class="step-progress" aria-label="Signup progress">

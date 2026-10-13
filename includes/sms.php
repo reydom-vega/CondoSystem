@@ -203,7 +203,7 @@ function generateAndSendPhoneOtp(int $userId): array {
     $update->execute();
     if ($update->affected_rows !== 1) return ['success'=>false, 'error'=>'Please wait one minute before requesting another code.'];
 
-    $message = "Celandine Residences: your phone verification code is {$code}. It expires in 10 minutes.";
+    $message = "The Celandine: your phone verification code is {$code}. It expires in 10 minutes.";
     $result = sendSms($user['contact_number'], $message);
     if (!$result['success']) {
         $clear = $connection->prepare('UPDATE users SET phone_otp = NULL, phone_otp_expires = NULL WHERE id = ? AND phone_otp = ?');

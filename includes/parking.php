@@ -367,7 +367,7 @@ function getParkingRequestsForUser(int $userId): array {
     $connection = connectDb();
     ensureParkingTables($connection);
     ensureResidentServicesTables($connection);
-    $stmt = $connection->prepare('SELECT pr.*, ps.slot_code, ps.level, u.full_name, u.unit_number, vr.visitor_name, vr.status AS visitor_status FROM parking_requests pr LEFT JOIN parking_slots ps ON ps.id = pr.slot_id INNER JOIN users u ON u.id = pr.user_id LEFT JOIN resident_service_requests vr ON vr.id = pr.visitor_registration_id AND vr.user_id = pr.user_id WHERE pr.user_id = ? ORDER BY pr.created_at DESC');
+    $stmt = $connection->prepare('SELECT pr.*, ps.slot_code, ps.level, ps.status AS slot_status, u.full_name, u.unit_number, vr.visitor_name, vr.status AS visitor_status, vr.request_kind AS visitor_kind, vr.identity_status AS visitor_identity_status, vr.id_document_name AS visitor_id_document_name, vr.id_uploaded_at AS visitor_id_uploaded_at, vr.id_deleted_at AS visitor_id_deleted_at FROM parking_requests pr LEFT JOIN parking_slots ps ON ps.id = pr.slot_id INNER JOIN users u ON u.id = pr.user_id LEFT JOIN resident_service_requests vr ON vr.id = pr.visitor_registration_id AND vr.user_id = pr.user_id WHERE pr.user_id = ? ORDER BY pr.created_at DESC');
     $stmt->bind_param('i', $userId);
     $stmt->execute();
     return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -391,7 +391,8 @@ function parkingPassSignature(int $requestId): string {
     return hash_hmac('sha256', 'parking-pass:' . $requestId, $key);
 }
 
-function getParkingPass(int $requestId, string $signature): ?array {
+/** Signed details for an owner/staff status page; this does not authorize entry. */
+function getParkingPassDetails(int $requestId, string $signature): ?array {
     if (!hash_equals(parkingPassSignature($requestId), $signature)) {
         return null;
     }
@@ -399,15 +400,29 @@ function getParkingPass(int $requestId, string $signature): ?array {
     $connection = connectDb();
     ensureParkingTables($connection);
     ensureResidentServicesTables($connection);
-    $stmt = $connection->prepare("SELECT pr.*, ps.slot_code, ps.level, u.full_name, u.unit_number, u.email, vr.visitor_name, vr.status AS visitor_status FROM parking_requests pr INNER JOIN users u ON u.id = pr.user_id LEFT JOIN parking_slots ps ON ps.id = pr.slot_id LEFT JOIN resident_service_requests vr ON vr.id = pr.visitor_registration_id AND vr.user_id = pr.user_id WHERE pr.id = ? AND pr.request_type = 'visitor' AND pr.status = 'approved' AND u.status = 'approved' AND u.is_active = 1 AND u.is_verified = 1 AND u.role = 'resident' AND TRIM(COALESCE(u.unit_number,'')) <> '' AND (pr.slot_id IS NULL OR ps.status <> 'maintenance') AND (pr.visitor_registration_id IS NULL OR (vr.request_kind = 'visitor' AND vr.status IN ('approved','checked_in'))) LIMIT 1");
+    $stmt = $connection->prepare("SELECT pr.*, ps.slot_code, ps.level, ps.status AS slot_status, u.full_name, u.unit_number, u.email, vr.visitor_name, vr.status AS visitor_status, vr.request_kind AS visitor_kind, vr.identity_status AS visitor_identity_status, vr.id_document_name AS visitor_id_document_name, vr.id_uploaded_at AS visitor_id_uploaded_at, vr.id_deleted_at AS visitor_id_deleted_at FROM parking_requests pr INNER JOIN users u ON u.id = pr.user_id LEFT JOIN parking_slots ps ON ps.id = pr.slot_id LEFT JOIN resident_service_requests vr ON vr.id = pr.visitor_registration_id AND vr.user_id = pr.user_id WHERE pr.id = ? AND pr.request_type = 'visitor' AND u.status = 'approved' AND u.is_active = 1 AND u.is_verified = 1 AND u.role = 'resident' AND TRIM(COALESCE(u.unit_number,'')) <> '' LIMIT 1");
     $stmt->bind_param('i', $requestId);
     $stmt->execute();
     $pass=$stmt->get_result()->fetch_assoc();
-    if ($pass && $pass['visitor_registration_id']) {
-        $visitor = gateRequest($connection, (int)$pass['visitor_registration_id']);
-        if (!$visitor || !visitorIdentityVerified($visitor)) return null;
-    }
     return $pass && (residentContext($connection,(int)$pass['user_id'])['approved'] ?? false) ? $pass : null;
+}
+
+/** The same approval checks govern the request button, pass QR and scanner. */
+function parkingPassApprovalNotice(array $pass): ?string {
+    if ($pass['status'] !== 'approved') return 'Parking request status: ' . str_replace('_', ' ', $pass['status']) . '. An approved parking request is required.';
+    if (!empty($pass['slot_id']) && (empty($pass['slot_status']) || $pass['slot_status'] === 'maintenance')) return 'The assigned parking slot is unavailable. Please contact management.';
+    if (!empty($pass['visitor_registration_id'])) {
+        if (($pass['visitor_kind'] ?? '') !== 'visitor' || !in_array($pass['visitor_status'] ?? '', ['approved','checked_in'], true)) return 'The linked visitor registration must be approved and active before this parking pass is available.';
+        if (empty($pass['visitor_id_document_name']) || empty($pass['visitor_id_uploaded_at']) || !empty($pass['visitor_id_deleted_at'])) return 'Upload a valid ID in Visitor Registration and have it verified by Admin or Security before downloading this parking pass.';
+        if (($pass['visitor_identity_status'] ?? '') !== 'verified') return 'Visitor identity verification is ' . ($pass['visitor_identity_status'] ?? 'pending') . '. Admin or Security must verify the ID before this parking pass is available.';
+    }
+    return null;
+}
+
+/** Access authorization remains strict even when the owner can view its status. */
+function getParkingPass(int $requestId, string $signature): ?array {
+    $pass = getParkingPassDetails($requestId, $signature);
+    return $pass && parkingPassApprovalNotice($pass) === null ? $pass : null;
 }
 
 function parkingPassUrl(int $requestId): string {

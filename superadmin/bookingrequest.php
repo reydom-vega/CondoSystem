@@ -33,9 +33,9 @@ $flash=getFlash(); $escape=static fn($value)=>htmlspecialchars((string)$value,EN
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences</title>
-    <link rel="stylesheet" href="../styles.css">
-    <link rel="stylesheet" href="../services.css">
+    <title>The Celandine</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('styles.css'), ENT_QUOTES, 'UTF-8') ?>">
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('services.css'), ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="../amenities.css?v=<?= filemtime(__DIR__ . '/../amenities.css') ?>">
 <?php renderPortalUiHead(); ?>
     <script src="../assets/js/history-search.js" defer></script>
@@ -43,14 +43,14 @@ $flash=getFlash(); $escape=static fn($value)=>htmlspecialchars((string)$value,EN
 <body class="portal-ui dashboard-page admin-page amenity-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?></a>
             <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
         <main class="dashboard-main" id="amenityApp" data-csrf="<?= htmlspecialchars(workflowCsrfToken(),ENT_QUOTES,'UTF-8') ?>">
             <header class="dash-header">
-                <div class="dash-header-left"><button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button><div><span class="dash-subtitle">CELANDINE RESIDENCES</span><h1 class="dash-title">Booking Requests</h1></div></div>
+                <div class="dash-header-left"><button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button><div><span class="dash-subtitle">THE CELANDINE</span><h1 class="dash-title">Booking Requests</h1></div></div>
                 <div class="dash-header-right">
                     <?php include '../notifications.php'; ?>
                     <div class="profile-menu" id="profileMenu"><button class="btn-profile-nav" id="profileToggle" type="button" aria-label="Profile menu" aria-haspopup="true" aria-expanded="false"><span class="profile-avatar"><?php echo htmlspecialchars($initials); ?></span><span class="profile-nav-name"><?php echo htmlspecialchars($username); ?></span><span class="profile-caret">&#9662;</span></button><div class="profile-dropdown" id="profileDropdown"><div class="profile-dropdown-header"><span class="profile-dropdown-avatar"><?php echo htmlspecialchars($initials); ?></span><div class="profile-dropdown-info"><span class="profile-dropdown-name"><?php echo htmlspecialchars($username); ?></span><span class="profile-dropdown-unit">Administrator</span></div></div><a href="../logout.php" class="profile-dropdown-item profile-dropdown-danger"><?php echo systemIcon('arrow-right', 'system-action-icon'); ?> Logout</a></div></div>
@@ -74,10 +74,10 @@ $flash=getFlash(); $escape=static fn($value)=>htmlspecialchars((string)$value,EN
                 ?>
             <?php endforeach; ?>
             <section id="amenityAvailability" class="amenity-availability-panels">
-            <section class="amenity-admin-schedule"><div><h2>Swimming Pool availability</h2><p>Exclusive reservations · ₱300/hour · 6 AM–9 PM · Asia/Manila</p></div>
+            <section class="amenity-admin-schedule"><div><h2>Swimming Pool availability</h2><p>Exclusive reservations · ₱<?= number_format(AMENITY_POOL_HOURLY_RATE) ?>/hour · 6 AM–9 PM · Asia/Manila</p></div>
                 <form data-pool-schedule data-amenity-schedule="Swimming Pool"><div class="amenity-form-grid"><label class="field-label">Schedule date<input type="date" name="booking_date" value="<?= date('Y-m-d') ?>" required></label><label class="field-label">Duration<select name="duration_hours"><option value="1">1 Hour</option><option value="2">2 Hours</option><option value="3">3 Hours</option></select></label></div><button type="button" class="service-btn service-btn-secondary" data-refresh-slots>Refresh availability</button><p data-availability-message class="amenity-availability-message" role="status" aria-live="polite"></p><div data-time-slots class="amenity-time-slots" aria-label="Pool schedule"></div></form>
             </section>
-            <section class="amenity-admin-schedule"><div><h2>Function Hall availability</h2><p>Exclusive full-day reservations &middot; &#8369;3,000/day &middot; Asia/Manila</p><p>Each available day can accommodate one reservation. Pending and approved requests hold the entire day.</p></div>
+            <section class="amenity-admin-schedule"><div><h2>Function Hall availability</h2><p>Exclusive full-day reservations &middot; &#8369;<?= number_format(AMENITY_HALL_DAILY_RATE) ?>/day &middot; Asia/Manila</p><p>Each available day can accommodate one reservation. Pending and approved requests hold the entire day.</p></div>
                 <form data-hall-calendar>
                     <div class="amenity-calendar-controls"><button type="button" class="service-btn service-btn-secondary" data-calendar-step="-1" aria-label="Previous month">&lsaquo;</button><label class="field-label">Month<input type="month" name="month" min="1000-01" max="9998-12" value="<?= date('Y-m') ?>" required></label><button type="button" class="service-btn service-btn-secondary" data-calendar-step="1" aria-label="Next month">&rsaquo;</button><button type="button" class="service-btn service-btn-secondary" data-refresh-calendar>Refresh availability</button></div>
                     <p data-calendar-message class="amenity-availability-message" role="status" aria-live="polite"></p>

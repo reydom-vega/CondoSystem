@@ -17,10 +17,10 @@ $find=$db->prepare("SELECT id,channel,recipient,event_kind,status,attempts,last_
 $find->bind_param('ss',$filter,$filter); $find->execute(); $jobs=$find->get_result()->fetch_all(MYSQLI_ASSOC);
 $flash=getFlash();
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Notification Delivery</title><link rel="stylesheet" href="../styles.css"><link rel="stylesheet" href="../services.css"><?php renderPortalUiHead(); ?>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Notification Delivery | The Celandine</title><link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('styles.css'), ENT_QUOTES, 'UTF-8') ?>"><link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('services.css'), ENT_QUOTES, 'UTF-8') ?>"><?php renderPortalUiHead(); ?>
 </head>
 <body class="portal-ui dashboard-page admin-page"><div class="dash-layout">
-<aside class="sidebar" id="sidebar"><a class="sidebar-brand" href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()),ENT_QUOTES,'UTF-8'); ?>"><?php include __DIR__.'/../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a><nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav></aside><div class="sidebar-overlay" id="sidebarOverlay"></div>
+<aside class="sidebar" id="sidebar"><a class="sidebar-brand" href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()),ENT_QUOTES,'UTF-8'); ?>"><?php include __DIR__.'/../buildingicon.php'; ?></a><nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav></aside><div class="sidebar-overlay" id="sidebarOverlay"></div>
 <main class="dashboard-main"><?php renderPortalWorkspaceHeader('Notification Delivery'); ?>
 <section class="service-panel"><h2>Delivery status</h2><p>Notices are delivered automatically. Retry a failed notice after resolving its delivery issue.</p>
 <?php if($flash): ?><div class="alert <?php echo $flash['type']==='error'?'error':'success'; ?>"><?php echo htmlspecialchars($flash['message'],ENT_QUOTES,'UTF-8'); ?></div><?php endif; ?>

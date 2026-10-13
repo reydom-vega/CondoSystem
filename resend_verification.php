@@ -40,14 +40,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $safeUsername = htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8');
                     $safeCode = htmlspecialchars($verificationToken, ENT_QUOTES, 'UTF-8');
                     $safeVerificationLink = htmlspecialchars($verificationLink, ENT_QUOTES, 'UTF-8');
-                    $message = '<!doctype html><html><body style="margin:0;background:#0a0f1d;color:#ffffff;font-family:Arial,sans-serif;padding:24px;">'
-                        . '<div style="max-width:560px;margin:0 auto;background:#111827;border:1px solid #374151;border-radius:12px;padding:32px;">'
-                        . '<div style="color:#f59e0b;font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;">Celandine Residences</div>'
+                    $message = '<!doctype html><html><body style="margin:0;background:var(--theme-surface,#0a0f1d);color:var(--theme-ink,#ffffff);font-family:Arial,sans-serif;padding:24px;">'
+                        . '<div style="max-width:560px;margin:0 auto;background:var(--theme-surface,#111827);border:1px solid var(--theme-line,#374151);border-radius:12px;padding:32px;">'
+                        . brandEmailHtml()
                         . '<h1 style="font-size:24px;margin:14px 0 8px;">Verify your account</h1>'
-                        . '<p style="color:#cbd5e1;line-height:1.6;">Hello ' . $safeUsername . ', use the verification code below to activate your account.</p>'
-                        . '<div style="background:#1f293d;border:1px solid #4b5563;border-radius:8px;color:#fbbf24;font-size:30px;font-weight:bold;letter-spacing:8px;text-align:center;padding:18px;margin:24px 0;">' . $safeCode . '</div>'
-                        . '<div style="text-align:center;"><a href="' . $safeVerificationLink . '" style="display:inline-block;background:#d97706;color:#ffffff;text-decoration:none;border-radius:8px;padding:13px 22px;font-weight:bold;">Enter Verification Code</a></div>'
-                        . '<p style="color:#9ca3af;font-size:12px;line-height:1.5;margin-top:24px;">If you did not request this code, you can ignore this email.</p>'
+                        . '<p style="color:var(--theme-copy,#cbd5e1);line-height:1.6;">Hello ' . $safeUsername . ', use the verification code below to activate your account.</p>'
+                        . '<div style="background:var(--theme-hover,#1f293d);border:1px solid var(--theme-line,#4b5563);border-radius:8px;color:var(--theme-brand,#fbbf24);font-size:30px;font-weight:bold;letter-spacing:8px;text-align:center;padding:18px;margin:24px 0;">' . $safeCode . '</div>'
+                        . '<div style="text-align:center;"><a href="' . $safeVerificationLink . '" style="display:inline-block;background:#d97706;color:var(--theme-ink,#ffffff);text-decoration:none;border-radius:8px;padding:13px 22px;font-weight:bold;">Enter Verification Code</a></div>'
+                        . '<p style="color:var(--theme-copy,#9ca3af);font-size:12px;line-height:1.5;margin-top:24px;">If you did not request this code, you can ignore this email.</p>'
                         . '</div></body></html>';
                     $sent = sendMail($email, $subject, $message);
 
@@ -72,13 +72,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Resend Verification Email</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Resend Verification Email | The Celandine</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('styles.css'), ENT_QUOTES, 'UTF-8') ?>">
 <?php renderPortalUiHead(); ?>
 </head>
 <body class="portal-ui portal-account-page">
     <div class="card glass-card">
         <div class="form-panel">
+<div class="account-brand"><?= brandHtml('compact') ?></div>
             <h1>Resend Verification Email</h1>
             <p class="subtitle">Enter your email and we'll resend the account verification link.</p>
 

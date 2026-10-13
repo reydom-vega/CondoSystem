@@ -100,11 +100,19 @@ try {
         uiCheck(is_string($body) && str_contains($body,'portal-ui'),'rendered shared UI: '.$entry['label'].' '.$entry['path']);
         uiCheck(substr_count($body,'assets/vendor/gsap/gsap.min.js')===1,'one GSAP import: '.$entry['path']);
         uiCheck(str_contains($body,'assets/css/design-system.css') && str_contains($body,'assets/css/components.css') && str_contains($body,'assets/css/responsive.css'),'shared assets: '.$entry['path']);
+        uiCheck(substr_count($body,'assets/js/theme.js')===1 && substr_count($body,'assets/css/theme.css')===1 && strpos($body,'assets/js/theme.js')<strpos($body,'</head>'),'one theme bootstrap before body: '.$entry['path']);
+        uiCheck(substr_count($body,'assets/js/loading-ui.js')===1 && substr_count($body,'assets/css/loading-ui.css')===1 && str_contains($body,'name="loading-logo-dark"') && str_contains($body,'name="loading-logo-light"'),'one shared themed loader: '.$entry['path']);
         uiCheck(!str_contains($body,'Fatal error') && !str_contains($body,'Warning:'),'no PHP rendering errors: '.$entry['path']);
         $dom=new DOMDocument(); libxml_use_internal_errors(true); $dom->loadHTML($body); libxml_clear_errors(); $xp=new DOMXPath($dom);
+        foreach ($xp->query('//link[@rel="stylesheet"]') as $stylesheet) {
+            $href = $stylesheet->getAttribute('href');
+            if (preg_match('~^(?:https?:)?//~i', $href) && !str_starts_with($href, $base)) continue;
+            parse_str((string)parse_url($href, PHP_URL_QUERY), $assetQuery);
+            uiCheck(isset($assetQuery['v']) && ctype_digit((string)$assetQuery['v']) && (int)$assetQuery['v'] > 2, 'stylesheet cache version: '.$entry['path'].' '.$href);
+        }
         foreach($xp->query('//form[translate(@method,"POST","post")="post"]') as $form) uiCheck($xp->query('.//input[@name="csrf_token"]',$form)->length===1,'CSRF retained: '.$entry['path']);
     }
-    foreach(['assets/css/design-system.css','assets/css/components.css','assets/css/responsive.css','assets/vendor/gsap/gsap.min.js','assets/js/ui-components.js','assets/js/animations.js'] as $asset) uiCheck(strlen((string)file_get_contents($base.$asset))>100,'local shared asset: '.$asset);
+    foreach(['assets/css/design-system.css','assets/css/components.css','assets/css/responsive.css','assets/css/theme.css','assets/js/theme.js','assets/vendor/gsap/gsap.min.js','assets/js/ui-components.js','assets/js/animations.js'] as $asset) uiCheck(strlen((string)file_get_contents($base.$asset))>100,'local shared asset: '.$asset);
     echo 'Passed '.$checks.' UI route, asset and CSRF checks across '.count($manifest)." role/page combinations.\n";
     if(in_array('--preview',$argv,true)) { echo 'UI preview: '.$base."__manifest\nPress Enter to finish.\n"; fgets(STDIN); }
 } finally {

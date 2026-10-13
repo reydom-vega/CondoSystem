@@ -53,8 +53,8 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences - My Dashboard</title>
-    <link rel="stylesheet" href="../resident.css">
+    <title>The Celandine - My Dashboard</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('resident.css'), ENT_QUOTES, 'UTF-8') ?>">
 <?php renderPortalUiHead(); ?>
 </head>
 <body class="portal-ui dashboard-page">
@@ -74,7 +74,6 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
         <aside class="sidebar" id="sidebar">
             <a href="dashboard.php" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
-                <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
 
             <nav class="sidebar-nav"><?php renderResidentSidebarNavigation(); ?></nav>
@@ -89,7 +88,7 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
                         <?php echo systemIcon('menu', 'menu-icon'); ?>
                     </button>
                     <div>
-                        <span class="dash-subtitle">CELANDINE RESIDENCES</span>
+                        <span class="dash-subtitle">THE CELANDINE</span>
                         <h1 class="dash-title">My Dashboard</h1>
                     </div>
                 </div>
@@ -133,11 +132,11 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
             </section>
 
             <?php if (!$accountApproved): ?>
-                <section class="notice-banner" style="background: #1f293d; border: 1px solid #4b5563; border-left: 4px solid #f59e0b; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; display: flex; gap: 12px; align-items: flex-start;">
+                <section class="notice-banner" style="background: var(--theme-hover,#1f293d); border: 1px solid var(--theme-line,#4b5563); border-left: 4px solid #f59e0b; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; display: flex; gap: 12px; align-items: flex-start;">
                     <?php echo systemIcon('hourglass', 'dashboard-reminder-icon'); ?>
                     <div>
-                        <strong style="color: #fbbf24;">Your account is awaiting admin approval.</strong>
-                        <p style="color: #9ca3af; margin: 4px 0 0; font-size: 0.9em;">Bring a valid ID and proof of unit ownership or authorized tenancy to management so they can confirm your unit and account type.</p>
+                        <strong style="color: var(--theme-brand,#fbbf24);">Your account is awaiting admin approval.</strong>
+                        <p style="color: var(--theme-copy,#9ca3af); margin: 4px 0 0; font-size: 0.9em;">Bring a valid ID and proof of unit ownership or authorized tenancy to management so they can confirm your unit and account type.</p>
                     </div>
                 </section>
             <?php endif; ?>
@@ -188,9 +187,9 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
             </section>
 
             <?php if (residentHasPermission('resident.billing.view') && !residentHasPermission('resident.billing.pay')): ?>
-                <section class="notice-banner" style="background: #1f293d; border: 1px solid #4b5563; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;">
+                <section class="notice-banner" style="background: var(--theme-hover,#1f293d); border: 1px solid var(--theme-line,#4b5563); border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;">
                     <strong>Unit billing is read-only for tenants.</strong>
-                    <p style="color: #9ca3af; margin: 4px 0 0;">You can review bills for your approved unit. The unit owner handles shared unit payments. Tenants request and pay for their own parking through Parking &amp; Stickers.</p>
+                    <p style="color: var(--theme-copy,#9ca3af); margin: 4px 0 0;">You can review bills for your approved unit. The unit owner handles shared unit payments. Tenants request and pay for their own parking through Parking &amp; Stickers.</p>
                 </section>
             <?php endif; ?>
 
@@ -211,11 +210,11 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
                 <h3 class="section-title">Recent Announcements</h3>
 
                 <?php if (!$accountApproved): ?>
-                    <div style="text-align: center; color: #9ca3af; padding: 20px;">
+                    <div style="text-align: center; color: var(--theme-copy,#9ca3af); padding: 20px;">
                         <p>Announcements will show here once your account is approved.</p>
                     </div>
                 <?php elseif (empty($announcements)): ?>
-                    <div style="text-align: center; color: #9ca3af; padding: 20px;">
+                    <div style="text-align: center; color: var(--theme-copy,#9ca3af); padding: 20px;">
                         <p>No announcements at this time.</p>
                     </div>
                 <?php else: ?>
@@ -233,9 +232,9 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
                             <div class="notice-content">
                                 <h4><?php echo htmlspecialchars($announcement['title']); ?></h4>
                                 <?php if (!empty($announcement['category'])): ?>
-                                    <small style="color: #9ca3af;"><?php echo htmlspecialchars($announcement['category']); ?> • </small>
+                                    <small style="color: var(--theme-copy,#9ca3af);"><?php echo htmlspecialchars($announcement['category']); ?> • </small>
                                 <?php endif; ?>
-                                <small style="color: #9ca3af;"><?php echo date('M d, Y', strtotime($announcement['created_at'])); ?></small>
+                                <small style="color: var(--theme-copy,#9ca3af);"><?php echo date('M d, Y', strtotime($announcement['created_at'])); ?></small>
                                 <p class="dashboard-announcement-content"><?php echo htmlspecialchars($announcement['content']); ?></p>
                             </div>
                         </div>
@@ -262,13 +261,13 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
 
         .approval-modal {
             width: min(560px, 100%);
-            background: #121b2d;
+            background: var(--theme-surface,#121b2d);
             border: 2px solid #f59e0b;
             border-radius: 18px;
             box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
             padding: 28px 26px 22px;
             text-align: center;
-            color: #f3f6fb;
+            color: var(--theme-ink,#f3f6fb);
         }
 
         .approval-modal-icon {
@@ -279,12 +278,12 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
         .approval-modal h2 {
             margin: 0 0 12px;
             font-size: clamp(1.5rem, 2vw, 2rem);
-            color: #fbbf24;
+            color: var(--theme-brand,#fbbf24);
         }
 
         .approval-modal p {
             margin: 0 0 22px;
-            color: #dfe7f5;
+            color: var(--theme-ink,#dfe7f5);
             line-height: 1.6;
             font-size: 1rem;
         }

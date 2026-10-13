@@ -79,7 +79,7 @@ if (($_GET['export'] ?? '') === 'pdf') {
         ['Pending Requests', $analyticsData['parking_pending_requests']],
     ];
 
-    $html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Celandine Residences - Analytics Report</title><style>
+    $html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>The Celandine - Analytics Report</title><style>
         body { font-family: Arial, Helvetica, sans-serif; color: #1f2937; font-size: 13px; max-width: 900px; margin: 30px auto; padding: 0 20px; }
         h1 { color: #d97706; margin-bottom: 0; font-size: 24px; }
         .subtitle { color: #6b7280; margin-top: 2px; margin-bottom: 10px; font-size: 13px; }
@@ -88,8 +88,7 @@ if (($_GET['export'] ?? '') === 'pdf') {
         th { background: #1f2937; color: #fff; text-align: left; padding: 8px 10px; font-size: 12px; }
         td { padding: 6px 10px; border-bottom: 1px solid #e5e7eb; font-size: 12px; }
         tr:nth-child(even) td { background: #f9fafb; }
-    </style></head><body>
-        <h1>Celandine Residences</h1>
+    ' . brandDocumentStyles() . '</style></head><body>' . brandDocumentHtml(42) . '
         <div class="subtitle">System Analytics Report &mdash; Generated ' . htmlspecialchars($generatedAt) . '</div>'
         . $section('Summary Metrics', $summaryRows, ['Metric', 'Value'])
         . $section('Event Breakdown', $eventBreakdownRows, ['Event Type', 'Count'])
@@ -112,13 +111,13 @@ if (($_GET['export'] ?? '') === 'pdf') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences</title>
-    <link rel="stylesheet" href="../styles.css">
+    <title>The Celandine</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('styles.css'), ENT_QUOTES, 'UTF-8') ?>">
     <style>
         .admin-page .admin-panel h3,
         .admin-page .admin-stat-card strong,
         .admin-page .admin-stat-card > span:not(.admin-stat-icon) {
-            color: #ffffff;
+            color: var(--theme-ink,#ffffff);
         }
     </style>
 <?php renderPortalUiHead(); ?>
@@ -128,7 +127,6 @@ if (($_GET['export'] ?? '') === 'pdf') {
         <aside class="sidebar" id="sidebar">
             <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
-                <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
             <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
@@ -139,7 +137,7 @@ if (($_GET['export'] ?? '') === 'pdf') {
                 <div class="dash-header-left">
                     <button class="btn-icon-menu" id="menuToggle" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button>
                     <div>
-                        <span class="dash-subtitle">CELANDINE RESIDENCES</span>
+                        <span class="dash-subtitle">THE CELANDINE</span>
                         <h1 class="dash-title">System Analytics</h1>
                     </div>
                 </div>
@@ -187,7 +185,7 @@ if (($_GET['export'] ?? '') === 'pdf') {
                         ?>
                             <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
                                 <div style="width: 100%; background: #d97706; border-radius: 4px; height: <?php echo $height; ?>%; min-height: 10px; transition: all 0.3s ease;" title="<?php echo $activity['count']; ?> events"></div>
-                                <small style="margin-top: 8px; font-size: 11px; color: #9ca3af;"><?php echo date('M d', strtotime($activity['date'])); ?></small>
+                                <small style="margin-top: 8px; font-size: 11px; color: var(--theme-copy,#9ca3af);"><?php echo date('M d', strtotime($activity['date'])); ?></small>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -199,8 +197,8 @@ if (($_GET['export'] ?? '') === 'pdf') {
                     <div style="display: flex; flex-direction: column; gap: 10px;">
                         <?php foreach ($analyticsData['event_breakdown'] as $eventType => $count): ?>
                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 13px; color: #cbd5e1; text-transform: capitalize;"><?php echo str_replace('_', ' ', $eventType); ?></span>
-                                <span style="background: #374151; color: #f59e0b; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $count; ?></span>
+                                <span style="font-size: 13px; color: var(--theme-copy,#cbd5e1); text-transform: capitalize;"><?php echo str_replace('_', ' ', $eventType); ?></span>
+                                <span style="background: var(--theme-hover,#374151); color: var(--theme-brand,#f59e0b); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $count; ?></span>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -213,8 +211,8 @@ if (($_GET['export'] ?? '') === 'pdf') {
                     <div style="display: flex; flex-direction: column; gap: 10px;">
                         <?php foreach ($analyticsData['top_issues'] as $issue): ?>
                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 13px; color: #cbd5e1;"><?php echo htmlspecialchars(substr($issue['issue'], 0, 20)); ?></span>
-                                <span style="background: #ef4444; color: #fff; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $issue['count']; ?></span>
+                                <span style="font-size: 13px; color: var(--theme-copy,#cbd5e1);"><?php echo htmlspecialchars(substr($issue['issue'], 0, 20)); ?></span>
+                                <span style="background: var(--theme-danger-surface,#ef4444); color: var(--theme-danger,#fff); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $issue['count']; ?></span>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -228,8 +226,8 @@ if (($_GET['export'] ?? '') === 'pdf') {
                     <div style="display: flex; flex-direction: column; gap: 10px;">
                         <?php foreach ($analyticsData['top_amenities'] as $amenity): ?>
                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 13px; color: #cbd5e1;"><?php echo htmlspecialchars($amenity['amenity']); ?></span>
-                                <span style="background: #10b981; color: #fff; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $amenity['count']; ?></span>
+                                <span style="font-size: 13px; color: var(--theme-copy,#cbd5e1);"><?php echo htmlspecialchars($amenity['amenity']); ?></span>
+                                <span style="background: var(--theme-success-surface,#10b981); color: var(--theme-success,#fff); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $amenity['count']; ?></span>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -242,8 +240,8 @@ if (($_GET['export'] ?? '') === 'pdf') {
                     <div style="display: flex; flex-direction: column; gap: 10px;">
                         <?php foreach ($analyticsData['booking_status'] as $status => $count): ?>
                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 13px; color: #cbd5e1; text-transform: capitalize;"><?php echo htmlspecialchars($status); ?></span>
-                                <span style="background: #374151; color: #f59e0b; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $count; ?></span>
+                                <span style="font-size: 13px; color: var(--theme-copy,#cbd5e1); text-transform: capitalize;"><?php echo htmlspecialchars($status); ?></span>
+                                <span style="background: var(--theme-hover,#374151); color: var(--theme-brand,#f59e0b); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $count; ?></span>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -258,8 +256,8 @@ if (($_GET['export'] ?? '') === 'pdf') {
                     <div style="display: flex; flex-direction: column; gap: 10px;">
                         <?php foreach ($analyticsData['violations_breakdown'] as $status => $count): ?>
                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 13px; color: #cbd5e1; text-transform: capitalize;"><?php echo htmlspecialchars(str_replace('_', ' ', $status)); ?></span>
-                                <span style="background: #374151; color: #f59e0b; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $count; ?></span>
+                                <span style="font-size: 13px; color: var(--theme-copy,#cbd5e1); text-transform: capitalize;"><?php echo htmlspecialchars(str_replace('_', ' ', $status)); ?></span>
+                                <span style="background: var(--theme-hover,#374151); color: var(--theme-brand,#f59e0b); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $count; ?></span>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -273,8 +271,8 @@ if (($_GET['export'] ?? '') === 'pdf') {
                     <div style="display: flex; flex-direction: column; gap: 10px;">
                         <?php foreach ($analyticsData['top_violation_types'] as $vt): ?>
                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 13px; color: #cbd5e1;"><?php echo htmlspecialchars($vt['type']); ?></span>
-                                <span style="background: #ef4444; color: #fff; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $vt['count']; ?></span>
+                                <span style="font-size: 13px; color: var(--theme-copy,#cbd5e1);"><?php echo htmlspecialchars($vt['type']); ?></span>
+                                <span style="background: var(--theme-danger-surface,#ef4444); color: var(--theme-danger,#fff); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $vt['count']; ?></span>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -290,20 +288,20 @@ if (($_GET['export'] ?? '') === 'pdf') {
                     </div>
                     <div style="display: flex; flex-direction: column; gap: 10px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-size: 13px; color: #cbd5e1;">Occupied</span>
-                            <span style="background: #ef4444; color: #fff; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $analyticsData['parking_occupied']; ?></span>
+                            <span style="font-size: 13px; color: var(--theme-copy,#cbd5e1);">Occupied</span>
+                            <span style="background: var(--theme-danger-surface,#ef4444); color: var(--theme-danger,#fff); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $analyticsData['parking_occupied']; ?></span>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-size: 13px; color: #cbd5e1;">Available</span>
-                            <span style="background: #10b981; color: #fff; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $analyticsData['parking_available']; ?></span>
+                            <span style="font-size: 13px; color: var(--theme-copy,#cbd5e1);">Available</span>
+                            <span style="background: var(--theme-success-surface,#10b981); color: var(--theme-success,#fff); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $analyticsData['parking_available']; ?></span>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-size: 13px; color: #cbd5e1;">Maintenance</span>
-                            <span style="background: #374151; color: #f59e0b; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $analyticsData['parking_maintenance']; ?></span>
+                            <span style="font-size: 13px; color: var(--theme-copy,#cbd5e1);">Maintenance</span>
+                            <span style="background: var(--theme-hover,#374151); color: var(--theme-brand,#f59e0b); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $analyticsData['parking_maintenance']; ?></span>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-size: 13px; color: #cbd5e1;">Pending Requests</span>
-                            <span style="background: #374151; color: #f59e0b; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $analyticsData['parking_pending_requests']; ?></span>
+                            <span style="font-size: 13px; color: var(--theme-copy,#cbd5e1);">Pending Requests</span>
+                            <span style="background: var(--theme-hover,#374151); color: var(--theme-brand,#f59e0b); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;"><?php echo $analyticsData['parking_pending_requests']; ?></span>
                         </div>
                     </div>
                 </div>
@@ -326,7 +324,7 @@ if (($_GET['export'] ?? '') === 'pdf') {
                             </div>
                         <?php endforeach; ?>
                     </div>
-                    <small style="color: #9ca3af; margin-top: 10px; display: block;">Total Collected: ₱<?php echo number_format(array_sum(array_column($analyticsData['payment_trend'], 'collected')), 2); ?></small>
+                    <small style="color: var(--theme-copy,#9ca3af); margin-top: 10px; display: block;">Total Collected: ₱<?php echo number_format(array_sum(array_column($analyticsData['payment_trend'], 'collected')), 2); ?></small>
                 </div>
                 <?php endif; ?>
 
@@ -347,7 +345,7 @@ if (($_GET['export'] ?? '') === 'pdf') {
                             </div>
                         <?php endforeach; ?>
                     </div>
-                    <small style="color: #9ca3af; margin-top: 10px; display: block;">Total Requests: <?php echo array_sum(array_column($analyticsData['maintenance_trend'], 'count')); ?> | Completed: <?php echo array_sum(array_column($analyticsData['maintenance_trend'], 'completed')); ?></small>
+                    <small style="color: var(--theme-copy,#9ca3af); margin-top: 10px; display: block;">Total Requests: <?php echo array_sum(array_column($analyticsData['maintenance_trend'], 'count')); ?> | Completed: <?php echo array_sum(array_column($analyticsData['maintenance_trend'], 'completed')); ?></small>
                 </div>
                 <?php endif; ?>
             </div>

@@ -174,8 +174,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences - Staff Management</title>
-    <link rel="stylesheet" href="../styles.css">
+    <title>The Celandine - Staff Management</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('styles.css'), ENT_QUOTES, 'UTF-8') ?>">
     <style>
     .staff-role-form {
         display: flex;
@@ -199,7 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     .staff-inactive {
-        color: #fca5a5;
+        color: var(--theme-danger,#fca5a5);
     }
 
     .staff-last-login {
@@ -264,7 +264,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     .staff-create-form input::placeholder {
-        color: #64748b;
+        color: var(--theme-muted,#64748b);
     }
 
     .staff-create-form input:focus,
@@ -527,8 +527,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         width: min(420px, 100%);
         padding: 22px 20px 18px;
         border-radius: 14px;
-        background: var(--panel-bg, #111827);
-        border: 1px solid var(--border-color, rgba(148, 163, 184, 0.2));
+        background: var(--panel-bg, var(--theme-surface,#111827));
+        border: 1px solid var(--border-color, var(--theme-line,rgba(148, 163, 184, 0.2)));
         box-shadow: 0 24px 60px rgba(15, 23, 42, 0.35);
     }
 
@@ -567,7 +567,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     .staff-confirm-submit {
         background: linear-gradient(135deg, #f59e0b, #f97316);
-        color: #fff;
+        color: var(--theme-ink,#fff);
     }
 
     .unit-page-head {
@@ -655,19 +655,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 </style>
 <?php renderPortalUiHead(); ?>
-    <link rel="stylesheet" href="../assets/css/workspace-tabs.css">
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('assets/css/workspace-tabs.css'), ENT_QUOTES, 'UTF-8') ?>">
     <script src="../assets/js/workspace-tabs.js" defer></script>
 </head>
 <body class="portal-ui dashboard-page admin-page">
     <div class="dash-layout">
         <aside class="sidebar" id="sidebar">
-            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?><span class="brand-title">CELANDINE<br>RESIDENCES</span></a>
+            <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand"><?php include '../buildingicon.php'; ?></a>
             <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
         <main class="dashboard-main">
             <header class="dash-header">
-                <div class="dash-header-left"><button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button><div><span class="dash-subtitle">CELANDINE RESIDENCES</span><h1 class="dash-title">Staff Management</h1></div></div>
+                <div class="dash-header-left"><button class="btn-icon-menu" id="menuToggle" type="button" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button><div><span class="dash-subtitle">THE CELANDINE</span><h1 class="dash-title">Staff Management</h1></div></div>
                 <div class="dash-header-right">
                     <?php include '../notifications.php'; ?>
                     <div class="profile-menu" id="profileMenu">

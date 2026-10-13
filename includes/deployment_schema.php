@@ -1,11 +1,12 @@
 <?php
 /** A migration is complete only after these dependencies are available. */
-const APP_SCHEMA_VERSION = '2026.10.11.2';
+const APP_SCHEMA_VERSION = '2026.10.13.1';
 
 function deploymentSchemaRequirements(): array {
     return [
         'users' => ['role', 'account_type', 'unit_owner_id', 'is_active', 'status', 'session_version', 'last_seen_at', 'verification_token', 'verification_expires', 'reset_token', 'reset_expires', 'failed_login_attempts', 'locked_until', 'phone_verified', 'phone_otp', 'phone_otp_expires', 'phone_otp_attempts', 'phone_otp_sent_at'],
         'authentication_limits' => ['bucket', 'attempts', 'window_started_at'],
+        'digital_id_credentials' => ['user_id','token_hash','account_fingerprint','issued_at','expires_at','revoked_at'],
         'notification_outbox' => ['deduplication_key','user_id','event_kind','entity_id','channel','recipient','subject','body','status','attempts','next_attempt_at','locked_at','sent_at'],
         'payments' => ['status', 'billing_scope', 'billing_period_start', 'billing_period_end', 'paymongo_checkout_id', 'paymongo_payment_id', 'checkout_url', 'gateway_status', 'payment_channel', 'reminder_sent_at'],
         'bill_items' => ['payment_id', 'amount'],
@@ -54,6 +55,7 @@ function deploymentSchemaProblems(mysqli $db): array {
         'payments' => ['paymongo_checkout_id','paymongo_payment_id'],
         'notification_outbox' => ['deduplication_key'],
         'qr_scan_logs' => ['request_key'],
+        'digital_id_credentials' => ['token_hash'],
         'bookings' => ['payment_id'],
     ];
     foreach ($uniqueColumns as $table => $columns) {

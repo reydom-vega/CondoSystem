@@ -1,0 +1,47 @@
+/* New shared component; all colors adapt to the existing theme variables. */
+.digital-id-toggle { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:44px; height:44px; padding:0; border:1px solid var(--border-color,#343d50); border-radius:10px; background:var(--surface-card,#1a1e2b); color:var(--text-primary,#f3f5fa); cursor:pointer; }
+.digital-id-toggle:hover { background:var(--surface-elevated,#242c3e); border-color:var(--accent-primary,#d97706); }
+.portal-ui .digital-id-toggle { flex:0 0 40px; width:40px; height:40px; min-height:40px; margin:0; box-shadow:none; }
+.digital-id-toggle:focus-visible,.digital-id-close:focus-visible,.digital-id-actions button:focus-visible { outline:2px solid var(--accent-primary,#d97706); outline-offset:3px; }
+.digital-id-dialog { width:min(400px,calc(100vw - 32px)); max-width:none; max-height:calc(100dvh - 32px); margin:auto; padding:0; overflow-y:auto; border:1px solid var(--border-color,#343d50); border-radius:18px; background:var(--surface-card,#1a1e2b); color:var(--text-primary,#f3f5fa); box-shadow:var(--shadow-overlay,0 20px 60px #0008); }
+.digital-id-dialog::backdrop { background:rgba(5,10,20,.75); backdrop-filter:blur(4px); }
+.digital-id-card { position:relative; padding:24px; border-top:4px solid var(--accent-primary,#d97706); }
+.portal-ui .digital-id-close { margin-left:auto; }
+.digital-id-heading { display:flex; align-items:center; gap:10px; padding:0 0 20px; border-bottom:1px solid var(--border-color,#343d50); }
+.digital-id-heading>div { min-width:0; }
+.digital-id-heading img { flex-shrink:0; width:36px; height:36px; object-fit:contain; }
+.digital-id-heading h2 { margin:0; font-size:13px; line-height:1.5; font-weight:750; color:inherit; }
+.digital-id-heading p { margin:4px 0 0; font-size:9px; line-height:1.5; letter-spacing:.09em; color:var(--text-muted,#aebdd2); }
+.digital-id-person { padding-top:22px; text-align:center; }
+.digital-id-avatar { display:grid; place-items:center; width:82px; height:82px; margin:0 auto 14px; border:2px solid var(--accent-primary,#d97706); border-radius:50%; background:var(--surface-elevated,#242c3e); color:var(--accent-link,#f59e0b); font-size:26px; font-weight:700; }
+.digital-id-name { margin:0 0 10px; font-size:22px; line-height:1.4; color:inherit; overflow-wrap:anywhere; }
+.digital-id-role { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:6px 12px; border:1px solid var(--theme-success,#34d399); border-radius:999px; background:var(--theme-success-surface,#10372c); color:var(--theme-success,#6ee7b7); font-size:12px; line-height:1.5; font-weight:650; }
+.digital-id-role svg { width:16px; height:16px; }
+.digital-id-info { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px; margin:20px 0 12px; text-align:left; }
+.digital-id-info>div { min-width:0; padding:12px; border:1px solid var(--border-color,#343d50); border-radius:10px; background:var(--theme-inset,#131a28); }
+.digital-id-info dt { color:var(--text-muted,#aebdd2); font-size:11px; line-height:1.5; }
+.digital-id-info dd { margin:5px 0 0; color:inherit; font-size:13px; line-height:1.5; font-weight:650; overflow-wrap:anywhere; }
+.digital-id-account-status { margin:8px 0 0; color:var(--theme-success,#6ee7b7); font-size:12px; }
+.digital-id-qr-section { padding-top:18px; text-align:center; }
+.digital-id-qr-section h3 { margin:0 0 12px; color:inherit; font-size:14px; line-height:1.5; }
+.digital-id-qr-frame { width:min(100%,304px); max-width:100%; margin:0 auto; padding:24px; border-radius:12px; background:#fff; box-sizing:border-box; }
+.digital-id-qr { width:100%; max-width:100%; aspect-ratio:1; margin:0 auto; background:#fff; }
+.digital-id-qr :is(img,canvas) { display:block; width:100%; height:auto; max-width:100%; image-rendering:pixelated; filter:none; }
+.digital-id-countdown { margin:12px 0 0; color:var(--accent-link,#ffca83); font-size:13px; font-variant-numeric:tabular-nums; line-height:1.5; }
+.digital-id-feedback { margin:12px 0 0; color:var(--text-secondary,#b5bfd0); font-size:13px; line-height:1.6; }
+.digital-id-feedback:empty { display:none; }
+.digital-id-instructions { margin:12px 0 0; color:var(--text-muted,#aebdd2); font-size:12px; line-height:1.65; }
+.digital-id-actions { display:flex; justify-content:center; gap:10px; }
+.digital-id-actions button { width:auto; margin-top:12px; padding:7px 12px; min-height:36px; border:1px solid var(--border-color,#343d50); border-radius:8px; background:var(--surface-elevated,#242c3e); color:var(--text-primary,#f3f5fa); font:inherit; font-size:12px; box-shadow:none; cursor:pointer; }
+.digital-id-footer { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:18px; padding-top:16px; border-top:1px solid var(--border-color,#343d50); color:var(--text-muted,#aebdd2); font-size:11px; line-height:1.5; }
+.digital-id-dialog [hidden] { display:none !important; }
+.digital-id-verification-page { margin:0; min-height:100dvh; background:var(--bg-primary,#0b0f1d); color:var(--text-primary,#f3f5fa); }
+.digital-id-verification { width:min(600px,calc(100% - 32px)); margin:48px auto; padding:24px; border:1px solid var(--border-color,#343d50); border-top:4px solid var(--accent-primary,#d97706); border-radius:16px; background:var(--surface-card,#1a1e2b); box-sizing:border-box; }
+.digital-id-verification h1 { font-size:24px; line-height:1.4; margin:0 0 18px; color:inherit; }
+.digital-id-verification h2 { font-size:20px; line-height:1.5; color:inherit; }
+.digital-id-verification [data-state=valid] { color:var(--theme-success,#6ee7b7); }
+.digital-id-verification [data-state]:not([data-state=valid]):not([data-state=pending]) { color:var(--theme-danger,#fca5a5); }
+.digital-id-verification p,.digital-id-verification li { font-size:14px; line-height:1.8; }
+.digital-id-verification a { color:var(--accent-link,#ffca83); }
+.digital-id-verification-note { margin-top:20px; padding-top:16px; border-top:1px solid var(--border-color,#343d50); color:var(--text-secondary,#b5bfd0); }
+@media(max-width:420px) { .digital-id-card { padding:20px 16px; } .digital-id-heading { gap:8px; } .digital-id-heading h2 { font-size:12px; } .digital-id-name { font-size:20px; } }

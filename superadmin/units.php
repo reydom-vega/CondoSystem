@@ -130,8 +130,8 @@ $vacantCount = count($units) - $occupiedCount;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Celandine Residences</title>
-    <link rel="stylesheet" href="../styles.css">
+    <title>The Celandine</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('styles.css'), ENT_QUOTES, 'UTF-8') ?>">
     <style>
         .vacancy-confirm-overlay {
             position: fixed;
@@ -150,23 +150,23 @@ $vacantCount = count($units) - $occupiedCount;
 
         .vacancy-confirm-modal {
             width: min(420px, 100%);
-            background: #111a2b;
-            border: 1px solid rgba(148, 163, 184, 0.22);
+            background: var(--theme-surface,#111a2b);
+            border: 1px solid var(--theme-line,rgba(148, 163, 184, 0.22));
             border-radius: 16px;
             box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
             padding: 24px;
-            color: #f8fafc;
+            color: var(--theme-ink,#f8fafc);
         }
 
         .vacancy-confirm-modal h3 {
             margin: 0 0 12px;
             font-size: 1.3rem;
-            color: #f8fafc;
+            color: var(--theme-ink,#f8fafc);
         }
 
         .vacancy-confirm-modal p {
             margin: 0 0 20px;
-            color: #aab4c4;
+            color: var(--theme-copy,#aab4c4);
             line-height: 1.5;
         }
 
@@ -188,13 +188,13 @@ $vacantCount = count($units) - $occupiedCount;
         }
 
         .vacancy-confirm-cancel {
-            background: #293346;
-            color: #f8fafc;
+            background: var(--theme-hover,#293346);
+            color: var(--theme-ink,#f8fafc);
         }
 
         .vacancy-confirm-submit {
             background: linear-gradient(110deg, #f59e0b, #f97316);
-            color: #ffffff;
+            color: var(--theme-ink,#ffffff);
         }
     </style>
 <?php renderPortalUiHead(); ?>
@@ -204,7 +204,6 @@ $vacantCount = count($units) - $occupiedCount;
         <aside class="sidebar" id="sidebar">
             <a href="<?php echo htmlspecialchars(buildUrl(dashboardPathForRole()), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand">
                 <?php include '../buildingicon.php'; ?>
-                <span class="brand-title">CELANDINE<br>RESIDENCES</span>
             </a>
             <nav class="sidebar-nav"><?php renderStaffSidebarNavigation(); ?></nav>
         </aside>
@@ -215,7 +214,7 @@ $vacantCount = count($units) - $occupiedCount;
                 <div class="dash-header-left">
                     <button class="btn-icon-menu" id="menuToggle" aria-label="Menu"><?php echo systemIcon('menu', 'menu-icon'); ?></button>
                     <div>
-                        <span class="dash-subtitle">CELANDINE RESIDENCES</span>
+                        <span class="dash-subtitle">THE CELANDINE</span>
                         <h1 class="dash-title">Units</h1>
                     </div>
                 </div>

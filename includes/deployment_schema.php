@@ -1,9 +1,19 @@
 <?php
 /** A migration is complete only after these dependencies are available. */
-const APP_SCHEMA_VERSION = '2026.10.14.1';
+const APP_SCHEMA_VERSION = '2026.10.14.4';
 
 function deploymentSchemaRequirements(): array {
     return [
+        'job_reports'=>['reference','user_id','staff_id','staff_name','staff_role','report_type','period_start','period_end','version','previous_report_id','request_key','request_digest','snapshot','snapshot_hash','status','filed_at'],
+        'job_report_drafts'=>['user_id','report_type','period_start','notes','revision','updated_at'],
+        'job_report_reviews'=>['report_id','actor_id','actor_name','action','feedback','created_at','request_key'],
+        'parking_extensions'=>['parking_request_id','requested_by','expected_start_utc','requested_until','approved_until','status','request_key','decided_by','decided_at'],
+        'community_reports'=>['reference','reporting_mode','review_scope','assigned_reviewer_id','request_hash','submission_hash','audit_head','version','created_at','closed_at'],
+        'report_identities'=>['report_id','user_id','last_read_event_id'],
+        'report_access_credentials'=>['report_id','token_hash','expires_at','revoked_at'],
+        'report_conflicts'=>['report_id','user_id'],
+        'report_events'=>['report_id','request_hash','visibility','actor_kind','actor_user_id','old_status','new_status','previous_hash','event_hash','created_at'],
+        'report_attachments'=>['report_id','event_id','stored_name','content_hash','deleted_at'],
         'users' => ['profile_photo', 'role', 'account_type', 'unit_owner_id', 'is_active', 'status', 'session_version', 'last_seen_at', 'verification_token', 'verification_expires', 'reset_token', 'reset_expires', 'failed_login_attempts', 'locked_until', 'phone_verified', 'phone_otp', 'phone_otp_expires', 'phone_otp_attempts', 'phone_otp_sent_at'],
         'authentication_limits' => ['bucket', 'attempts', 'window_started_at'],
         'digital_id_credentials' => ['user_id','token_hash','account_fingerprint','issued_at','expires_at','revoked_at'],
@@ -18,7 +28,7 @@ function deploymentSchemaRequirements(): array {
         'remember_tokens' => ['selector', 'validator_hash', 'expires_at', 'session_version'],
         'audit_logs' => ['admin_role', 'entity_type', 'entity_id'],
         'parking_slots' => ['slot_code', 'slot_type', 'status', 'assigned_user_id', 'lookup_plate'],
-        'parking_requests' => ['visitor_registration_id', 'slot_id', 'status', 'lookup_plate'],
+        'parking_requests' => ['fee_policy_version','vehicle_type','vehicle_model','vehicle_color','expected_arrival_utc','expected_departure_utc','reservation_end_utc','requested_slot_id','fee_acknowledged_at','actual_check_in','actual_check_out','rate_snapshot','billing_user_id','billing_scope_snapshot','sponsor_unit_snapshot','visitor_name_snapshot','authorized_until','parking_compliance','billable_seconds','billable_hours','parking_fee','last_monitored_at','payment_id','checked_in_by','checked_out_by','active_parking_plate','active_parking_slot','visitor_registration_id','slot_id','status','lookup_plate'],
         'parking_policy' => ['sticker_price', 'sticker_max_quantity', 'visitor_max_days'],
         'parking_sticker_orders' => ['quantity', 'bill_payment_id', 'claim_status', 'issued_at', 'issued_by'],
         'vehicles' => ['normalized_plate', 'or_cr_path', 'or_cr_mime', 'status'],
@@ -57,6 +67,10 @@ function deploymentSchemaProblems(mysqli $db): array {
         'qr_scan_logs' => ['request_key'],
         'digital_id_credentials' => ['token_hash'],
         'bookings' => ['payment_id'],
+        'parking_requests'=>['payment_id','active_parking_plate','active_parking_slot'],
+        'parking_extensions'=>['request_key','pending_request'],
+        'job_reports'=>['reference','request_key','previous_report_id'],
+        'job_report_reviews'=>['request_key'],
     ];
     foreach ($uniqueColumns as $table => $columns) {
         if (!isset($tables[$table])) continue;
@@ -66,6 +80,10 @@ function deploymentSchemaProblems(mysqli $db): array {
         foreach ($columns as $column) {
             if (!in_array([$column], array_values($indexes), true)) $problems[] = "Missing unique index: {$table}.{$column}";
         }
+    }
+    if(isset($tables['job_reports'])) {
+        $triggers=[]; $result=$db->query('SHOW TRIGGERS'); while($row=$result->fetch_assoc())$triggers[]=$row['Trigger'];
+        foreach(['jr_snapshot_immutable','jr_no_delete','jr_review_no_update','jr_review_no_delete'] as $trigger)if(!in_array($trigger,$triggers,true))$problems[]="Missing immutable report trigger: {$trigger}";
     }
     return $problems;
 }

@@ -50,6 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== 'regis
             if ($billId) redirect('payments.php');
             $stickerError = 'Unable to create the sticker order. Check for an existing order, then try again.';
         }
+    } elseif($formAction==='parking_fee_ack'){try{vpAcknowledgeReservation($connection,(int)($_POST['request_id']??0),$_POST);setFlash('success','Parking policy acknowledged.');redirect('parking.php?tab=requests');}catch(Throwable $error){$errors[]=$error instanceof InvalidArgumentException?$error->getMessage():'Parking could not be updated.';}
     } elseif ($formAction === 'cancel_visitor_request') {
         requireResidentPermission('resident.parking.request');
         $requestId = (int)($_POST['request_id'] ?? 0);
@@ -172,9 +173,9 @@ function parkingFormValue(string $field, string $default = ''): string { return 
             <?php if (residentHasPermission('resident.parking.request')): ?>
             <section class="payment-methods-card parking-request-card" id="visitorParking">
                 <h3 class="section-title">Visitor Parking</h3>
-                <p class="amenity-desc">Choose your registered visitor and add their vehicle. The parking period must include their visit date and can cover up to <?php echo (int)$parkingPolicy['visitor_max_days']; ?> days, including the start date. A parking pass requires an approved visitor registration and an assigned slot.</p>
-                <?php if (residentHasPermission('resident.visitors.register')): ?><div class="service-button-row"><a class="service-btn" href="visitors.php?needs_parking=1">Register visitor with parking</a><a class="service-btn service-btn-secondary" href="visitors.php">Manage visitor registrations</a></div><?php endif; ?>
-                <?php if (!$parkingVisitors): ?><div class="service-empty-state"><p>No eligible visitors need a parking request. Register a visitor first, or check your existing requests in the Requests tab.</p><?php if (residentHasPermission('resident.visitors.register')): ?><a class="service-btn service-btn-secondary" href="visitors.php?needs_parking=1">Register visitor &amp; request parking</a><?php endif; ?></div><?php else: ?>
+                <p class="amenity-desc">Choose your registered visitor and add their vehicle. The parking period must include their visit date. PHP 50 per started hour; beyond 24 hours requires Admin/Super Admin approval. A parking pass requires an approved visitor registration and an assigned slot.</p>
+                <?php if (residentHasPermission('resident.visitors.register')): ?><div class="service-button-row"><a class="service-btn" href="visitors.php?tab=form&amp;needs_parking=1">Register visitor with parking</a></div><?php endif; ?>
+                <?php if (!$parkingVisitors): ?><div class="service-empty-state"><p>No registered visitors are available for a new parking request. Check your <a href="parking.php?tab=requests">existing parking requests</a> in the Requests tab.</p></div><?php else: ?>
                 <form method="POST" action="parking.php#visitorParking" class="visitor-parking-form"><?php echo workflowCsrfField(); ?>
                     <input type="hidden" name="form_action" value="visitor_request">
                     <div class="parking-field service-wide"><label class="field-label" for="visitor_registration_id">Registered visitor</label><select class="form-date" id="visitor_registration_id" name="visitor_registration_id" required><option value="">Select a visitor</option><?php foreach ($parkingVisitors as $visitor): ?><option value="<?php echo (int)$visitor['id']; ?>" data-visit-date="<?php echo htmlspecialchars($visitor['start_date']); ?>" <?php echo (int)$visitor['id'] === $selectedVisitorId ? 'selected' : ''; ?>><?php echo htmlspecialchars($visitor['visitor_name'] . ' · ' . date('M j, Y', strtotime($visitor['start_date'])) . ' · ' . ucfirst($visitor['status'])); ?></option><?php endforeach; ?></select></div>
@@ -187,13 +188,7 @@ function parkingFormValue(string $field, string $default = ''): string { return 
                     <input class="form-date" type="text" id="vehicle_description" name="vehicle_description" placeholder="e.g. Silver Toyota Vios" maxlength="120" value="<?php echo parkingFormValue('vehicle_description'); ?>">
                     </div>
 
-                    <div class="parking-field"><label class="field-label" for="start_date">Start Date</label>
-                    <input class="form-date" type="date" id="start_date" name="start_date" min="<?php echo date('Y-m-d'); ?>" value="<?php echo parkingFormValue('start_date', $selectedVisitor['start_date'] ?? ''); ?>" required>
-                    </div>
-
-                    <div class="parking-field"><label class="field-label" for="end_date">End date</label>
-                    <input class="form-date" type="date" id="end_date" name="end_date" min="<?php echo date('Y-m-d'); ?>" value="<?php echo parkingFormValue('end_date', $selectedVisitor['end_date'] ?? ''); ?>" required>
-                    </div>
+                    <?php include __DIR__.'/../includes/visitor_parking_fields.php'; ?>
 
                     <button type="submit" class="service-btn service-wide">Submit parking request</button>
                 </form>
@@ -203,7 +198,7 @@ function parkingFormValue(string $field, string $default = ''): string { return 
             <?php endif; ?>
             </section><?php endif; ?>
             <?php if (isset($parkingTabs['vehicles'])): ?><section <?= parkingWorkspacePanelAttributes('vehicles', $parkingActiveTab) ?>><?= $parkingVehiclesContent ?></section><?php endif; ?>
-            <?php if (isset($parkingTabs['requests'])): ?><section <?= parkingWorkspacePanelAttributes('requests', $parkingActiveTab) ?>><?php include __DIR__.'/../includes/resident_parking_requests.php'; ?></section><?php endif; ?>
+            <?php if (isset($parkingTabs['requests'])): ?><section <?= parkingWorkspacePanelAttributes('requests', $parkingActiveTab) ?>><?php include __DIR__.'/../includes/visitor_parking_widget.php';include __DIR__.'/../includes/resident_parking_requests.php'; ?></section><?php endif; ?>
         </main>
 
     </div>

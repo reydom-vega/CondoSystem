@@ -1,5 +1,7 @@
 <?php
 require_once '../config.php';
+require_once __DIR__.'/../includes/job_report_workspace.php';
+header('Cache-Control: no-store, private');
 
 if (!isLoggedIn()) {
     redirect('../login.php');
@@ -164,7 +166,7 @@ if ($result) {
     }
 }
 // Keep account validation on the creation tab and account actions on the information tab.
-$activeTab = ($_GET['tab'] ?? '') === 'add' ? 'add' : 'information';
+$activeTab = in_array($_GET['tab'] ?? '', ['reports','information','add'], true) ? $_GET['tab'] : 'reports';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $activeTab = ($_POST['action'] ?? '') === 'add_staff' && $errors ? 'add' : 'information';
 }
@@ -654,7 +656,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 </style>
-<?php renderPortalUiHead(); ?>
+<?php renderPortalUiHead(); renderJobReportAssets(); ?>
     <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('assets/css/workspace-tabs.css'), ENT_QUOTES, 'UTF-8') ?>">
     <script src="../assets/js/workspace-tabs.js" defer></script>
 </head>
@@ -683,10 +685,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <section class="unit-page-head"><div><h2>Staff Management</h2><p>Review staff accounts and assign their system roles.</p></div><div class="unit-summary"><span><?php echo count($staff); ?> Staff Accounts</span></div></section>
             <div data-workspace-tabs>
                 <nav class="workspace-tabs" role="tablist" aria-label="Staff management sections">
-                    <?php foreach (['information' => 'Staff Information', 'add' => 'Add Staff Account'] as $key => $label): ?>
+                    <?php foreach (['reports' => 'Staff Reports', 'information' => 'Staff Information', 'add' => 'Add Staff Account'] as $key => $label): ?>
                         <a id="staff-tab-<?php echo $key; ?>" href="?<?php echo htmlspecialchars(http_build_query(['tab' => $key, 'role' => $roleFilter, 'search' => $search]), ENT_QUOTES, 'UTF-8'); ?>" role="tab" data-workspace-tab="<?php echo $key; ?>" aria-controls="staff-panel-<?php echo $key; ?>" aria-selected="<?php echo $activeTab === $key ? 'true' : 'false'; ?>" tabindex="<?php echo $activeTab === $key ? '0' : '-1'; ?>"><?php echo htmlspecialchars($label, ENT_QUOTES, 'UTF-8'); ?></a>
                     <?php endforeach; ?>
                 </nav>
+            <section id="staff-panel-reports" role="tabpanel" aria-labelledby="staff-tab-reports" tabindex="0" data-workspace-panel="reports"<?php echo $activeTab !== 'reports' ? ' hidden' : ''; ?>>
+                <?php renderJobReportWorkspace(true); ?>
+            </section>
             <section class="unit-management-panel" id="staff-panel-information" role="tabpanel" aria-labelledby="staff-tab-information" tabindex="0" data-workspace-panel="information"<?php echo $activeTab !== 'information' ? ' hidden' : ''; ?>>
                 <h3>Staff Information</h3>
                 <form class="staff-search-row" method="get" action="staff.php">

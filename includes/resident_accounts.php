@@ -73,8 +73,8 @@ function unassignResidentUnit(mysqli $db, int $userId, string $expectedUnit): bo
         $revocations=[
             'DELETE FROM remember_tokens WHERE user_id = ?',
             "UPDATE resident_service_requests SET status = 'cancelled' WHERE user_id = ? AND status IN ('pending','approved','changes_requested')",
-            "UPDATE parking_requests SET status = 'cancelled' WHERE user_id = ? AND status IN ('pending','approved')",
-            "UPDATE parking_slots SET status = IF(status = 'maintenance', 'maintenance', 'available'), assigned_user_id = NULL, assigned_unit = NULL, vehicle_plate = NULL WHERE assigned_user_id = ?",
+            "UPDATE parking_requests SET status = 'cancelled' WHERE user_id = ? AND status IN ('pending','approved')".(visitorParkingFeesReady($db)?' AND actual_check_in IS NULL':''),
+            "UPDATE parking_slots SET status = IF(status = 'maintenance', 'maintenance', 'available'), assigned_user_id = NULL, assigned_unit = NULL, vehicle_plate = NULL WHERE assigned_user_id = ?".(visitorParkingFeesReady($db)?' AND id NOT IN (SELECT active_parking_slot FROM parking_requests WHERE active_parking_slot IS NOT NULL)':''),
             'UPDATE vehicles SET parking_slot_id = NULL WHERE user_id = ?',
         ];
         foreach($revokeIds as $revokeId) {
@@ -85,6 +85,7 @@ function unassignResidentUnit(mysqli $db, int $userId, string $expectedUnit): bo
                 $statement = $db->prepare($sql); $statement->bind_param('i', $revokeId);
                 if (!$statement->execute()) throw new RuntimeException('Residency access could not be revoked.');
             }
+            foreach($db->query('SELECT id FROM parking_requests WHERE user_id='.(int)$revokeId." AND status='cancelled'")as$parking)vpCancelPendingExtensions($db,(int)$parking['id'],'Sponsoring residency ended before arrival.');
         }
         if (!logAudit('unassign','user',$userId,'Removed residency for '.count($revokeIds).' account(s) from unit '.normalizeUnitNumber($expectedUnit).'; financial history retained.',$db)) throw new RuntimeException('Residency removal could not be audited.');
         $db->commit();

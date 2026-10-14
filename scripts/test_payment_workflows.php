@@ -90,7 +90,12 @@ try {
     paymentCheck(!empty(confirmPaymongoCheckoutPayment($db,$valid)['confirmed']),'valid event settles bill');
     paymentCheck($db->query('SELECT status FROM violations WHERE payment_id='.$bill)->fetch_assoc()['status']==='paid','fine settles with payment');
     paymentCheck($db->query('SELECT status FROM parking_sticker_orders WHERE id='.$order)->fetch_assoc()['status']==='paid','sticker settles with payment');
+    $receiptJob=$db->query("SELECT subject,body FROM notification_outbox WHERE event_kind='payment_receipt' AND channel='email' AND entity_id=".$bill)->fetch_assoc();
+    paymentCheck(str_contains($receiptJob['body'],'PayMongo payment ID') && str_contains($receiptJob['body'],'pay_one') && str_contains($receiptJob['body'],'GCash') && str_contains($receiptJob['body'],'PHP 1,000.00'),'gateway receipt uses confirmed provider ID, channel and exact amount');
+    paymentCheck(str_contains($receiptJob['body'],'Parking Sticker') && str_contains($receiptJob['body'],'DUES-'.$bill),'gateway receipt includes matching itemized charges and provider reference');
+    $receiptCount=(int)$db->query("SELECT COUNT(*) n FROM notification_outbox WHERE event_kind='payment_receipt' AND entity_id=".$bill)->fetch_assoc()['n'];
     paymentCheck(!empty(confirmPaymongoCheckoutPayment($db,$valid)['already_paid']),'repeat event is idempotent');
+    paymentCheck((int)$db->query("SELECT COUNT(*) n FROM notification_outbox WHERE event_kind='payment_receipt' AND entity_id=".$bill)->fetch_assoc()['n']===$receiptCount,'duplicate paid webhook does not send duplicate receipt');
     $billTwo=createBill(2,[['category'=>'Water','amount'=>1000]],null,null,$due); fixtureBindCheckout($db,$billTwo,'cs_two');
     paymentCheck(empty(confirmPaymongoCheckoutPayment($db,fixturePaymentContext($billTwo,'cs_two',100000,'pay_one'))['confirmed']),'gateway payment cannot settle two bills');
     paymentActor(1,'resident');

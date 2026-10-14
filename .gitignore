@@ -9,6 +9,9 @@ config.local.php
 !/migrations/2026_10_11_vehicle_violations.sql
 !/migrations/2026_10_13_digital_id.sql
 !/migrations/2026_10_14_profile_photos.sql
+!/migrations/2026_10_14_community_reports.sql
+!/migrations/2026_10_14_visitor_parking.sql
+!/migrations/2026_10_14_job_reports.sql
 *.bak
 *.zip
 

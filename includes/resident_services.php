@@ -87,7 +87,7 @@ function getResidentServiceRequests(mysqli $db, string $kind, ?int $userId = nul
     return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 
-function decideResidentServiceRequest(mysqli $db, int $id, string $status, string $notes): bool {
+function decideResidentServiceRequest(mysqli $db, int $id, string $status, string $notes, bool $manageTransaction = true): bool {
     $request = gateRequest($db, $id);
     if ($request && $request['gate_data']) {
         try { gateTransition($db, $id, $status, ['admin_notes'=>$notes]); return true; }
@@ -96,22 +96,23 @@ function decideResidentServiceRequest(mysqli $db, int $id, string $status, strin
     if (!in_array($status, ['approved', 'rejected'], true) || strlen($notes) > 500) return false;
     $kind = isSecurity() ? 'visitor' : (canReviewPermits() ? null : 'denied');
     if ($kind === 'denied') return false;
-    if (!ensureParkingTables($db)) return false;
+    if ($manageTransaction && !ensureParkingTables($db)) return false;
     $actor = (int)$_SESSION['user_id'];
     $sql = "UPDATE resident_service_requests SET status = ?, admin_notes = ?, decided_by = ?, decided_at = NOW() WHERE id = ? AND status = 'pending' AND end_date >= CURDATE()";
     if ($kind !== null) $sql .= " AND request_kind = 'visitor'";
-    $db->begin_transaction();
+    if($manageTransaction)$db->begin_transaction();
     try {
         $stmt = $db->prepare($sql);
         $stmt->bind_param('ssii', $status, $notes, $actor, $id);
-        if (!$stmt->execute() || $stmt->affected_rows !== 1) { $db->rollback(); return false; }
+        if (!$stmt->execute() || $stmt->affected_rows !== 1) { if($manageTransaction)$db->rollback(); return false; }
         if ($status === 'rejected') {
             $cancel = $db->prepare("UPDATE parking_requests SET status = 'cancelled' WHERE visitor_registration_id = ? AND status IN ('pending','approved')");
             $cancel->bind_param('i', $id);
             if (!$cancel->execute()) throw new RuntimeException('Could not cancel linked parking.');
+            foreach($db->query('SELECT id FROM parking_requests WHERE visitor_registration_id='.(int)$id." AND status='cancelled'")as$parking)vpCancelPendingExtensions($db,(int)$parking['id'],'Visitor registration rejected.');
         }
-        $db->commit(); return true;
-    } catch (Throwable $e) { $db->rollback(); error_log($e->getMessage()); return false; }
+        if($manageTransaction)$db->commit(); return true;
+    } catch (Throwable $e) { if(!$manageTransaction)throw $e; if($manageTransaction)$db->rollback(); error_log($e->getMessage()); return false; }
 }
 
 function residentServicePassUrl(array $request): string {
@@ -129,7 +130,7 @@ function getResidentServicePass(mysqli $db, int $id, string $token): ?array {
     return $row && (residentContext($db,(int)$row['user_id'])['approved'] ?? false) && hash_equals($row['access_token'], $token) ? $row : null;
 }
 
-function checkInRegisteredVisitor(mysqli $db, int $id, string $token): bool {
+function checkInRegisteredVisitor(mysqli $db, int $id, string $token, bool $vehicleConfirmed=false): bool {
     if (!isSecurity()) return false;
     ensureQrScanHistorySchema($db);
     ensureVisitorLogsTable($db);
@@ -149,6 +150,11 @@ function checkInRegisteredVisitor(mysqli $db, int $id, string $token): bool {
         $update = $db->prepare("UPDATE resident_service_requests SET status = 'checked_in', visitor_log_id = ? WHERE id = ?");
         $update->bind_param('ii', $logId, $id);
         if (!$update->execute()) throw new RuntimeException('Check-in could not be saved.');
+        if(visitorParkingFeesReady($db)){
+            $parking=$db->query('SELECT id FROM parking_requests WHERE visitor_registration_id='.(int)$id." AND status='approved' LIMIT 1")->fetch_assoc();
+            if($parking&&!$vehicleConfirmed)throw new InvalidArgumentException('Confirm actual vehicle arrival and its assigned slot.');
+            vpStartForVisitor($db,$row,(int)$logId);
+        }
         $eventRow=gateRequest($db,$id);
         qrActionEvent($db,$eventRow,'check_in','Visitor entry confirmed after identity verification.');
         $db->commit(); return true;

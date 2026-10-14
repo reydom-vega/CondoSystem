@@ -52,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $attachmentMime = $attachment['mime'] ?? null;
         $insert->bind_param('issss', $selectedUserId, $reply, $attachmentPath, $attachmentName, $attachmentMime);
         if ($insert->execute()) {
+            logAudit('send','message',(int)$connection->insert_id,'Management message sent.');
             // Redirect to GET to prevent duplicate messages on refresh (Post-Redirect-Get pattern)
             header('Location: admin_messages.php?user_id=' . $selectedUserId);
             exit;

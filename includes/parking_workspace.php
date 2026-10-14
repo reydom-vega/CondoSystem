@@ -27,6 +27,7 @@ function parkingWorkspaceTabs(bool $resident): array {
     if (canAccess('vehicles.read')) $tabs['vehicles'] = 'Registered Vehicles';
     if (canAccess('stickers.issue') || canAccess('billing.manage')) $tabs['stickers'] = 'Sticker Requests';
     $tabs['visitors'] = 'Visitor Parking';
+    if(canAccess('parking.extensions.review'))$tabs['extensions']='Extended Parking Requests';
     $tabs['records'] = 'Parking Records';
     return $tabs;
 }

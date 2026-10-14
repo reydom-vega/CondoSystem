@@ -347,6 +347,7 @@ function setParkingSlotStatus(int $slotId, string $status): bool {
         $slotQuery->bind_param('i', $slotId); $slotQuery->execute();
         $slot = $slotQuery->get_result()->fetch_assoc();
         if (!$slot || ($status === 'available' && !empty($slot['assigned_user_id']))) { $connection->rollback(); return false; }
+        if(visitorParkingFeesReady($connection)){ $active=$connection->prepare('SELECT id FROM parking_requests WHERE slot_id=? AND actual_check_in IS NOT NULL AND actual_check_out IS NULL LIMIT 1 FOR UPDATE');$active->bind_param('i',$slotId);$active->execute();if($active->get_result()->fetch_assoc()){ $connection->rollback();return false;} }
         // Occupied records physical use without invalidating an approved reservation.
         // Maintenance would make the reserved slot unusable, so it remains blocked.
         if ($status === 'maintenance') {
@@ -457,31 +458,34 @@ function createParkingRequest(int $userId, string $requestType, string $vehicleP
  * Visitor reservations are dated; standing resident assignments occupy
  * the inventory row. Decisions and assignments commit with their audit.
  */
-function decideParkingRequest(int $requestId, string $decision, ?int $slotId, string $adminNotes): bool {
+function decideParkingRequest(int $requestId, string $decision, ?int $slotId, string $adminNotes, ?mysqli $connection = null, bool $manageTransaction = true): bool {
     if (!canAccess('parking.review') || !in_array($decision, ['approved', 'rejected'], true) || strlen($adminNotes) > 255) return false;
-    $connection = connectDb();
+    $connection ??= connectDb();
+    if($manageTransaction){
     ensureParkingTables($connection);
     ensureResidentServicesTables($connection);
     ensureVehiclesTable($connection);
     ensureAuditLogTable($connection);
     $connection->begin_transaction();
+    }
     try {
         $requestStmt = $connection->prepare("SELECT pr.*, u.unit_number, u.status AS owner_status, u.is_active AS owner_active, u.is_verified AS owner_verified, u.role AS owner_role FROM parking_requests pr JOIN users u ON u.id = pr.user_id WHERE pr.id = ? AND pr.status = 'pending' FOR UPDATE");
         $requestStmt->bind_param('i', $requestId);
         $requestStmt->execute();
         $request = $requestStmt->get_result()->fetch_assoc();
-        if (!$request) { $connection->rollback(); return false; }
-        if ($decision==='approved' && !(residentContext($connection,(int)$request['user_id'])['approved'] ?? false)) { $connection->rollback(); return false; }
-        if ($decision === 'approved' && ($request['owner_status'] !== 'approved' || (int)$request['owner_active'] !== 1 || (int)$request['owner_verified'] !== 1 || $request['owner_role'] !== 'resident' || trim((string)$request['unit_number']) === '' || ($request['request_type'] === 'visitor' && ($request['end_date'] ?: $request['start_date']) < date('Y-m-d')))) { $connection->rollback(); return false; }
+        if (!$request) { if($manageTransaction)$connection->rollback(); return false; }
+        if ($decision==='approved' && !(residentContext($connection,(int)$request['user_id'])['approved'] ?? false)) { if($manageTransaction)$connection->rollback(); return false; }
+        if ($decision === 'approved' && ($request['owner_status'] !== 'approved' || (int)$request['owner_active'] !== 1 || (int)$request['owner_verified'] !== 1 || $request['owner_role'] !== 'resident' || trim((string)$request['unit_number']) === '' || ($request['request_type'] === 'visitor' && ($request['end_date'] ?: $request['start_date']) < date('Y-m-d')))) { if($manageTransaction)$connection->rollback(); return false; }
         if ($decision === 'approved' && !empty($request['visitor_registration_id'])) {
             $visitorStmt = $connection->prepare("SELECT id FROM resident_service_requests WHERE id = ? AND user_id = ? AND request_kind = 'visitor' AND status IN ('approved','checked_in') FOR UPDATE");
             $visitorStmt->bind_param('ii', $request['visitor_registration_id'], $request['user_id']); $visitorStmt->execute();
-            if (!$visitorStmt->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
+            if (!$visitorStmt->get_result()->fetch_assoc()) { if($manageTransaction)$connection->rollback(); return false; }
         }
         if ($decision === 'approved') {
             $type = $request['request_type'] === 'visitor' ? 'visitor' : 'resident';
             $endDate = $request['end_date'] ?: $request['start_date'];
-            $slot = selectParkingSlotForAllocation($connection, $type, $request['start_date'], $endDate, $slotId, $requestId);
+            $slotId=$slotId?:($request['requested_slot_id']??null);
+            $slot = selectParkingSlotForAllocation($connection, $type, $request['start_date'], $endDate, $slotId, $requestId, $request['expected_arrival_utc']??null, $request['reservation_end_utc']??null);
             if (!$slot) throw new RuntimeException('No compatible parking slot is available for this request.');
             $slotId = (int)$slot['id'];
             if ($type === 'resident') {
@@ -502,8 +506,9 @@ function decideParkingRequest(int $requestId, string $decision, ?int $slotId, st
         $update = $connection->prepare("UPDATE parking_requests SET status = ?, slot_id = ?, admin_notes = ?, decided_by = ?, decided_at = NOW() WHERE id = ? AND status = 'pending'");
         $update->bind_param('sisii', $decision, $slotId, $adminNotes, $adminId, $requestId);
         if (!$update->execute() || $update->affected_rows !== 1) throw new RuntimeException('Request changed before approval.');
+        if($decision==='rejected')vpCancelPendingExtensions($connection,$requestId,'Visitor parking reservation rejected.');
         if (!logAudit($decision === 'approved' ? 'approve' : 'reject', 'parking_request', $requestId, 'Slot #' . ($slotId ?? 0) . ' ' . $adminNotes, $connection)) throw new RuntimeException('Parking decision audit failed.');
-        $connection->commit();
+        if($manageTransaction)$connection->commit();
         return true;
-    } catch (Throwable $error) { $connection->rollback(); error_log($error->getMessage()); return false; }
+    } catch (Throwable $error) { if(!$manageTransaction)throw $error; if($manageTransaction)$connection->rollback(); error_log($error->getMessage()); return false; }
 }

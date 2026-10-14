@@ -15,6 +15,7 @@ function staffSidebarLinks(): array {
         ['superadmin/bookingrequest.php', 'calendar', 'Booking Requests', 'bookings.review'],
         ['superadmin/maintenancerequests.php', 'maintenance', 'Maintenance Requests', 'maintenance.work'],
         ['superadmin/admin_messages.php', 'messages', 'Messages', 'messages.manage'],
+        ['superadmin/reports.php', 'report', 'Community Reports', 'reports.manage'],
         ['superadmin/announcements.php', 'announcements', 'Announcements', 'announcements.manage'],
         ['superadmin/registeredvehicles.php', 'parking', 'Registered Vehicles', 'vehicles.read'],
         ['superadmin/service_requests.php?kind=visitor', 'visitors', 'Visitor Registrations', 'visitors.review'],
@@ -25,6 +26,7 @@ function staffSidebarLinks(): array {
         [$role === 'superadmin' ? 'superadmin/scanner.php' : 'security/scanner.php', 'scanner', 'QR Scanner', 'security.gate'],
         ['superadmin/visitorlog.php', 'visitors', 'Visitor Log', 'visitors.logs'],
         ['superadmin/analytics.php', 'analytics', 'Analytics', 'analytics.read'],
+        ['job_report.php', 'clipboard-list', 'Job Report', 'jobs.personal'],
         ['superadmin/auditlog.php', 'audit', 'Audit Log', 'audit.read'],
         ['superadmin/notification_delivery.php', 'messages', 'Notification Delivery', 'notifications.manage'],
     ];

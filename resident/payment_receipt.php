@@ -28,25 +28,15 @@ if ($actorContext['account_kind']==='tenant') {
     $check->bind_param('i',$paymentId); $check->execute(); $tenantBill=$check->get_result()->fetch_assoc();
     if (!$tenantBill || !residentCanPayBill($connection,$userId,(int)$tenantBill['user_id'],$paymentId)) { http_response_code(403); exit('You can download receipts only for your own parking bills.'); }
 }
-$stmt = $connection->prepare("SELECT p.*, u.full_name, u.email, u.unit_number FROM payments p INNER JOIN users u ON u.id = p.user_id WHERE p.id = ? AND p.status = 'paid' LIMIT 1");
-$stmt->bind_param('i', $paymentId);
-$stmt->execute();
-$receipt = $stmt->get_result()->fetch_assoc();
+$receipt=paymentReceiptData($connection,$paymentId);
 if (!$receipt || !residentCanPayBill($connection,$userId,(int)$receipt['user_id'],$paymentId)) {
     http_response_code(404);
     exit('Receipt not found.');
 }
-
-$receipt['items'] = getBillItems($connection, $paymentId);
-if (!$receipt['items']) {
-    $receipt['items'] = [['category' => 'Payment', 'description' => '', 'amount' => $receipt['amount']]];
-}
-$paidAt = $receipt['paid_at'] ?: $receipt['created_at'];
-$paymentMethod = paymentChannelLabel($receipt['payment_channel'] ?? null, $receipt['payment_method'] ?? null);
-$billingPeriod = !empty($receipt['billing_period_start'])
-    ? date('F Y', strtotime($receipt['billing_period_start']))
-    : date('F Y', strtotime($paidAt));
-$receiptReference = 'DUES-' . $paymentId;
+$paidAt=$receipt['paid_at'] ?: $receipt['created_at'];
+$paymentMethod=$receipt['channel_label'];
+$billingPeriod=$receipt['period_label'];
+$receiptReference=$receipt['reference'];
 
 ob_start();
 ?>
@@ -67,6 +57,9 @@ ob_start();
         .meta td { width: 50%; padding: 10px 12px; border: 1px solid #e3e8ef; vertical-align: top; }
         .label { display: block; color: #657186; font-size: 9px; text-transform: uppercase; }
         .value { display: block; margin-top: 3px; font-weight: bold; overflow-wrap: anywhere; }
+        .parking-meta { margin:12px 0 16px; }
+        .parking-meta td { width:33.333%; padding:7px 9px; }
+        .parking-meta .value { font-size:11px; }
         .items { width: 100%; border-collapse: collapse; }
         .items th, .items td { padding: 10px 8px; border-bottom: 1px solid #e5e9ef; text-align: left; }
         .items th { color: #657186; font-size: 9px; text-transform: uppercase; }
@@ -90,6 +83,7 @@ ob_start();
             <tr><td><span class="label">Billing period</span><span class="value"><?php echo htmlspecialchars($billingPeriod); ?></span></td><td><span class="label">Due date</span><span class="value"><?php echo !empty($receipt['due_date']) ? htmlspecialchars(date('F j, Y', strtotime($receipt['due_date']))) : 'Not recorded'; ?></span></td></tr>
             <tr><td><span class="label">Payment reference</span><span class="value"><?php echo htmlspecialchars($receiptReference); ?></span></td><td><span class="label">Payment ID</span><span class="value"><?php echo htmlspecialchars($receipt['paymongo_payment_id'] ?: 'Not applicable'); ?></span></td></tr>
         </table>
+        <?php if(!empty($receipt['visitor_parking'])): ?><h2>Visitor Parking</h2><table class="meta parking-meta"><?php foreach(array_chunk(vpReceiptFields($receipt['visitor_parking']),3,true)as$fields): ?><tr><?php foreach($fields as$title=>$value): ?><td><span class="label"><?= htmlspecialchars($title,ENT_QUOTES,'UTF-8') ?></span><span class="value"><?= htmlspecialchars($value,ENT_QUOTES,'UTF-8') ?></span></td><?php endforeach; ?><?php for($blank=count($fields);$blank<3;$blank++): ?><td></td><?php endfor; ?></tr><?php endforeach; ?></table><?php endif; ?>
         <table class="items">
             <thead><tr><th>Charge</th><th class="amount">Amount</th></tr></thead>
             <tbody>

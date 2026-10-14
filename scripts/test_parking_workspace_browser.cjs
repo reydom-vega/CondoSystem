@@ -53,12 +53,12 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
       await check("!document.querySelector('#parking-panel-vehicles').hidden && document.querySelector('.sidebar-link[href=\"parking.php\"]').getAttribute('aria-current')==='page'",`resident/tenant ${actor}: old vehicle URL and active menu`);
     }
     await go(1,'resident/parking.php?tab=requests');
-    await check("(async()=>{const form=document.querySelector('#parking-panel-requests form');const response=await fetch(form.getAttribute('action'),{method:'POST',body:new URLSearchParams(new FormData(form))});return response.ok && response.url.includes('tab=requests') && (await response.text()).includes('Cancelled');})()",'parking cancellation returns to Requests through the existing handler');
+    await check("(async()=>{const form=document.querySelector('#parking-panel-requests input[value=cancel_visitor_request]').form;const response=await fetch(form.getAttribute('action'),{method:'POST',body:new URLSearchParams(new FormData(form))});return response.ok && response.url.includes('tab=requests') && (await response.text()).includes('Cancelled');})()",'parking cancellation returns to Requests through the existing handler');
     for (const actor of [4,6]) {
       await go(actor,'superadmin/parking.php');
-      await check("[...document.querySelectorAll('[data-parking-tab]')].map(t=>t.textContent).join('|')==='Overview|Parking Slots|Registered Vehicles|Sticker Requests|Visitor Parking|Parking Records'",`staff ${actor}: requested six tabs`);
+      await check("[...document.querySelectorAll('[data-parking-tab]')].map(t=>t.textContent).join('|')==='Overview|Parking Slots|Registered Vehicles|Sticker Requests|Visitor Parking|Extended Parking Requests|Parking Records'",`staff ${actor}: seven parking tabs with extensions`);
       await ev('window.parkingDocumentMarker=456');
-      for (const key of ['slots','vehicles','stickers','visitors','records','overview']) await click(key);
+      for (const key of ['slots','vehicles','stickers','visitors','extensions','records','overview']) await click(key);
       await check('window.parkingDocumentMarker===456',`staff ${actor}: all tabs switch without page reload`);
       await check(`Boolean(document.querySelector('[name=sticker_price]'))===${actor===6} && Boolean(document.querySelector('.parking-status-form'))===${actor===6}`,`staff ${actor}: inventory changes and configuration remain Superadmin-only`);
       for (const route of ['registeredvehicles.php','parkinginventory.php']) {

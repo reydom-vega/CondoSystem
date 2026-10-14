@@ -21,7 +21,7 @@ function validateUpgradeCommand(array $args,array $env): void {
 /** Preserve every pre-existing column in the protected business tables. */
 function upgradeSnapshotColumns(mysqli $db): array {
     $columns=[];
-    foreach (['users','payments','bill_items','parking_sticker_orders','bookings','resident_service_requests','parking_requests','vehicles','visitor_logs','violations','maintenance_requests','parking_slots','parking_sticker_vehicles'] as $table) {
+    foreach (['users','payments','bill_items','parking_sticker_orders','bookings','resident_service_requests','parking_requests','vehicles','visitor_logs','violations','maintenance_requests','parking_slots','parking_sticker_vehicles','community_reports','report_identities','report_access_credentials','report_conflicts','report_events','report_attachments','parking_extensions','job_reports','job_report_drafts','job_report_reviews'] as $table) {
         if (!$db->query("SHOW TABLES LIKE '{$table}'")->num_rows) continue;
         $columns[$table]=array_column($db->query("SHOW COLUMNS FROM `{$table}`")->fetch_all(MYSQLI_ASSOC),'Field');
         if ($table==='users') $columns[$table]=array_values(array_unique(array_merge($columns[$table],array_keys(upgradeAccountColumnDefaults()))));
@@ -40,7 +40,7 @@ function snapshotUpgradeState(mysqli $db,array $ownerLinks=[],?array $columns=nu
     $state=[];
     foreach ($columns ?? upgradeSnapshotColumns($db) as $table=>$fields) {
         if (!$db->query("SHOW TABLES LIKE '{$table}'")->num_rows) throw new RuntimeException('Upgrade removed a protected business table.');
-        $hash=hash_init('sha256'); $rows=$db->query("SELECT * FROM `{$table}` ORDER BY id");
+        $hash=hash_init('sha256');$primary=array_column($db->query("SHOW INDEX FROM `{$table}` WHERE Key_name='PRIMARY'")->fetch_all(MYSQLI_ASSOC),'Column_name');$order=implode(',',array_map(static fn(string $field):string=>'`'.$field.'`',$primary?:[$fields[0]]));$rows=$db->query("SELECT * FROM `{$table}` ORDER BY $order");
         while($row=$rows->fetch_assoc()) {
             $protected=[];
             foreach ($fields as $field) {

@@ -74,6 +74,7 @@ function logVisitorOut(mysqli $connection, int $visitorLogId, int $checkedOutBy)
     $update->bind_param('i', $visitorLogId);
     if (!$update->execute()) throw new RuntimeException('Registration checkout could not be saved.');
     $find=$connection->prepare('SELECT id FROM resident_service_requests WHERE visitor_log_id=?'); $find->bind_param('i',$visitorLogId); $find->execute(); $registration=$find->get_result()->fetch_assoc();
+    if ($registration) vpFinishForVisitor($connection,(int)$registration['id']);
     if ($registration) qrActionEvent($connection,gateRequest($connection,(int)$registration['id']),'check_out','Visitor exit confirmed.');
     $connection->commit(); return true;
     } catch (Throwable $error) { $connection->rollback(); error_log($error->getMessage()); return false; }

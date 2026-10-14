@@ -25,6 +25,8 @@ function portalWorkspaceModule(): ?string {
         'superadmin/parkinginventory.php'=>'parking', 'superadmin/parking_configuration.php'=>'parking',
         'resident/vehicles.php'=>'vehicles', 'superadmin/registeredvehicles.php'=>'vehicles',
         'resident/maintenance.php'=>'maintenance', 'superadmin/maintenancerequests.php'=>'maintenance',
+        'job_report.php'=>'reports',
+        'resident/reports.php'=>'reports', 'superadmin/reports.php'=>'reports',
         'resident/messages.php'=>'messages', 'superadmin/admin_messages.php'=>'messages',
         'resident/announcements.php'=>'announcements', 'superadmin/announcements.php'=>'announcements',
         'resident/visitors.php'=>'visitors', 'superadmin/visitorlog.php'=>'visitors',
@@ -77,6 +79,10 @@ function renderPortalUiHead(): void {
     }
     $themeStyles = 'assets/css/theme.css';
     echo '<link rel="stylesheet" href="'.$escape(portalUiAssetUrl($themeStyles)).'">';
+    if(in_array($module,['parking','visitors','billing'],true)||in_array(basename($_SERVER['SCRIPT_FILENAME']??''),['resident_service_pass.php','scanner.php'],true)){
+        echo '<link rel="stylesheet" href="'.$escape(portalUiAssetUrl('assets/css/visitor-parking.css')).'">';
+        echo '<script defer src="'.$escape(portalUiAssetUrl('assets/js/visitor-parking.js')).'"></script>';
+    }
     renderDigitalIdHead();
     echo '<link rel="preload" as="font" type="font/ttf" href="'.$escape(buildUrl('assets/fonts/cinzel/Cinzel-Regular.ttf')).'" crossorigin>';
     echo '<link rel="stylesheet" href="'.$escape(portalUiAssetUrl('assets/css/branding.css')).'">';

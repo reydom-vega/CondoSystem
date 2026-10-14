@@ -30,6 +30,8 @@ if (extension_loaded('gd')) {
     $imageSupport=gd_info();
     preflightCheck(!empty($imageSupport['JPEG Support']) && !empty($imageSupport['PNG Support']) && !empty($imageSupport['WebP Support']), 'GD supports JPEG, PNG and WebP profile pictures');
 }
+preflightCheck(extension_loaded('zip'), 'PHP ZIP supports multi-page staff report PNG downloads');
+preflightCheck(is_file($root.'/vendor/dompdf/dompdf/lib/fonts/DejaVuSans.ttf'), 'Staff report PDF/PNG font is available');
 preflightCheck(is_file($root . '/vendor/autoload.php'), 'Composer dependencies are installed');
 preflightCheck(filter_var(ini_get('file_uploads'), FILTER_VALIDATE_BOOLEAN), 'PHP file uploads are enabled');
 preflightCheck(preflightIniBytes((string)ini_get('upload_max_filesize')) >= 10 * 1048576, 'PHP permits attachments up to 10 MB');
@@ -42,6 +44,13 @@ try {
     visitorIdRetentionDays();
     preflightCheck(is_writable(visitorIdStorageDirectory()), 'Visitor ID storage is writable and outside public directories');
 } catch (Throwable $e) { preflightCheck(false, 'Configure private visitor ID storage and a retention period of 1–365 days; run the migration'); }
+require_once $root.'/includes/community_reports.php';
+require_once $root.'/includes/report_evidence.php';
+try {
+    $reportLimits=reportFileLimits();reportSettingInt('CONDO_REPORT_EVIDENCE_RETENTION_DAYS',365,1,3650);reportSettingInt('CONDO_REPORT_ANONYMOUS_ACCESS_DAYS',365,1,3650);
+    preflightCheck(is_writable(reportStorageDirectory()),'Community report evidence is writable and outside public directories');
+    preflightCheck($postLimit===0 || $postLimit>$reportLimits['total_bytes'],'PHP request limit exceeds configured combined report evidence limit');
+} catch(Throwable $error) { preflightCheck(false,'Prepare private community report storage and valid report settings with the migration'); }
 foreach (['.htaccess','includes/.htaccess','private_uploads/.htaccess','private_uploads/profile_photos/.htaccess','scripts/.htaccess','vendor/.htaccess','inventory/.htaccess'] as $file) preflightCheck(is_file($root . '/' . $file), "HTTP protection file: {$file}");
 
 $production = $production || appIsProduction();
@@ -86,6 +95,9 @@ if (extension_loaded('mysqli')) {
         preflightCheck($applied, 'Application schema migration is recorded: ' . APP_SCHEMA_VERSION);
         $admins = $db->query("SELECT COUNT(*) AS total FROM users WHERE role='superadmin' AND is_active=1 AND is_verified=1");
         preflightCheck((int)$admins->fetch_assoc()['total'] > 0, 'At least one active verified superadmin exists', true);
+        try { reportAuditKey($db);preflightCheck(true,'Community report audit signing key is available'); } catch(Throwable $error) { preflightCheck(false,'Community report audit signing key is available'); }
+        $reviewers=reportIndependentIds();$validReviewers=0;foreach($reviewers as$reviewer)if(reportReviewer($db,$reviewer))$validReviewers++;
+        preflightCheck($validReviewers>0,'An eligible independent property-manager reviewer is configured; otherwise oversight cases stay sealed',true);
         $db->close();
     } catch (Throwable $e) {
         preflightCheck(false, 'Database/schema checks failed; verify access and run scripts/migrate.php --apply after backup');

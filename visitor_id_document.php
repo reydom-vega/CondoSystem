@@ -6,6 +6,7 @@ ensureResidentServicesTables($db);
 $id = filter_var($_GET['request_id'] ?? null, FILTER_VALIDATE_INT);
 $stmt = $db->prepare("SELECT * FROM resident_service_requests WHERE id=? AND request_kind='visitor'");
 $stmt->bind_param('i', $id); $stmt->execute(); $row = $stmt->get_result()->fetch_assoc();
+if(isset($_GET['version'])&&(!$row||!is_string($_GET['version'])||!hash_equals(visitorIdentityVersion($row),$_GET['version']))){header('Cache-Control: private, no-store');http_response_code(409);exit('The ID document changed. Reload the review.');}
 $path = $row && empty($row['id_deleted_at']) && !visitorIdExpired($row) ? visitorIdFilePath($row['id_document_name'] ?? '') : null;
 if (!$path) { http_response_code(404); exit('Identification document is unavailable or its retention period has ended.'); }
 $mime = (new finfo(FILEINFO_MIME_TYPE))->file($path);

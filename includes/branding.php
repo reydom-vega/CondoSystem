@@ -39,10 +39,12 @@ function brandDocumentStyles(): string {
 }
 
 /** PNG/CID gives mail clients the same font and emblem without SVG/font support. */
-function brandEmailHtml(): string {
-    $dimensions = getimagesize(dirname(__DIR__).'/assets/branding/email-brand-dark.png');
+function brandEmailHtml(string $theme = 'dark'): string {
+    $variant=$theme==='light'?'light':'dark';
+    $cid=$variant==='light'?'celandine-brand-light':'celandine-brand';
+    $dimensions = getimagesize(dirname(__DIR__).'/assets/branding/email-brand-'.$variant.'.png');
     $height = (int)round(300*$dimensions[1]/$dimensions[0]);
-    return '<div style="margin-bottom:24px"><img src="cid:celandine-brand" width="300" height="'.$height.'" alt="THE CELANDINE" style="display:block;max-width:100%;height:auto;border:0"></div>';
+    return '<div style="margin-bottom:24px"><img src="cid:'.$cid.'" width="300" height="'.$height.'" alt="THE CELANDINE" style="display:block;max-width:100%;height:auto;border:0"></div>';
 }
 
 function brandMailFromName(string $configured): string {

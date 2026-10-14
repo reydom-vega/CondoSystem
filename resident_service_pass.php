@@ -40,7 +40,7 @@ if (!empty($pass['gate_data'])) { include __DIR__.'/includes/property_gate_pass_
 $message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireWorkflowCsrf();
-    if (checkInRegisteredVisitor($db, $id, $token)) { logAudit('checkin', 'resident_service_request', $id); redirect('resident_service_pass.php?id=' . $id . '&token=' . $token); }
+    if (checkInRegisteredVisitor($db, $id, $token, ($_POST['vehicle_entry_confirmed']??'')==='1')) { logAudit('checkin', 'resident_service_request', $id); redirect('resident_service_pass.php?id=' . $id . '&token=' . $token); }
     $message = 'Check-in refused. Verify the approval, visit date, and current check-in status.';
     $pass = getResidentServicePass($db, $id, $token);
 }
@@ -49,7 +49,7 @@ $approvalsComplete = !$identityRequired || visitorAccessApprovalsComplete($db, $
 $valid = $pass['status'] === 'approved' && $approvalsComplete && $pass['start_date'] <= date('Y-m-d') && $pass['end_date'] >= date('Y-m-d');
 $label = $valid ? 'VALID' : ($pass['start_date'] > date('Y-m-d') && $pass['status'] === 'approved' ? 'NOT YET VALID' : strtoupper(str_replace('_',' ',$pass['status'])));
 if ($identityRequired && $pass['status'] === 'approved' && !$approvalsComplete) $label = !visitorIdentityVerified($pass) ? 'IDENTITY ' . strtoupper($pass['identity_status']) : 'PARKING APPROVAL REQUIRED';
-if ($pass['end_date'] < date('Y-m-d')) $label = 'EXPIRED';
+if ($pass['end_date'] < date('Y-m-d') && $pass['status'] !== 'checked_in') $label = 'EXPIRED';
 function passEscape($value): string { return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8'); }
 $isVisitorPass = $pass['request_kind'] === 'visitor';
 $passTitle = $isVisitorPass ? 'Visitor Access Pass' : 'Resident Permit';
@@ -169,8 +169,9 @@ if ($isVisitorPass) {
         <div><h2 id="securityInstructionsTitle"><?= $valid ? 'At the gate' : 'Entry notice' ?></h2><p id="passSecurityInstruction"><?= passEscape($securityInstruction) ?></p></div>
     </aside>
     <?php if ($valid && isSecurity() && $pass['request_kind'] === 'visitor'): ?>
-    <form method="post" class="service-actions visitor-pass-checkin"><?= workflowCsrfField() ?><button type="submit"><?= systemIcon('check-circle') ?>Confirm visitor check-in</button></form>
+    <form method="post" class="service-actions visitor-pass-checkin"><?= workflowCsrfField() ?><?php if(!empty($visitorVehicle)): ?><label class="checkbox"><input type="checkbox" name="vehicle_entry_confirmed" value="1" required> I have verified actual vehicle arrival and its assigned visitor slot. The parking timer starts now.</label><?php endif; ?><button type="submit"><?= systemIcon('check-circle') ?><?= !empty($visitorVehicle)?'Confirm visitor &amp; vehicle check-in':'Confirm visitor check-in' ?></button></form>
     <?php endif; ?>
+    <?php if($isVisitorPass && visitorParkingFeesReady($db)){ $vpLink=$db->query('SELECT id FROM parking_requests WHERE visitor_registration_id='.(int)$id." AND status='approved' ORDER BY id DESC LIMIT 1")->fetch_assoc();if($vpLink){$vpOnlyRequest=(int)$vpLink['id'];include __DIR__.'/includes/visitor_parking_widget.php';unset($vpOnlyRequest);}} ?>
     <?php if ($pass['request_kind'] === 'permit') include __DIR__.'/includes/permit_pass_download_controls.php'; ?>
     <div class="service-actions visitor-pass-actions">
         <button type="button" class="service-btn" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/><path d="M18 12h.01"/></svg>Print Pass</button>

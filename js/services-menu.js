@@ -8,6 +8,7 @@ function syncVisitorParkingFields() {
     visitorNeedsParking.setAttribute('aria-expanded', String(visitorNeedsParking.checked));
 }
 visitorNeedsParking?.addEventListener('change', syncVisitorParkingFields);
+document.getElementById('no_visitor_vehicle')?.addEventListener('change', syncVisitorParkingFields);
 syncVisitorParkingFields();
 const serviceStartDate = document.getElementById('service_start_date');
 const serviceEndDate = document.getElementById('service_end_date');

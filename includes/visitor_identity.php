@@ -139,25 +139,24 @@ function visitorIdentityVersion(array $request): string {
     return hash('sha256', ($request['id_document_name'] ?? '') . '|' . ($request['id_uploaded_at'] ?? ''));
 }
 
-function reviewVisitorIdentity(mysqli $db, int $id, string $decision, string $note, ?string $expectedVersion = null): bool {
+function reviewVisitorIdentity(mysqli $db, int $id, string $decision, string $note, ?string $expectedVersion = null, bool $manageTransaction = true): bool {
     if (!canAccess('visitors.identity.review') || !in_array($decision, ['verified','rejected'], true)
         || mb_strlen($note) > 500 || ($decision === 'rejected' && trim($note) === '')) return false;
-    ensureAuditLogTable($db);
-    $db->begin_transaction();
+    if($manageTransaction){ ensureAuditLogTable($db); $db->begin_transaction(); }
     try {
         $stmt = $db->prepare("SELECT * FROM resident_service_requests WHERE id=? AND request_kind='visitor' FOR UPDATE");
         $stmt->bind_param('i', $id); $stmt->execute(); $row = $stmt->get_result()->fetch_assoc();
         if (!$row || !in_array($row['status'], ['pending','approved'], true) || $row['end_date'] < date('Y-m-d')
             || empty($row['id_document_name']) || !empty($row['id_deleted_at']) || visitorIdExpired($row)
             || !visitorIdFilePath($row['id_document_name']) || $row['identity_status'] === $decision
-            || ($expectedVersion !== null && !hash_equals(visitorIdentityVersion($row), $expectedVersion))) { $db->rollback(); return false; }
+            || ($expectedVersion !== null && !hash_equals(visitorIdentityVersion($row), $expectedVersion))) { if($manageTransaction)$db->rollback(); return false; }
         $actor = (int)$_SESSION['user_id'];
         $token = $decision === 'rejected' ? bin2hex(random_bytes(32)) : $row['access_token'];
         $stmt = $db->prepare('UPDATE resident_service_requests SET identity_status=?,identity_review_note=?,identity_reviewed_by=?,identity_reviewed_at=UTC_TIMESTAMP(),access_token=? WHERE id=?');
         $stmt->bind_param('ssisi', $decision, $note, $actor, $token, $id); $stmt->execute();
         if (!logAudit($decision, 'visitor_identity', $id, 'Visitor identification reviewed.', $db)) throw new RuntimeException('Identity audit could not be saved.');
-        $db->commit(); return true;
-    } catch (Throwable $e) { $db->rollback(); error_log('Visitor identity review failed: ' . $e->getMessage()); return false; }
+        if($manageTransaction)$db->commit(); return true;
+    } catch (Throwable $e) { if(!$manageTransaction)throw $e; if($manageTransaction)$db->rollback(); error_log('Visitor identity review failed: ' . $e->getMessage()); return false; }
 }
 
 function replaceVisitorIdentity(mysqli $db, int $id, array $input, array $files): void {

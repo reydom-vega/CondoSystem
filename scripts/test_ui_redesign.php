@@ -9,7 +9,8 @@ $database = 'condo_ui_test_'.bin2hex(random_bytes(6));
 $server->query("CREATE DATABASE `$database` CHARACTER SET utf8mb4");
 $socket=stream_socket_server('tcp://127.0.0.1:0',$errno,$error); $address=stream_socket_get_name($socket,false); fclose($socket);
 $port=(int)substr(strrchr($address,':'),1); $base='http://127.0.0.1:'.$port.'/CondoSystem3/';
-foreach (['CONDO_DB_NAME'=>$database,'CONDO_APP_ENV'=>'test','CONDO_AUTO_MIGRATE'=>'1','CONDO_UI_FIXTURE'=>'1','CONDO_TENANT_PERMITS'=>'1','CONDO_TENANT_AMENITIES'=>'1','CONDO_APP_URL'=>rtrim($base,'/'),'CONDO_PASS_SIGNING_KEY'=>str_repeat('c',64)] as $key=>$value) putenv($key.'='.$value);
+foreach (['CONDO_DB_NAME'=>$database,'CONDO_APP_ENV'=>'test','CONDO_AUTO_MIGRATE'=>'1','CONDO_UI_FIXTURE'=>'1','CONDO_REPORT_INDEPENDENT_REVIEWER_IDS'=>'6','CONDO_TENANT_PERMITS'=>'1','CONDO_TENANT_AMENITIES'=>'1','CONDO_APP_URL'=>rtrim($base,'/'),'CONDO_PASS_SIGNING_KEY'=>str_repeat('c',64)] as $key=>$value) putenv($key.'='.$value);
+$reportFixtureStorage=sys_get_temp_dir().'/condo_report_ui_'.bin2hex(random_bytes(6));putenv('CONDO_REPORT_STORAGE='.$reportFixtureStorage);
 $_SERVER['PHP_SELF']=$_SERVER['SCRIPT_NAME']='/CondoSystem3/scripts/test_ui_redesign.php'; $_SERVER['HTTP_HOST']='localhost'; $_SERVER['REQUEST_METHOD']='GET';
 require_once dirname(__DIR__).'/config.php';
 $http=null; $log=null; $checks=0;
@@ -29,7 +30,7 @@ function uiActor(mysqli $db,int $id):void {
 try {
     $server->select_db($database); $server->multi_query(file_get_contents(dirname(__DIR__).'/database.sql'));
     do { $result=$server->store_result(); if($result)$result->free(); } while($server->more_results() && $server->next_result());
-    $db=connectDb();
+    $db=connectDb(); ensureCommunityReportSchema($db); ensureVisitorParkingFeeSchema($db); ensureJobReportSchema($db);
     $hash=$db->real_escape_string(password_hash('FixtureOnly!2026',PASSWORD_DEFAULT));
     $db->query("INSERT INTO users(id,username,full_name,email,contact_number,password_hash,unit_number,role,is_verified,status,account_type,unit_owner_id) VALUES
       (1,'owner','Owner One','owner@example.invalid','09123456789','$hash','0101','resident',1,'approved','Resident Owner',NULL),
@@ -64,6 +65,28 @@ try {
     $visitor=fixtureCreateResidentServiceRequest($db,1,'visitor',['visitor_name'=>'Family Guest','visitor_count'=>'3','details'=>'Family visit','start_date'=>date('Y-m-d')]);
     $gate=savePropertyGateRequest($db,['permit_type'=>'Property Gate Pass','direction'=>'entry','purpose'=>'New Appliance / Furniture','details'=>'Kitchen equipment','start_date'=>date('Y-m-d'),'start_time'=>'00:00','end_time'=>'23:59','transporter'=>'Fixture Delivery','vehicle_plate'=>'ABC123','items'=>[['item_name'=>'Refrigerator','category'=>'Appliance','quantity'=>'1','description'=>'Silver']]]);
     uiActor($db,6); decideResidentServiceRequest($db,$visitor,'approved',''); gateTransition($db,$gate,'approved');
+    if(in_array('--visitor-parking-only',$argv,true)){
+        $db->query("INSERT INTO parking_slots(slot_code,slot_type) VALUES('VP-UI-OWNER','visitor'),('VP-UI-TENANT','visitor'),('VP-UI-RECEIPT','visitor')");
+        $slots=$db->query("SELECT id FROM parking_slots WHERE slot_code LIKE 'VP-UI-%' ORDER BY id")->fetch_all(MYSQLI_ASSOC);
+        foreach([[1,'UI-OWNER',0,2],[2,'UI-TENANT',1,48],[1,'UI-PAID',2,2]]as[$host,$plate,$index,$hours]){
+            uiActor($db,$host);$guest=fixtureCreateResidentServiceRequest($db,$host,'visitor',['visitor_name'=>'Guest '.$plate,'visitor_count'=>'1','details'=>'Parking UI test','start_date'=>date('Y-m-d')]);
+            $plan=['vehicle_type'=>'Car','vehicle_model'=>'Vios','vehicle_color'=>'Silver','expected_arrival'=>date('Y-m-d'). 'T00:00','expected_departure'=>date('Y-m-d\TH:i',time()+$hours*3600),'parking_fee_ack'=>'1','extension_reason'=>'Family staying overnight'];
+            $policy=getParkingPolicy($db);$db->begin_transaction();try{$parkingId=insertLinkedVisitorParking($db,$host,$guest,$plate,'Silver car',date('Y-m-d'),substr($plan['expected_departure'],0,10),$policy,$plan);$db->commit();}catch(Throwable $error){$db->rollback();throw $error;}
+            uiActor($db,4);decideResidentServiceRequest($db,$guest,'approved','');if(!decideParkingRequest($parkingId,'approved',(int)$slots[$index]['id'],''))throw new RuntimeException('Parking UI seed approval failed.');
+            if($plate==='UI-PAID'){uiActor($db,5);vpVehicleCheckIn($db,$parkingId);$paid=vpCheckoutSession($db,$parkingId);$paidParkingBill=(int)$paid['payment_id'];$db->query("UPDATE payments SET payment_method='cash' WHERE id=$paidParkingBill");uiActor($db,6);if(!confirmCashBillPayment($db,$paidParkingBill))throw new RuntimeException('Parking UI seed payment failed.');}
+        }
+    }
+    if(in_array('--approval-only',$argv,true)){
+        $approvalFixtureStorage=sys_get_temp_dir().'/condo-approval-ui-'.bin2hex(random_bytes(12));putenv('CONDO_VISITOR_ID_STORAGE='.$approvalFixtureStorage);visitorIdStorageDirectory(true);
+        foreach([[1,'APPROVAL-OWNER',2],[2,'APPROVAL-TENANT',48]]as[$host,$plate,$hours]){
+            uiActor($db,$host);$guest=fixtureCreateResidentServiceRequest($db,$host,'visitor',['visitor_name'=>'Guest '.$plate,'visitor_count'=>'1','details'=>'Family visit for combined approval','start_date'=>date('Y-m-d')]);
+            $name=bin2hex(random_bytes(24)).'.png';$image=imagecreatetruecolor(640,400);$background=imagecolorallocate($image,245,246,250);imagefill($image,0,0,$background);$ink=imagecolorallocate($image,30,40,60);imagestring($image,5,30,50,'TEST ID DOCUMENT - FICTIONAL VISITOR',$ink);imagestring($image,5,30,110,$plate,$ink);imagepng($image,$approvalFixtureStorage.'/'.$name);imagedestroy($image);
+            $s=$db->prepare("UPDATE resident_service_requests SET identity_status='pending',id_document_name=? WHERE id=?");$s->bind_param('si',$name,$guest);$s->execute();
+            $code='APPROVAL-'.$host;$db->query("INSERT INTO parking_slots(slot_code,slot_type) VALUES('$code','visitor')");$slot=(int)$db->insert_id;
+            $plan=['vehicle_type'=>'Car','vehicle_model'=>'Vios','vehicle_color'=>'Silver','expected_arrival'=>date('Y-m-d\TH:i'),'expected_departure'=>date('Y-m-d\TH:i',time()+$hours*3600),'parking_fee_ack'=>'1','extension_reason'=>'Family staying overnight','requested_slot_id'=>(string)$slot];
+            $policy=getParkingPolicy($db);$db->begin_transaction();try{insertLinkedVisitorParking($db,$host,$guest,$plate,'Silver car',date('Y-m-d'),substr($plan['expected_departure'],0,10),$policy,$plan);$db->commit();}catch(Throwable $error){$db->rollback();throw $error;}
+        }
+    }
     $manifest=[]; $add=static function(string $path,int $actor,string $label) use (&$manifest):void { $manifest[]=['path'=>$path,'actor'=>$actor,'label'=>$label]; };
     foreach(['homepage.php','login.php','signup.php','forgot_password.php','reset_password.php','verify.php','verify_pending.php','resend_verification.php'] as $page) $add($page,0,'Public / account');
     $add('signuppending.php',3,'Pending approval'); $add('logout.php',1,'Sign out confirmation');
@@ -88,6 +111,14 @@ try {
     $add('parking_pass.php?request_id='.$parking.'&signature='.parkingPassSignature($parking),1,'Parking pass');
     // An actual forbidden role route verifies the shared 403 screen.
     $add('superadmin/staff.php',5,'Access denied');
+    $add('report_tracking.php',0,'Anonymous tracking');
+    if(in_array('--jobs-only',$argv,true))$manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>in_array(explode('?',$entry['path'])[0],['job_report.php','superadmin/staff.php'],true)&&$entry['label']!=='Access denied'));
+    if(in_array('--reports-only',$argv,true))$manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>in_array($entry['path'],['resident/reports.php','superadmin/reports.php','report_tracking.php'],true)));
+    if(in_array('--approval-only',$argv,true))$manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>in_array(explode('?',$entry['path'])[0],['resident/visitors.php','resident/parking.php','superadmin/parking.php','superadmin/service_requests.php','security/scanner.php'],true)&&!str_contains($entry['path'],'kind=permit')));
+    if(in_array('--visitor-parking-only',$argv,true)||in_array('--parking-only',$argv,true)){
+        $manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>in_array(explode('?',$entry['path'])[0],['resident/parking.php','resident/visitors.php','resident/payments.php','superadmin/parking.php','superadmin/unitpayments.php','security/scanner.php','superadmin/scanner.php','resident_service_pass.php'],true)));
+        if(isset($paidParkingBill))$manifest[]=['path'=>'resident/payment_receipt.php?id='.$paidParkingBill,'actor'=>1,'label'=>'Paid visitor parking PDF'];
+    }
     putenv('CONDO_UI_MANIFEST='.json_encode($manifest,JSON_THROW_ON_ERROR));
     $log=tempnam(sys_get_temp_dir(),'condo-ui-http-');
     $http=proc_open([PHP_BINARY,'-S','127.0.0.1:'.$port,__DIR__.'/ui_fixture_router.php'],[0=>['pipe','r'],1=>['file',$log,'a'],2=>['file',$log,'a']],$pipes,dirname(__DIR__));
@@ -95,6 +126,7 @@ try {
     for($attempt=0;$attempt<50;$attempt++) { $probe=@file_get_contents($base.'__manifest'); if($probe!==false)break; usleep(100000); }
     uiCheck($probe!==false,'loopback fixture starts');
     foreach($manifest as $entry) {
+        if(str_starts_with($entry['path'],'resident/payment_receipt.php'))continue;
         $url=$base.$entry['path'].(str_contains($entry['path'],'?')?'&':'?').'fixture_actor='.$entry['actor'];
         $body=uiHttpRead($url);
         uiCheck(is_string($body) && str_contains($body,'portal-ui'),'rendered shared UI: '.$entry['label'].' '.$entry['path']);
@@ -119,6 +151,9 @@ try {
     if(is_resource($http)) {proc_terminate($http);proc_close($http);}
     if($log && is_file($log)) unlink($log);
     if(!preg_match('/^condo_ui_test_[a-f0-9]{12}$/D',$database)) throw new RuntimeException('Unsafe fixture cleanup.');
+    // Preview sessions may outlive a database-service restart; reconnect for cleanup.
+    $db=new mysqli($configuredDbHost,$configuredDbUser,$configuredDbPass,$database);$db->set_charset('utf8mb4');
+    $server=new mysqli($configuredDbHost,$configuredDbUser,$configuredDbPass);
     // Browser tests can submit real multipart vehicle registrations to this fixture.
     if (isset($db) && $db->query("SHOW TABLES LIKE 'vehicles'")->num_rows) {
         foreach ($db->query('SELECT or_cr_path,vehicle_photo_path FROM vehicles')->fetch_all(MYSQLI_ASSOC) as $vehicle) {
@@ -132,5 +167,8 @@ try {
             if (profilePhotoFilename($photo) && is_file(profilePhotoDirectory().'/'.$photo)) unlink(profilePhotoDirectory().'/'.$photo);
         }
     }
+    if(isset($db) && $db->query("SHOW TABLES LIKE 'report_attachments'")->num_rows) foreach($db->query('SELECT stored_name FROM report_attachments')as$file){$path=reportEvidencePath($file['stored_name']);if($path)unlink($path);}
+    if(isset($approvalFixtureStorage)&&preg_match('~[/\\\\]condo-approval-ui-[a-f0-9]{24}$~D',$approvalFixtureStorage)){foreach(glob($approvalFixtureStorage.'/*.png')as$file)unlink($file);rmdir($approvalFixtureStorage);}
     $server->query("DROP DATABASE `$database`");
+    if(is_dir($reportFixtureStorage)&&str_starts_with($reportFixtureStorage,sys_get_temp_dir().'/condo_report_ui_'))rmdir($reportFixtureStorage);
 }

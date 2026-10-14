@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $update->bind_param('ssssis', $nextStatus, $completionNote, $beforePath, $afterPath, $requestId, $expectedStatus);
                 if ($update->execute() && $update->affected_rows === 1) {
                     $success = 'Request marked completed.';
-                    logAudit('update', 'maintenance_request', $requestId, 'Maintenance request completed with notes');
+                    logAudit('completed', 'maintenance_request', $requestId, 'Maintenance request completed with notes');
                 } else {
                     $errors[] = 'Unable to update the request.';
                 }
@@ -80,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $update->bind_param('sis', $nextStatus, $requestId, $expectedStatus);
             if ($update->execute() && $update->affected_rows === 1) {
                 $success = 'Request status updated.';
-                logAudit($action === 'reject' ? 'reject' : ($action === 'approve' ? 'approve' : 'update'), 'maintenance_request', $requestId, 'Maintenance request status set to ' . $nextStatus);
+                logAudit($action === 'reject' ? 'reject' : ($action === 'approve' ? 'approve' : $nextStatus), 'maintenance_request', $requestId, 'Maintenance request status set to ' . $nextStatus);
             } else {
                 $errors[] = 'Unable to update the request.';
             }

@@ -81,6 +81,7 @@ function addBillItem(int $paymentId, string $category, string $description, floa
     ensurePaymongoColumns($connection);
     $connection->begin_transaction();
     try {
+        if(vpBillDetails($connection,$paymentId)){ $connection->rollback(); return false; }
         $bill=$connection->prepare("SELECT id,billing_scope FROM payments WHERE id=? AND status IN ('pending','overdue') AND paymongo_checkout_id IS NULL FOR UPDATE");
         $bill->bind_param('i',$paymentId); $bill->execute();
         $billRow=$bill->get_result()->fetch_assoc();
@@ -89,7 +90,9 @@ function addBillItem(int $paymentId, string $category, string $description, floa
         $amount=round($amount,2); $stmt->bind_param('issd',$paymentId,$category,$description,$amount);
         if (!$stmt->execute()) throw new RuntimeException('Bill item insert failed.');
         $itemId=(int)$connection->insert_id;
-        recalculateBillTotal($connection,$paymentId); $connection->commit(); return true;
+        recalculateBillTotal($connection,$paymentId);
+        if (!logAudit('update','payment',$paymentId,'Billing item added.',$connection)) throw new RuntimeException('Could not audit bill update.');
+        $connection->commit(); return true;
     } catch (Throwable $error) {
         $connection->rollback(); error_log('Could not append bill item: '.$error->getMessage()); return false;
     }
@@ -136,7 +139,7 @@ function createBill(int $userId, array $items, ?string $periodStart, ?string $pe
         $owner=residentContext($connection,$userId);
         if (!$owner || !$owner['approved'] || (!$tenantParking && $owner['account_kind']!=='owner')) { $connection->rollback(); return false; }
         if ($periodStart!==null) {
-            $existing=$connection->prepare("SELECT id FROM payments WHERE user_id=? AND billing_period_start=? AND status<>'rolled_forward' LIMIT 1 FOR UPDATE");
+            $existing=$connection->prepare("SELECT id FROM payments WHERE user_id=? AND billing_period_start=? AND billing_scope='unit' AND status<>'rolled_forward' LIMIT 1 FOR UPDATE");
             $existing->bind_param('is',$userId,$periodStart); $existing->execute();
             if ($existing->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
         }
@@ -254,13 +257,14 @@ function getResidentVisibleBills(mysqli $connection, int $actorId, bool $paid = 
     $columns='*';
     $status=$paid ? "status='paid'" : "status IN ('pending','overdue')";
     $order=$paid ? 'paid_at DESC,id DESC' : 'due_date ASC,created_at ASC,id ASC';
-    $query='SELECT '.$columns.' FROM payments WHERE user_id IN ('.implode(',',$ids).') AND '.$status.' ORDER BY '.$order;
+    $query='SELECT '.$columns.' FROM payments WHERE user_id IN ('.implode(',',$ids).") ".vpBillingPrivacySql($connection,$actorId).' AND '.$status.' ORDER BY '.$order;
     if ($paid) $query.=' LIMIT '.max(1,min(100,$limit));
     $bills=$connection->query($query)->fetch_all(MYSQLI_ASSOC);
     foreach ($bills as &$bill) {
         if (!residentCanPayBill($connection,$actorId,(int)$bill['user_id'],(int)$bill['id'])) {
             $bill=array_intersect_key($bill,array_flip(['id','user_id','amount','status','due_date','billing_period_start','billing_period_end','paid_at','created_at','billing_scope']));
         }
+        $bill['visitor_parking']=vpBillDetails($connection,(int)$bill['id']);
         $bill['items']=getBillItems($connection,(int)$bill['id']);
         if (!$bill['items']) $bill['items']=[['category'=>'Payment','description'=>null,'amount'=>$bill['amount']]];
     }
@@ -271,7 +275,7 @@ function getResidentBillingSummary(mysqli $connection, int $actorId): array {
     $ids=array_values(array_unique(array_map('intval',residentBillingUserIds($connection,$actorId))));
     if (!$ids) return ['count'=>0,'amount'=>0.0];
     ensurePaymentsTable($connection);
-    $row=$connection->query("SELECT COUNT(*) AS count,COALESCE(SUM(amount),0) AS amount FROM payments WHERE user_id IN (".implode(',',$ids).") AND status IN ('pending','overdue')")->fetch_assoc();
+    $row=$connection->query("SELECT COUNT(*) AS count,COALESCE(SUM(amount),0) AS amount FROM payments WHERE user_id IN (".implode(',',$ids).") ".vpBillingPrivacySql($connection,$actorId)." AND status IN ('pending','overdue')")->fetch_assoc();
     return ['count'=>(int)$row['count'],'amount'=>(float)$row['amount']];
 }
 

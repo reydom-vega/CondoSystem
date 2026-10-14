@@ -1,6 +1,6 @@
 <?php
 /** Call inside a transaction. Inventory locks serialize allocation and reassignment. */
-function selectParkingSlotForAllocation(mysqli $db, string $type, string $start, string $end, ?int $preferred = null, int $excludeRequest = 0): ?array {
+function selectParkingSlotForAllocation(mysqli $db, string $type, string $start, string $end, ?int $preferred = null, ?int $excludeRequest = 0, ?string $exactStart=null, ?string $exactEnd=null): ?array {
     $sql = "SELECT * FROM parking_slots WHERE slot_type = ? AND status = 'available' AND assigned_user_id IS NULL";
     if ($preferred !== null) $sql .= ' AND id = ?';
     $sql .= ' ORDER BY level, slot_code, id FOR UPDATE';
@@ -10,9 +10,10 @@ function selectParkingSlotForAllocation(mysqli $db, string $type, string $start,
     $find->execute();
     foreach ($find->get_result()->fetch_all(MYSQLI_ASSOC) as $slot) {
         $id = (int)$slot['id'];
+        if($exactStart!==null&&$exactEnd!==null&&visitorParkingFeesReady($db)){if(!vpSlotConflict($db,$id,(int)$excludeRequest,$exactStart,$exactEnd))return $slot;continue;}
         // A standing resident assignment must also avoid future reservations.
         $dates = $type === 'resident' ? "COALESCE(end_date,start_date) >= CURRENT_DATE()" : 'start_date <= ? AND COALESCE(end_date,start_date) >= ?';
-        $reserved = $db->prepare("SELECT id FROM parking_requests WHERE slot_id = ? AND id <> ? AND status = 'approved' AND (request_type = 'resident_assignment' OR ($dates)) LIMIT 1 FOR UPDATE");
+        $reserved = $db->prepare("SELECT id FROM parking_requests WHERE slot_id = ? AND id <> ? AND status = 'approved'".(visitorParkingFeesReady($db)?' AND actual_check_out IS NULL':'')." AND (request_type = 'resident_assignment' OR ($dates)) LIMIT 1 FOR UPDATE");
         if ($type === 'resident') $reserved->bind_param('ii', $id, $excludeRequest);
         else $reserved->bind_param('iiss', $id, $excludeRequest, $end, $start);
         $reserved->execute();
@@ -115,6 +116,7 @@ function reassignParkingRequestSlot(int $requestId, int $slotId): bool {
     try {
         $find = $db->prepare("SELECT pr.*, u.unit_number FROM parking_requests pr JOIN users u ON u.id = pr.user_id WHERE pr.id = ? AND pr.status = 'approved' AND (pr.request_type = 'resident_assignment' OR COALESCE(pr.end_date,pr.start_date) >= CURRENT_DATE()) FOR UPDATE");
         $find->bind_param('i', $requestId); $find->execute(); $request = $find->get_result()->fetch_assoc();
+        if($request && !empty($request['actual_check_in']))throw new RuntimeException('An occupied visitor session must be checked out by Security before reassignment.');
         if (!$request || !(residentContext($db, (int)$request['user_id'])['approved'] ?? false)) throw new RuntimeException('Active parking reservation not found.');
         $type = $request['request_type'] === 'visitor' ? 'visitor' : 'resident';
         $oldId = (int)($request['slot_id'] ?? 0);

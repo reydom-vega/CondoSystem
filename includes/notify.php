@@ -90,15 +90,13 @@ function notifyResidentOfNewBill(int $paymentId): bool {
 function notifyResidentOfPayment(int $paymentId, ?mysqli $db = null): bool {
     $strict=$db!==null;
     if ($db===null) { $db=connectDb(); if (!ensureNotificationOutboxTable($db)) return false; }
-    $find=$db->prepare("SELECT p.amount,u.id,u.full_name,u.email,u.contact_number FROM payments p JOIN users u ON u.id=p.user_id WHERE p.id=? AND p.status='paid'");
-    $find->bind_param('i',$paymentId); $find->execute(); $row=$find->get_result()->fetch_assoc();
-    if (!$row) return false;
-    $contact=billingNoticeContact($db,(int)$row['id'],$paymentId);
+    $receipt=paymentReceiptData($db,$paymentId);
+    if (!$receipt) return false;
+    $contact=billingNoticeContact($db,(int)$receipt['user_id'],$paymentId);
     if (!$contact) return false;
-    $row=array_merge($row,$contact);
-    $amount=number_format((float)$row['amount'],2);
-    $html=emailLayout('Payment Confirmed','Payment received','<p>Hi ' . htmlspecialchars($row['full_name'],ENT_QUOTES,'UTF-8') . ', payment of PHP ' . $amount . ' for bill #' . $paymentId . ' has been confirmed. View the receipt in the resident portal.</p>');
-    $queued=queueResidentChannels($db,'payment_receipt:' . $paymentId . ':owner:' . $row['id'],$row,'[The Celandine] Payment Confirmed',$html,'The Celandine: Payment PHP ' . $amount . ' for bill #' . $paymentId . ' confirmed. View your receipt in the resident portal.','payment_receipt',$paymentId,$strict);
+    $amount=number_format((float)$receipt['amount'],2);
+    $html=paymentReceiptEmail($receipt,$contact);
+    $queued=queueResidentChannels($db,'payment_receipt:' . $paymentId . ':owner:' . $contact['id'],$contact,'[The Celandine] Payment Receipt '.$receipt['reference'],$html,'The Celandine: Payment PHP ' . $amount . ' for bill #' . $paymentId . ' confirmed. View your receipt in the resident portal.','payment_receipt',$paymentId,$strict);
     return $queued['email_queued'];
 }
 

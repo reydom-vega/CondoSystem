@@ -74,7 +74,7 @@ function residentUserHasPermission(mysqli $db,int $userId,string $capability): b
     if ($capability==='resident.stickers.order' && $context['account_kind']==='tenant') return appSetting('CONDO_TENANT_PARKING','1')==='1';
     $permissions=[
         'resident.portal'=>null, 'resident.billing.view'=>null, 'resident.billing.pay'=>'owner',
-        'resident.announcements.view'=>null, 'resident.violations.view'=>null,
+        'resident.announcements.view'=>null, 'resident.violations.view'=>null, 'resident.reports.use'=>null,
         'resident.amenities.book'=>'CONDO_TENANT_AMENITIES', 'resident.maintenance.request'=>'CONDO_TENANT_MAINTENANCE',
         'resident.messages.use'=>'CONDO_TENANT_MESSAGES', 'resident.visitors.register'=>'CONDO_TENANT_VISITORS',
         'resident.parking.request'=>'CONDO_TENANT_PARKING', 'resident.vehicles.register'=>'CONDO_TENANT_VEHICLES',
@@ -126,6 +126,7 @@ function residentCanPayBill(mysqli $db,int $actorId,int $billUserId,?int $paymen
         $find=$db->prepare('SELECT user_id,billing_scope FROM payments WHERE id=?');
         $find->bind_param('i',$paymentId); $find->execute(); $bill=$find->get_result()->fetch_assoc();
         if (!$bill || (int)$bill['user_id']!==$billUserId) return false;
+        if ($bill['billing_scope']==='visitor_parking')return $actor['account_kind']==='owner'&&$actorId===$billUserId;
         if ($bill['billing_scope']==='personal_parking') return $actor['account_kind']==='tenant' && $actorId===$billUserId;
     }
     return $actor && $actor['approved'] && $actor['account_kind']==='owner' && in_array($billUserId,residentBillingUserIds($db,$actorId),true);

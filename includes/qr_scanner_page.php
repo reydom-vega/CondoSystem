@@ -88,6 +88,7 @@ $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? su
                 </div>
             </section>
             <?php include __DIR__.'/qr_scan_history_content.php'; ?>
+            <?php if(canAccess('parking.gate'))include __DIR__.'/visitor_parking_widget.php'; ?>
         </main>
     </div>
     <script src="../js/profile-menu.js"></script>

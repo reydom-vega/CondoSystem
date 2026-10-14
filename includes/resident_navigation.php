@@ -9,6 +9,7 @@ function residentSidebarLinks(): array {
         ['parking.php', 'parking', 'Parking & Vehicles', 'resident.parking.request'],
         ['maintenance.php', 'maintenance', 'Maintenance', 'resident.maintenance.request'],
         ['messages.php', 'messages', 'Messages', 'resident.messages.use'],
+        ['reports.php', 'report', 'Community Reports', 'resident.reports.use'],
         ['announcements.php', 'announcements', 'Announcements', 'resident.announcements.view'],
         ['visitors.php', 'visitors', 'Visitor Registration', 'resident.visitors.register'],
         ['permits.php', 'calendar', 'Permit Requests', 'resident.permits.request'],

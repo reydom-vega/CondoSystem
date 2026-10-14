@@ -191,6 +191,7 @@ $nextDueDate = $dueDates[0] ?? null;
                         <span class="unit-status <?php echo htmlspecialchars($bill['status']); ?>"><?php echo htmlspecialchars(ucfirst($bill['status'])); ?></span>
                     </div>
 
+                    <?php renderVisitorParkingBillSummary($bill['visitor_parking']??null); ?>
                     <table class="soa-items">
                         <?php foreach ($bill['items'] as $item): ?>
                             <tr>
@@ -246,6 +247,7 @@ $nextDueDate = $dueDates[0] ?? null;
                             <?php endif; ?>
                             <?php if (!empty($bill['due_date'])): ?><div><span>Due date</span><strong><?php echo htmlspecialchars(date('M j, Y', strtotime($bill['due_date']))); ?></strong></div><?php endif; ?>
                         </div>
+                        <?php renderVisitorParkingBillSummary($bill['visitor_parking']??null); ?>
                         <table class="history-items">
                             <thead><tr><th>Charge</th><th class="soa-amount">Amount</th></tr></thead>
                             <tbody><?php foreach ($bill['items'] as $item): ?>

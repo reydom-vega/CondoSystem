@@ -38,7 +38,7 @@ try {
     $db = connectDb();
     ensureResidentServicesTables($db);
     ensureVisitorLogsTable($db); ensureVisitorLogColumns($db);
-    ensureAmenityBookingSchema($db); ensureParkingTables($db);
+    ensureAmenityBookingSchema($db); ensureParkingTables($db); ensureVisitorParkingFeeSchema($db);
     ensureVehiclesTable($db); ensureStickerVehicleLinks($db);
     for ($i=1;$i<=4;$i++) createVehicle($db,$i===3?2:1,'Toyota','Vios','Silver',2025,'TEST'.$i,'private_uploads/vehicle_documents/fixture.pdf','application/pdf');
     workflowTestActor(4,'superadmin');
@@ -248,12 +248,12 @@ try {
     workflowTestActor(1,'resident');
     $eligibleId = fixtureRegisterVisitorWithParking($db,1,['visitor_name'=>'Eligible Guest','details'=>'Tomorrow visit','start_date'=>$tomorrow]);
     expectWorkflowRejection(fn()=>requestLinkedVisitorParking($db,1,$eligibleId,['vehicle_plate'=>'WRONGDAY','start_date'=>$today,'end_date'=>$today]), 'parking period must contain visit date');
-    $existingLinkId = requestLinkedVisitorParking($db,1,$eligibleId,['vehicle_plate'=>'EXIST123','start_date'=>$tomorrow]);
+    $existingLinkId = requestLinkedVisitorParking($db,1,$eligibleId,['vehicle_plate'=>'EXIST123','start_date'=>$tomorrow,'expected_arrival'=>$tomorrow.'T08:00','expected_departure'=>$tomorrow.'T10:00','vehicle_type'=>'Car','parking_fee_ack'=>'1']);
     checkWorkflow($existingLinkId > 0, 'parking page links existing registration');
     checkWorkflow(!cancelVisitorParkingRequest($db,2,$existingLinkId), 'other resident cannot cancel parking');
     checkWorkflow(cancelVisitorParkingRequest($db,1,$existingLinkId), 'resident can cancel parking separately');
     checkWorkflow($db->query('SELECT status FROM resident_service_requests WHERE id = ' . $eligibleId)->fetch_assoc()['status'] === 'pending', 'parking cancellation preserves registration');
-    $existingLinkId = requestLinkedVisitorParking($db,1,$eligibleId,['vehicle_plate'=>'EXIST123','start_date'=>$tomorrow]);
+    $existingLinkId = requestLinkedVisitorParking($db,1,$eligibleId,['vehicle_plate'=>'EXIST123','start_date'=>$tomorrow,'expected_arrival'=>$tomorrow.'T08:00','expected_departure'=>$tomorrow.'T10:00','vehicle_type'=>'Car','parking_fee_ack'=>'1']);
     checkWorkflow($existingLinkId > 0, 'resident can request parking again after cancellation');
     require_once __DIR__.'/test_vehicle_upload.php';
     testVehicleUploadWorkflow($db);
@@ -265,7 +265,7 @@ try {
     postWorkflowFixture('resident/visitors.php',['visitor_name'=>'Parking Page Guest','details'=>'Parking requested later','start_date'=>$tomorrow]);
     fixtureCreateResidentServiceRequest($db,1,'visitor',['visitor_name'=>'Parking Page Guest','details'=>'Parking requested later','start_date'=>$tomorrow]);
     $parkingPageVisitorId = (int)$db->query("SELECT id FROM resident_service_requests WHERE visitor_name = 'Parking Page Guest'")->fetch_assoc()['id'];
-    postWorkflowFixture('resident/parking.php',['form_action'=>'visitor_request','visitor_registration_id'=>$parkingPageVisitorId,'vehicle_plate'=>'PAGE123','start_date'=>$tomorrow,'end_date'=>$tomorrow]);
+    postWorkflowFixture('resident/parking.php',['form_action'=>'visitor_request','visitor_registration_id'=>$parkingPageVisitorId,'vehicle_plate'=>'PAGE123','start_date'=>$tomorrow,'end_date'=>$tomorrow,'expected_arrival'=>$tomorrow.'T08:00','expected_departure'=>$tomorrow.'T10:00','vehicle_type'=>'Car','parking_fee_ack'=>'1']);
     $pageParking = $db->query('SELECT id FROM parking_requests WHERE visitor_registration_id = ' . $parkingPageVisitorId)->fetch_assoc();
     checkWorkflow($pageParking && $pageParking['id'] > 0, 'parking page POST links selected visitor');
     $csrfHtml = postWorkflowFixture('resident/visitors.php',array_merge($submittedVisitor,['visitor_name'=>'Rejected CSRF Guest']),false);
@@ -286,7 +286,7 @@ try {
             foreach (['visitor_name','visitor_contact','start_date','details'] as $field) {
                 checkWorkflow($xpath->query('//*[@name="' . $field . '"]/ancestor::label[contains(concat(" ",normalize-space(@class)," ")," field-label ")]')->length === 1, 'visitor field remains visible under resident label CSS: ' . $field);
             }
-            checkWorkflow($xpath->query('//input[@name="needs_parking"]')->length === 1 && $xpath->query('//fieldset[@id="visitorParkingFields" and @disabled and @hidden]')->length === 1, 'optional parking fields excluded until selected');
+            checkWorkflow($xpath->query('//input[@name="needs_parking" and @type="radio"]')->length === 2 && $xpath->query('//fieldset[@id="visitorParkingFields" and @disabled and @hidden]')->length === 1, 'optional parking fields excluded until selected');
             checkWorkflow($xpath->query('//a[@href="visitors.php" and @aria-current="page"]')->length === 1, 'visitor sidebar active state');
             checkWorkflow(str_contains($html,'EXIST123'), 'visitor history displays linked vehicle');
         }
@@ -303,7 +303,7 @@ try {
         foreach ($xpath->query('//form[translate(@method,"POST","post")="post"]') as $form) {
             checkWorkflow($xpath->query('.//input[@name="csrf_token"]',$form)->length === 1, 'CSRF field in ' . $page);
         }
-        $scripts = $xpath->query('//script[not(@src)]');
+        $scripts = $xpath->query('//script[not(@src) and (not(@type) or @type="text/javascript" or @type="application/javascript" or @type="module")]');
         foreach ($scripts as $script) {
             $js = tempnam(sys_get_temp_dir(),'condo_js_');
             file_put_contents($js . '.js',$script->textContent);

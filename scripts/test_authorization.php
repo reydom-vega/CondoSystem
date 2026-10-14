@@ -47,7 +47,7 @@ try {
     $db->query("UPDATE users SET status = 'pending' WHERE id IN (2,8,9)");
     $db->query('UPDATE users SET is_verified = 0 WHERE id = 8');
     ensurePaymentsTable($db); ensurePaymongoColumns($db); ensureResidentServicesTables($db); ensureParkingTables($db); ensureVisitorLogsTable($db); ensureVisitorLogColumns($db); ensureVehiclesTable($db); ensureStickerVehicleLinks($db); ensureBillingTables($db); ensureMessagesTable($db); ensureBookingsTable($db); ensureMaintenanceTable($db); ensureViolationsTable($db); ensureAnnouncementsTable($db); ensureRememberTokensTable($db);
-    ensureNotificationOutboxTable($db);
+    ensureNotificationOutboxTable($db); ensureCommunityReportSchema($db);
     // Manual visitor logging belongs to management; QR gate operations stay available.
     authorizationActor($db,3);
     checkAuthorization(!canAccess('visitors.logs') && canAccess('security.gate'), 'security loses manual visitor logs while retaining gate access');
@@ -116,6 +116,15 @@ try {
     $deliveryDom=new DOMDocument(); libxml_use_internal_errors(true); $deliveryDom->loadHTML($deliveryHtml); libxml_clear_errors();
     $deliveryXpath=new DOMXPath($deliveryDom);
     checkAuthorization($deliveryXpath->query('//form//input[@name="csrf_token"]')->length===1,'delivery retry form has CSRF');
+    checkAuthorization(stripos($deliveryHtml,'notification worker')!==false && str_contains($deliveryHtml,'Filter notification channel'),'delivery monitor shows worker activity and channel filters');
+    checkAuthorization(queueNotification($db,'role-delivery-sms','sms','09171234567','','Fixture SMS',1),'SMS monitor fixture queued');
+    $smsDeliveryId=(int)$db->insert_id;
+    $db->query("UPDATE notification_outbox SET status='failed',attempts=5 WHERE id=".$smsDeliveryId);
+    $emailDelivery=authorizationRequest('superadmin/notification_delivery.php',4,null,['get'=>['channel'=>'email','status'=>'failed']])['body'];
+    $smsDelivery=authorizationRequest('superadmin/notification_delivery.php',4,null,['get'=>['channel'=>'sms','status'=>'failed']])['body'];
+    checkAuthorization(str_contains($emailDelivery,'EMAIL to resident@example.invalid') && !str_contains($emailDelivery,'SMS to 639171234567'),'email monitor excludes SMS failures');
+    checkAuthorization(str_contains($smsDelivery,'SMS to 639171234567') && !str_contains($smsDelivery,'EMAIL to resident@example.invalid'),'SMS monitor excludes email jobs');
+    checkAuthorization(str_contains($emailDelivery,'status=pending&amp;channel=email') && str_contains($smsDelivery,'status=pending&amp;channel=sms'),'status navigation retains the selected channel');
     checkAuthorization(authorizationRequest('superadmin/notification_delivery.php',4,['notification_id'=>$deliveryId],['invalid_csrf'=>true])['status']===403,'delivery retry rejects forged CSRF');
     checkAuthorization($db->query('SELECT status FROM notification_outbox WHERE id='.$deliveryId)->fetch_assoc()['status']==='failed','forged delivery retry does not alter job');
     authorizationRequest('superadmin/notification_delivery.php',4,['notification_id'=>$deliveryId]);

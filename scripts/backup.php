@@ -56,6 +56,11 @@ function copyPrivateBackupFiles(string $source, string $target): void {
 }
 try {
     if (is_dir($root.'/private_uploads')) copyPrivateBackupFiles($root.'/private_uploads',$snapshot.'/private_uploads');
+    require_once $root.'/config.php';
+    // Older installations can still be backed up before this additive migration.
+    $reportBackupDb=new mysqli($configuredDbHost,$configuredDbUser,$configuredDbPass,$configuredDbName);
+    if($reportBackupDb->query("SHOW TABLES LIKE 'report_attachments'")->num_rows)copyPrivateBackupFiles(reportStorageDirectory(),$snapshot.'/community_report_evidence');
+    $reportBackupDb->close();
     writeBackupManifest($snapshot,$dumpFile);
     echo 'Backup complete: ' . $snapshot . PHP_EOL;
 } catch (Throwable $error) { fwrite(STDERR,'Private-file or manifest backup failed; snapshot is incomplete and must not be restored.' . PHP_EOL); exit(1); }

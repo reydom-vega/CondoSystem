@@ -72,6 +72,23 @@ try {
     outboxCheck((int)$db->query('SELECT COUNT(*) AS n FROM notification_outbox')->fetch_assoc()['n']===$count,'repeat announcement is idempotent');
     $db->query('UPDATE announcements SET is_active=0 WHERE id=1');
     outboxCheck(processNotificationOutbox($db,10,$sender)['cancelled']===2,'withdrawn announcement cancelled');
+    // Exercise the real notification builders, not just generic queue fixtures.
+    $noticeBill=createBill(1,[['category'=>'Monthly dues','amount'=>575]],null,null,date('Y-m-d',strtotime('+10 days')));
+    outboxCheck($noticeBill!==false && notifyResidentOfNewBill($noticeBill),'generated bill queues an email notice');
+    $billJobs=$db->query("SELECT * FROM notification_outbox WHERE event_kind='bill_notice' AND entity_id=".$noticeBill)->fetch_all(MYSQLI_ASSOC);
+    outboxCheck(count($billJobs)===2 && count(array_filter($billJobs,static fn(array $job):bool=>$job['channel']==='email' && $job['user_id']==1 && str_contains($job['body'],'Monthly dues') && str_contains($job['body'],'575.00')))===1,'bill notice has correct recipient and line items');
+    notifyResidentOfNewBill($noticeBill);
+    outboxCheck((int)$db->query("SELECT COUNT(*) n FROM notification_outbox WHERE event_kind='bill_notice' AND entity_id=".$noticeBill)->fetch_assoc()['n']===2,'repeated bill enqueue does not duplicate channels');
+    $db->query("INSERT INTO violations(id,user_id,violation_type,description,penalty_type,fine_amount,status,issued_by) VALUES(1,1,'Noise','Fixture <description>','fine',100,'unpaid',3)");
+    $violationNotice=notifyResidentOfViolation(1);
+    outboxCheck($violationNotice['email_queued'] && $violationNotice['sms_queued'] && !$violationNotice['email_sent'],'violation notice queues both channels without claiming immediate delivery');
+    $violationEmail=$db->query("SELECT body FROM notification_outbox WHERE event_kind='violation' AND channel='email' AND entity_id=1")->fetch_assoc()['body'];
+    outboxCheck(str_contains($violationEmail,'Fixture &lt;description&gt;') && str_contains($violationEmail,'100.00'),'violation email escapes content and includes the actual fine');
+    $delivered=[];
+    $built=processNotificationOutbox($db,10,static function(array $job)use(&$delivered):bool{$delivered[]=$job['event_kind'].':'.$job['channel'];return true;});
+    outboxCheck($built['sent']===4 && in_array('bill_notice:email',$delivered,true) && in_array('violation:email',$delivered,true),'worker delivers generated bill and violation notices');
+    // Keep the existing due-reminder fixture limited to payment #2.
+    $db->query("UPDATE payments SET status='paid' WHERE id=".$noticeBill);
     $reminders=sendDueDateReminders();
     outboxCheck($reminders['due_count']===1 && $reminders['emails_queued']===1 && $reminders['sms_queued']===1,'due reminders queued atomically');
     outboxCheck(sendDueDateReminders()['due_count']===0,'repeat reminder enqueue blocked for 24 hours');
@@ -85,7 +102,17 @@ try {
     $receiptCount=(int)$db->query("SELECT COUNT(*) AS n FROM notification_outbox WHERE event_kind='payment_receipt' AND entity_id=".$cash)->fetch_assoc()['n'];
     outboxCheck($receiptCount===2,'receipt channels stored with settlement');
     outboxCheck(!confirmCashBillPayment($db,$cash) && (int)$db->query("SELECT COUNT(*) AS n FROM notification_outbox WHERE event_kind='payment_receipt' AND entity_id=".$cash)->fetch_assoc()['n']===2,'repeated settlement creates no extra receipts');
+    $receiptJob=$db->query("SELECT * FROM notification_outbox WHERE event_kind='payment_receipt' AND channel='email' AND entity_id=".$cash)->fetch_assoc();
+    outboxCheck(str_contains($receiptJob['subject'],'Payment Receipt DUES-'.$cash) && str_contains($receiptJob['body'],'THE CELANDINE'),'system issues a branded receipt email');
+    outboxCheck(str_contains($receiptJob['body'],'PHP 150.00') && str_contains($receiptJob['body'],'Payment breakdown') && str_contains($receiptJob['body'],'Cash') && str_contains($receiptJob['body'],'0101'),'cash receipt includes actual total, charges, method and unit');
+    outboxCheck(str_contains($receiptJob['body'],'cid:celandine-brand-light') && !str_contains($receiptJob['body'],'cid:celandine-brand"'),'receipt uses orange logo on white background');
+    outboxCheck(!str_contains($receiptJob['body'],'Download PDF receipt') && !str_contains($receiptJob['body'],'Sign in to your authorized') && !str_contains($receiptJob['body'],'Your receipt from') && !str_contains($receiptJob['body'],'<h1'),'receipt omits the download prompt and duplicate brand heading');
+    outboxCheck(paymentReceiptData($db,2147483647)===null,'missing receipt cannot be generated');
     $failedBill=createBill(1,[['category'=>'Fixture','amount'=>200]],null,null,date('Y-m-d'),'cash');
+    outboxCheck(paymentReceiptData($db,$failedBill)===null && !notifyResidentOfPayment($failedBill),'unpaid bills cannot issue a receipt email');
+    outboxCheck(paymentReceiptData($db,1)['items'][0]['category']==='Payment','legacy paid bills retain a total-only receipt fallback');
+    $escapedReceipt=paymentReceiptData($db,$cash);$escapedReceipt['items'][0]['description']='<script>private</script>';$escaped=paymentReceiptEmail($escapedReceipt,['full_name'=>'Resident <One>']);
+    outboxCheck(str_contains($escaped,'&lt;script&gt;private&lt;/script&gt;') && str_contains($escaped,'Resident &lt;One&gt;') && !str_contains($escaped,'<script>'),'receipt escapes resident and charge descriptions');
     $db->query("CREATE TRIGGER reject_receipt BEFORE INSERT ON notification_outbox FOR EACH ROW BEGIN IF NEW.event_kind='payment_receipt' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Injected queue failure'; END IF; END");
     outboxCheck(!confirmCashBillPayment($db,$failedBill),'queue failure rejects settlement');
     outboxCheck($db->query('SELECT status FROM payments WHERE id='.$failedBill)->fetch_assoc()['status']==='pending','queue failure rolls back paid state');

@@ -1,0 +1,23 @@
+/* Homepage-only adaptation of the supplied Radial Bloom overlay. */
+html[data-cel-intro="playing"] { overflow:hidden; }
+.portal-ui .cel-intro { position:fixed; inset:0; z-index:2147483000; display:none; place-items:center; overflow:hidden; background:#101827; color:#fff; isolation:isolate; }
+html[data-cel-intro="playing"] .cel-intro { display:grid !important; }
+.cel-intro[hidden] { display:none; }
+.cel-intro::before { content:""; position:absolute; inset:0; background:radial-gradient(circle at 50% 48%,#203049 0%,#101827 62%); opacity:.7; }
+.cel-intro-content { position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; justify-content:center; width:min(90vw,460px); gap:15px; padding:70px 0; }
+.cel-intro-mark-wrap { position:relative; width:min(57vw,310px,48svh); aspect-ratio:1; }
+.cel-intro .cel-mark { width:100%; height:100%; display:block; overflow:visible; }
+.cel-intro .cel-petal { opacity:0; transform-box:view-box; will-change:transform,opacity; }
+.cel-intro-halo { position:absolute; inset:0; border:1px solid rgba(215,172,105,.3); border-radius:50%; opacity:0; transform:scale(.84); pointer-events:none; }
+.cel-intro-wordmark { text-align:center; opacity:0; transform:translateY(10px); }
+.cel-intro-name { font-family:CelandineRoman,Georgia,'Times New Roman',serif; font-size:clamp(20px,4vw,32px); font-weight:400; letter-spacing:.13em; white-space:nowrap; color:#e9c994; }
+.cel-intro-homes { display:flex; align-items:center; justify-content:center; gap:14px; margin-top:7px; font:500 10px/1.5 Inter,Arial,sans-serif; letter-spacing:.65em; color:#e9c994; padding-left:.65em; }
+.cel-intro-homes span { width:58px; height:1px; background:linear-gradient(90deg,transparent,#d9b577); }
+.cel-intro-homes span:last-child { transform:rotate(180deg); }
+.cel-intro-glow { position:absolute; bottom:-24vh; left:50%; width:120vw; height:42vh; transform:translateX(-50%); background:radial-gradient(ellipse,rgba(215,172,105,.18),transparent 65%); opacity:0; pointer-events:none; }
+.portal-ui .cel-skip { position:absolute; z-index:3; right:max(env(safe-area-inset-right),clamp(16px,4vw,52px)); top:max(env(safe-area-inset-top),clamp(16px,4vw,36px)); display:inline-flex; align-items:center; justify-content:center; gap:8px; width:auto; min-height:44px; margin:0; border:1px solid rgba(255,255,255,.35); border-radius:999px; background:rgba(255,255,255,.06); color:#fff; padding:11px 18px; cursor:pointer; font:500 13px/1.4 Inter,Arial,sans-serif; letter-spacing:.02em; box-shadow:none; }
+.portal-ui .cel-skip:hover,.portal-ui .cel-skip:focus-visible { background:rgba(255,255,255,.16); color:#fff; }
+.portal-ui .cel-skip:focus-visible { outline:2px solid #e9c994; outline-offset:4px; }
+@media(max-width:480px) { .cel-intro-mark-wrap { width:min(66vw,270px,48svh); } .cel-intro-name { letter-spacing:.09em; } .cel-intro-homes span { width:38px; } }
+@media(prefers-reduced-motion:reduce) { html[data-cel-intro="playing"] .cel-intro { display:none !important; } html[data-cel-intro="playing"] { overflow:visible; } .cel-intro * { animation:none !important; transition:none !important; } }
+@media print { html[data-cel-intro="playing"] .cel-intro { display:none !important; } }

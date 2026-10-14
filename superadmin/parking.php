@@ -151,6 +151,7 @@ foreach ($parkingSlots as $slot) {
             </section><?php endif; ?>
             <?php if (isset($parkingTabs['vehicles'])): ?><section <?= parkingWorkspacePanelAttributes('vehicles', $parkingActiveTab) ?>><?= $parkingVehiclesContent ?></section><?php endif; ?>
             <section <?= parkingWorkspacePanelAttributes('visitors', $parkingActiveTab) ?>>
+            <?php include __DIR__.'/../includes/visitor_parking_widget.php'; ?>
             <div class="parking-request-columns">
             <section class="unit-management-panel parking-panel parking-requests-panel">
                 <h3 class="section-title">Parking Requests</h3>
@@ -162,7 +163,7 @@ foreach ($parkingSlots as $slot) {
                             <div class="parking-request-head">
                                 <div>
                                     <strong><?php echo htmlspecialchars($req['full_name']); ?></strong>
-                                    <?php if (!empty($req['visitor_registration_id'])): ?><p>Visitor: <?php echo htmlspecialchars($req['visitor_name'] ?? 'Registration unavailable'); ?> · <?php echo htmlspecialchars(str_replace('_', ' ', $req['visitor_status'] ?? 'unavailable')); ?> <a class="service-btn service-btn-secondary" href="service_requests.php?kind=visitor">Review visitor registration</a></p><?php endif; ?>
+                                    <?php if (!empty($req['visitor_registration_id'])): ?><p>Visitor: <?php echo htmlspecialchars($req['visitor_name'] ?? 'Registration unavailable'); ?> · <?php echo htmlspecialchars(str_replace('_', ' ', $req['visitor_status'] ?? 'unavailable')); ?> <?php if(!canAccess('visitors.approve_all') || $req['status']!=='pending'): ?><a class="service-btn service-btn-secondary" href="service_requests.php?kind=visitor">Review visitor registration</a><?php endif; ?></p><?php endif; ?>
                                     <small> · Unit <?php echo htmlspecialchars($req['unit_number']); ?> · <?php echo $req['request_type'] === 'resident_assignment' ? 'Resident slot request' : 'Visitor parking'; ?></small><br>
                                     <span>Plate: <strong><?php echo htmlspecialchars($req['vehicle_plate']); ?></strong><?php if (!empty($req['vehicle_description'])): ?> — <?php echo htmlspecialchars($req['vehicle_description']); ?><?php endif; ?></span><br>
                                     <span><?php echo htmlspecialchars(date('M j, Y', strtotime($req['start_date']))); ?><?php if ($req['end_date']): ?> to <?php echo htmlspecialchars(date('M j, Y', strtotime($req['end_date']))); ?><?php endif; ?></span>
@@ -185,7 +186,7 @@ foreach ($parkingSlots as $slot) {
                                         <?php endforeach; ?>
                                     </select>
                                     <input type="text" name="admin_notes" placeholder="Note (optional)">
-                                    <button type="submit" name="decision" value="approved" class="service-btn service-btn-approve" <?php echo !empty($req['visitor_registration_id']) && !in_array($req['visitor_status'], ['approved','checked_in'], true) ? 'disabled title="Approve the visitor registration first"' : ''; ?>>Approve</button>
+                                    <?php if(canAccess('visitors.approve_all')&&!empty($req['visitor_registration_id'])): ?><button type="button" class="service-btn service-btn-approve" data-vp-review-request="<?= (int)$req['id'] ?>" data-csrf="<?= htmlspecialchars(workflowCsrfToken(),ENT_QUOTES,'UTF-8') ?>">Review &amp; Approve</button><?php else: ?><button type="submit" name="decision" value="approved" class="service-btn service-btn-approve" <?php echo !empty($req['visitor_registration_id']) && !in_array($req['visitor_status'], ['approved','checked_in'], true) ? 'disabled title="Approve the visitor registration first"' : ''; ?>>Approve</button><?php endif; ?>
                                     <button type="submit" name="decision" value="rejected" class="service-btn service-btn-danger">Reject</button>
                                 </form>
                             <?php elseif ($req['status'] === 'approved' && ($req['request_type'] === 'resident_assignment' || ($req['end_date'] ?: $req['start_date']) >= date('Y-m-d'))): ?>
@@ -272,6 +273,7 @@ foreach ($parkingSlots as $slot) {
                     <?php endforeach; ?>
                 <?php endif; ?>
             </section></section><?php endif; ?>
+            <?php if(isset($parkingTabs['extensions'])): ?><section <?= parkingWorkspacePanelAttributes('extensions',$parkingActiveTab) ?>><?php $vpOnlyExtensions=true;include __DIR__.'/../includes/visitor_parking_widget.php';unset($vpOnlyExtensions); ?></section><?php endif; ?>
             <section <?= parkingWorkspacePanelAttributes('records', $parkingActiveTab) ?>><?php include __DIR__.'/../includes/parking_records_content.php'; ?></section>
 
         </main>

@@ -436,6 +436,14 @@ function getNotifications(): array {
         $result = $connection->query($sql);
         return $result ? (int)($result->fetch_assoc()['total'] ?? 0) : 0;
     };
+    if ($connection->query("SHOW TABLES LIKE 'community_reports'")->num_rows) {
+        if ($can('reports.manage')) $add(reportUnreadCount($connection,$userId,true),'report','Community reports','private cases require review.','superadmin/reports.php');
+        if ($role==='resident' && residentUserHasPermission($connection,$userId,'resident.reports.use')) $add(reportUnreadCount($connection,$userId,false),'report','Private report updates','your community reports have updates.','resident/reports.php');
+    }
+    if ($connection->query("SHOW TABLES LIKE 'job_reports'")->num_rows && $can('jobs.personal')) {
+        if ($can('jobs.review')) $add($count("SELECT COUNT(*) total FROM job_reports WHERE status='submitted' AND user_id<>".$userId),'audit','Staff reports','submitted job reports await independent review.','superadmin/staff.php?tab=reports');
+        $add($count("SELECT COUNT(*) total FROM job_reports r WHERE user_id=".$userId." AND status='returned' AND NOT EXISTS(SELECT 1 FROM job_reports next_version WHERE next_version.previous_report_id=r.id)"),'audit','Job report feedback','job reports have clarification feedback.','job_report.php');
+    }
     if ($can('billing.manage') && ensureBillingTables($connection)) {
         $add($count("SELECT COUNT(*) AS total FROM payments WHERE status = 'pending'"), 'credit-card', 'Pending payments', 'payment records await confirmation.', 'superadmin/unitpayments.php?status=pending');
         $add($count("SELECT COUNT(*) AS total FROM payments WHERE status = 'overdue'"), 'violations', 'Overdue payments', 'payment records require follow-up.', 'superadmin/unitpayments.php?status=overdue');
@@ -753,7 +761,9 @@ function sendMail(string $to, string $subject, string $message): bool {
         $mail->Timeout = 15;
         
         $mail->setFrom($configuredMailFrom, brandMailFromName(appSetting('CONDO_MAIL_FROM_NAME', MAIL_FROM_NAME)));
-        if (str_contains($message, 'cid:celandine-brand')) {
+        if (str_contains($message, 'cid:celandine-brand-light')) {
+            $mail->addEmbeddedImage(__DIR__.'/assets/branding/email-brand-light.png', 'celandine-brand-light', 'the-celandine.png', 'base64', 'image/png');
+        } elseif (str_contains($message, 'cid:celandine-brand')) {
             $mail->addEmbeddedImage(__DIR__.'/assets/branding/email-brand-dark.png', 'celandine-brand', 'the-celandine.png', 'base64', 'image/png');
         }
         $mail->addAddress($to);
@@ -1113,6 +1123,7 @@ require_once __DIR__ . '/includes/notification_outbox.php';
 require_once __DIR__ . '/includes/notify.php';
 require_once __DIR__ . '/includes/ui_icons.php';
 require_once __DIR__ . '/includes/billing.php';
+require_once __DIR__ . '/includes/payment_receipts.php';
 require_once __DIR__ . '/includes/violations.php';
 require_once __DIR__ . '/includes/visitors.php';
 require_once __DIR__ . '/includes/maintenance.php';
@@ -1125,9 +1136,18 @@ require_once __DIR__ . '/includes/amenities.php';
 require_once __DIR__ . '/includes/access_scanner.php';
 require_once __DIR__ . '/includes/qr_scan_history.php';
 require_once __DIR__ . '/includes/visitor_parking.php';
+require_once __DIR__ . '/includes/visitor_parking_fees.php';
+require_once __DIR__ . '/includes/visitor_parking_extensions.php';
+require_once __DIR__ . '/includes/visitor_parking_views.php';
+require_once __DIR__ . '/includes/visitor_parking_approval.php';
 require_once __DIR__ . '/includes/vehicles.php';
 require_once __DIR__ . '/includes/authentication.php';
 require_once __DIR__ . '/includes/digital_id.php';
+require_once __DIR__ . '/includes/community_reports.php';
+require_once __DIR__ . '/includes/report_evidence.php';
+require_once __DIR__ . '/includes/report_workflow.php';
+require_once __DIR__ . '/includes/report_queries.php';
+require_once __DIR__ . '/includes/job_reports.php';
 
 // If there's no active session but a valid remember-me cookie is
 // present, this restores the session so the account stays logged in

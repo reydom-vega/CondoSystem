@@ -42,6 +42,9 @@ function queueNotification(mysqli $db, string $eventKey, string $channel, string
 
 /** Obsolete reminders/addresses are cancelled before any provider request. */
 function notificationStillRelevant(mysqli $db, array $job): bool {
+    if(in_array($job['event_kind'],['job_report_submitted','job_report_review'],true) && !jrNotificationRelevant($db,$job))return false;
+    if($job['event_kind']==='visitor_parking'&&!vpNotificationRelevant($db,$job))return false;
+    if ($job['event_kind']==='community_report' && !reportNotificationRelevant($db,$job)) return false;
     if ($job['user_id'] !== null) {
         $find = $db->prepare('SELECT is_active,is_verified,role,status,session_version,email,contact_number FROM users WHERE id=?');
         $id = (int)$job['user_id']; $find->bind_param('i',$id); $find->execute();
@@ -78,6 +81,8 @@ function notificationStillRelevant(mysqli $db, array $job): bool {
 /** Retry failed delivery only; the worker rechecks its recipient and relevance. */
 function retryNotificationDelivery(mysqli $db, int $id): bool {
     if (!canAccess('notifications.manage') || $id < 1) return false;
+    $check=$db->prepare('SELECT event_kind,entity_id FROM notification_outbox WHERE id=?');$check->bind_param('i',$id);$check->execute();$job=$check->get_result()->fetch_assoc();
+    if($job && $job['event_kind']==='community_report' && !reportCanReview($db,(int)$job['entity_id'],(int)$_SESSION['user_id'])) return false;
     ensureAuditLogTable($db);
     $db->begin_transaction();
     try {

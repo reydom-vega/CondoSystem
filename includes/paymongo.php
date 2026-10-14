@@ -325,7 +325,7 @@ function createPaymongoCheckoutSession(int $paymentId, array $items, string $des
     $payload = [
         'data' => [
             'attributes' => [
-                'send_email_receipt' => true,
+                'send_email_receipt' => false, // The Celandine sends the receipt after verified settlement.
                 'show_line_items'    => true,
                 'show_description'   => true,
                 'description'        => $description,

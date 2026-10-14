@@ -30,7 +30,7 @@ function verifyAccessScan(mysqli $db, string $content): array {
     $outcome='invalid'; $valid=false;
     if($status==='cancelled') $outcome='cancelled';
     elseif(in_array($status,['completed','checked_out'],true)) $outcome='already_used';
-    elseif($status==='expired' || ($type!=='property' && ($pass['end_date'] ?: $pass['start_date'])<date('Y-m-d'))) $outcome='expired';
+    elseif($status==='expired' || ($status!=='checked_in' && $type!=='property' && ($pass['end_date'] ?: $pass['start_date'])<date('Y-m-d'))) $outcome='expired';
     elseif($type==='property') $valid=gateValid($pass);
     elseif(in_array($status,['approved','checked_in'],true) && $pass['start_date']<=date('Y-m-d')) {
         $valid=match($type) {
@@ -44,7 +44,11 @@ function verifyAccessScan(mysqli $db, string $content): array {
     $visitorInfo = [];
     if ($type === 'visitor') {
         $vehicle = visitorPassVehicle($db, (int)$pass['id']);
-        $visitorInfo = ['identity_status' => $pass['identity_status'], 'visit_date' => $pass['start_date'],
+        if(visitorParkingFeesReady($db)){
+            $session=$db->query('SELECT id FROM parking_requests WHERE visitor_registration_id='.(int)$pass['id']." AND status='approved' ORDER BY id DESC LIMIT 1")->fetch_assoc();
+            if($session && canAccess('parking.review')){ $vp=vpSessionData($db,vpLoad($db,(int)$session['id']),vpNow());$visitorInfo=['parking_slot'=>$vp['slot'],'parking_compliance'=>$vp['compliance_label'],'parking_rate'=>'PHP 50/hour','parking_time_in'=>$vp['arrival']?vpLocal($vp['arrival']):'Not checked in','parking_estimate'=>$vp['quote']?'PHP '.$vp['quote']['amount']:'Not started','parking_approved_until'=>$vp['authorized_until']?vpLocal($vp['authorized_until']):'Standard 24-hour limit']; }
+        }
+        $visitorInfo += ['identity_status' => $pass['identity_status'], 'visit_date' => $pass['start_date'],
             'visit_purpose' => $pass['details'], 'visitor_count' => (int)$pass['visitor_count'],
             'vehicle_plate' => $vehicle['vehicle_plate'] ?? '', 'vehicle_description' => $vehicle['vehicle_description'] ?? '',
             'parking_status' => $vehicle['status'] ?? ''];

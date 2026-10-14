@@ -120,6 +120,9 @@ body.portal-ui.dashboard-page::before,body.portal-ui.dashboard-page::after { dis
 .portal-ui :is(.unit-filters,.service-actions,.service-request-actions,.form-actions,.bill-actions,.violation-form-actions) { gap:10px; flex-wrap:wrap; align-items:center; }
 .portal-ui .unit-filters { align-items:flex-end; padding:16px; margin:0 0 20px; background:var(--theme-inset,#131c2c); border:1px solid var(--border-color); border-radius:10px; }
 .portal-ui .unit-filters :is(input,select) { margin:0; }
+/* Flat buttons across roles and themes, including hover/active/focus states.
+   Keep the shared keyboard-focus outline and the shadows on cards/dialogs. */
+.portal-ui :is(button,input[type=submit],input[type=button],input[type=reset],[role=button],a[class*="btn"],a[class*="button"],a.registered-vehicles-link) { box-shadow:none !important; }
 .portal-ui :is(.unit-filters,.service-actions) > :is(input,select,label) { max-width:100%; min-width:0; }
 .portal-ui :is(.service-btn,.btn,.btn-primary,.btn-neutral,.btn-danger,.btn-success,.btn-small,.maintenance-admin-button,.reply-send,.unit-filters > button,.service-actions > button,.form-actions > button,button[type=submit]):not(.notification-mark-read) { display:inline-flex; align-items:center; justify-content:center; gap:7px; width:auto; min-height:var(--control-height); padding:10px 16px; margin-top:0; border:1px solid transparent; border-radius:var(--radius-control); font-size:13px; line-height:1.4; font-weight:600; text-decoration:none; box-shadow:none; cursor:pointer; }
 .portal-ui :is(.service-btn,.btn-primary,.reply-send,button[type=submit]):not(.service-btn-secondary):not(.service-btn-danger):not(.btn-neutral):not(.btn-danger):not(.btn-success):not(.maintenance-admin-button) { background:var(--accent-primary); color:var(--theme-ink,#fff); }

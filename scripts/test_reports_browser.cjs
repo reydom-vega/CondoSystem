@@ -1,0 +1,116 @@
+/* Only use the disposable test_ui_redesign.php --preview fixture. */
+const {spawn}=require('node:child_process');
+const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),net=require('node:net');
+const base=process.argv[2],sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+if(!/^http:\/\/127\.0\.0\.1:\d+\/CondoSystem3\/$/.test(base||''))throw Error('Pass the disposable UI fixture URL.');
+(async()=>{
+ const manifest=await(await fetch(base+'__manifest')).json();
+ if(!manifest.some(entry=>entry.path==='resident/reports.php'))throw Error('Missing profile fixture');
+ const port=await new Promise(resolve=>{const s=net.createServer();s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>resolve(p));});});
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'condo-reports-browser-'));
+ const chrome=spawn('C:/Program Files/Google/Chrome/Application/chrome.exe',['--headless','--no-sandbox',`--remote-debugging-port=${port}`,`--user-data-dir=${directory}`,'about:blank'],{windowsHide:true,stdio:'ignore'});
+ let socket,checks=0;const errors=[];
+ try {
+  let target;for(let i=0;i<100;i++){try{target=(await(await fetch(`http://127.0.0.1:${port}/json`)).json()).find(t=>t.type==='page');if(target)break;}catch{}await sleep(100);}
+  if(!target)throw Error('Chrome unavailable');socket=new WebSocket(target.webSocketDebuggerUrl);await new Promise(resolve=>socket.onopen=resolve);
+  let seq=0;const calls=new Map();socket.onmessage=e=>{const m=JSON.parse(e.data),c=calls.get(m.id);if(c){calls.delete(m.id);clearTimeout(c.timer);m.error?c.reject(m.error):c.resolve(m.result);}if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails.exception?.description||m.params.exceptionDetails.text);};
+  const send=(method,params={})=>new Promise((resolve,reject)=>{const id=++seq,timer=setTimeout(()=>{calls.delete(id);reject(Error('Timeout '+method));},30000);calls.set(id,{resolve,reject,timer});socket.send(JSON.stringify({id,method,params}));});
+  const ev=async expression=>{const r=await send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.exception?.description||r.exceptionDetails.text);return r.result.value;};
+  const until=async expression=>{for(let i=0;i<200;i++){if(await ev(expression))return;await sleep(75);}throw Error('Timed out '+expression+'\n'+await ev('document.body.innerText'));};
+  const shot=async name=>{const metrics=await send('Page.getLayoutMetrics');const r=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:true,clip:{x:0,y:0,width:metrics.cssContentSize.width,height:metrics.cssContentSize.height,scale:1}});fs.writeFileSync(path.join(directory,name+'.png'),Buffer.from(r.data,'base64'));};
+  const check=async(expression,label)=>{if(!await ev(expression)){await shot('failure');throw Error(label);}checks++;};
+  const go=async(actor,route='resident/reports.php')=>{await ev('window.reportsNavigating=true');const url=new URL(route,base);url.searchParams.set('fixture_actor',actor);await send('Page.navigate',{url:url.href});await until("!window.reportsNavigating&&document.readyState==='complete'&&!!window.CelandineUi");await sleep(350);};
+  await send('Page.enable');await send('Runtime.enable');await send('Network.enable');
+  const post=async(action,values={},files=[])=>ev(`(async()=>{const c=JSON.parse(document.getElementById('reportConfig').textContent),d=new FormData();Object.entries(${JSON.stringify(values)}).forEach(([k,v])=>d.set(k,v));d.set('action',${JSON.stringify(action)});d.set('csrf_token',c.csrf);d.set('management',c.portal==='management'?'1':'0');for(const f of ${JSON.stringify(files)}){let blob;if(f.kind==='image'){const canvas=document.createElement('canvas');canvas.width=80;canvas.height=50;canvas.getContext('2d').fillRect(0,0,80,50);blob=await new Promise(r=>canvas.toBlob(r,'image/png'));if(f.trailing)blob=new Blob([blob,f.trailing],{type:'image/png'});}else blob=new Blob([f.text||'forged data'],{type:f.type||'image/png'});d.append('evidence[]',blob,f.name);}const r=await fetch(c.endpoint,{method:'POST',body:d,cache:'no-store'});return {status:r.status,data:await r.json(),cache:r.headers.get('cache-control')};})()`);
+  const input=(extra={})=>({reporting_mode:'identified',subject:'Browser case '+Date.now(),category:'Noise Disturbance',incident_date:new Date().toLocaleDateString('en-CA'),location:'Lobby',description:'Browser evidence privacy check',person_kind:'No Specific Person',urgency:'normal',confirm_accuracy:'1',request_key:require('node:crypto').randomUUID(),...extra});
+  await go(1);await until("document.querySelectorAll('.report-stat').length>0");
+  for(const actor of [1,2,4,6]){
+    await go(actor,actor<=2?'resident/reports.php':'superadmin/reports.php');await until("document.querySelectorAll('.report-stat').length>0");
+    await check("document.querySelectorAll('.portal-sidebar-footer').length===1",'Single existing sidebar footer '+actor);
+    for(const width of [1366,768,390,320])for(const theme of ['dark','light']){
+      await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<700});await ev('CelandineTheme.set('+JSON.stringify(theme)+')');
+      await check('document.documentElement.scrollWidth<=innerWidth+1','List fits '+actor+' '+width+' '+theme);
+      if(actor<=2){await ev("document.querySelector('[data-report-tab=new]').click()");await check('document.documentElement.scrollWidth<=innerWidth+1','Form fits '+actor+' '+width+' '+theme);await check("[...document.querySelectorAll('.report-identity-options label')].every(l=>l.getBoundingClientRect().height>0&&getComputedStyle(l).display!=='none')",'Both privacy choices are visible '+actor+' '+width+' '+theme);}
+    }
+  }
+  await go(1);await send('Emulation.setDeviceMetricsOverride',{width:1366,height:1000,deviceScaleFactor:1,mobile:false});
+  await ev("document.querySelector('[data-report-tab=new]').click();document.getElementById('reportContinue').click()");
+  await check("document.querySelectorAll('[data-report-step]').length===2&&!document.querySelector('[data-report-step=\"0\"]').hidden",'Two-step form blocks review until required details are entered');
+  await check("!document.getElementById('reportOptionalDetails').open&&!document.getElementById('reportEvidenceOptions').open&&document.getElementById('reportStats').hidden",'Optional fields and dashboard counts stay out of the main form');
+  await check("[...document.querySelectorAll('[data-report-step=\"0\"] input[required],[data-report-step=\"0\"] select[required],[data-report-step=\"0\"] textarea[required]')].every(f=>f.labels[0].querySelectorAll('.portal-required').length===1)",'Each required field has one clear marker');
+  await ev("CelandineTheme.set('dark')");await sleep(250);await shot('new-report-desktop-dark');
+  await ev("var f=document.getElementById('newReportForm');f.elements.subject.value='UI submitted report';f.elements.category.value='Staff Misconduct';f.elements.category.dispatchEvent(new Event('change',{bubbles:true}));f.elements.incident_date.value=new Date().toLocaleDateString('en-CA');f.elements.location.value='Lobby';f.elements.description.value='Actual browser form submission';document.getElementById('reportOptionalDetails').open=false;document.getElementById('reportContinue').click()");
+  await check("document.getElementById('reportOptionalDetails').open&&!document.querySelector('[data-report-step=\"0\"]').hidden",'Staff routing stays required and opens the extra-details section');
+  await ev("f.elements.category.value='Noise Disturbance';f.elements.category.dispatchEvent(new Event('change',{bubbles:true}));document.getElementById('reportContinue').click()");
+  await check("!document.querySelector('[data-report-step=\"1\"]').hidden&&document.getElementById('reportReview').textContent.includes('Actual browser form submission')",'Basic report reaches review without optional details or evidence');
+  await sleep(250);await shot('review-report-desktop-dark');
+  await ev("document.getElementById('reportSubmit').click()");await check("!document.getElementById('reportSuccess').open&&!document.querySelector('[data-report-step=\"1\"]').hidden",'Accuracy confirmation remains required');
+  await ev("document.getElementById('reportBack').click();document.getElementById('reportEvidenceOptions').open=true");await check("!document.querySelector('[data-report-step=\"0\"]').hidden&&document.getElementById('newReportForm').elements.description.value==='Actual browser form submission'",'Edit details preserves the report');
+  await ev("(async()=>{const c=document.createElement('canvas');c.width=80;c.height=50;c.getContext('2d').fillRect(0,0,80,50);const b=await new Promise(r=>c.toBlob(r,'image/png')),d=new DataTransfer();d.items.add(new File([b],'evidence.png',{type:'image/png'}));const i=document.getElementById('reportEvidence');i.files=d.files;i.dispatchEvent(new Event('change'));})()");await until("document.querySelectorAll('#reportEvidencePreview img').length===1");checks++;
+  await ev("document.getElementById('reportContinue').click();document.getElementById('newReportForm').elements.confirm_accuracy.checked=true;document.getElementById('reportSubmit').click();document.getElementById('reportSubmit').click()");
+  await until("document.getElementById('reportSuccess').open");const ref=await ev("document.getElementById('reportSuccessReference').textContent.replace('Reference: ','')");await check("!document.getElementById('reportSuccessTitle').textContent.includes('already')",'Server confirmed single submission');
+  await ev("document.getElementById('reportSuccessClose').click()");await until("!document.getElementById('reportDetail').hidden");await ev("document.getElementById('reportCaseEvidenceOptions').open=true");await until("document.querySelector('#reportCaseEvidence img')?.naturalWidth===80");
+  await check("document.getElementById('reportNextStep').textContent.includes('no further action needed')&&!document.querySelector('#reportProgress .upcoming')",'Successful submission clearly needs no extra steps');
+  await check("document.querySelectorAll('#reportProgress .complete').length===0&&document.querySelectorAll('#reportProgress .current').length===1",'No invented completed timeline stages');
+  let detail=(await post('read',{reference:ref})).data.data;const evidenceUrl=detail.attachments[0].url;
+  await check("document.documentElement.scrollWidth<=innerWidth+1",'Details fit desktop');await ev("CelandineTheme.set('dark')");await shot('report-dark-desktop');
+  await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await ev("CelandineTheme.set('light')");await check('document.documentElement.scrollWidth<=innerWidth+1','Details fit light mobile');await shot('report-light-mobile');
+  let result=await post('create',input(),[{name:'fake.png',text:'<?php echo 1;?>'}]);if(result.status!==422)throw Error('Spoofed image accepted');checks++;
+  result=await post('create',input(),[{name:'script.php',kind:'image'}]);if(result.status!==422)throw Error('Executable extension accepted');checks++;
+  const imageCase=await post('create',input({reporting_mode:'anonymous'}),[{name:'private-name.png',kind:'image'}]);if(!imageCase.data.success)throw Error(JSON.stringify(imageCase));checks++;
+  const ar=imageCase.data.data.reference,code=imageCase.data.data.access_code;
+  const anon=await post('read',{reference:ar,anonymous:'1'});if(JSON.stringify(anon).includes('private-name')||anon.data.data.reporter.name!=='Anonymous Reporter')throw Error('Anonymous metadata exposed');checks++;
+  const ownList=await post('list');if(ownList.data.data.records.some(r=>r.reference===ar))throw Error('Anonymous linked to account');checks++;
+  await go(2);result=await post('read',{reference:ref});if(result.status!==422)throw Error('Other account viewed report');checks++;
+  const foreign=await ev(`(async()=>{const r=await fetch(${JSON.stringify(evidenceUrl)});return r.status;})()`);if(foreign!==404)throw Error('Evidence IDOR');checks++;
+  await go(4,'superadmin/reports.php?reference='+ref);await until("!document.getElementById('reportDetail').hidden");
+  await send('Emulation.setDeviceMetricsOverride',{width:1366,height:1000,deviceScaleFactor:1,mobile:false});await ev("CelandineTheme.set('dark')");await shot('management-report-desktop-dark');
+  await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await ev("CelandineTheme.set('light')");await shot('management-report-mobile-light');
+  await check("document.querySelectorAll('[data-report-quick]').length===3&&!document.getElementById('reportMoreActions').open",'Management sees three routine actions and collapsed case options');
+  await ev("document.querySelector('#reportNextStep button').click()");
+  await check("document.getElementById('reportActionForm').elements.operation.value==='status'&&document.getElementById('reportActionForm').elements.status.value==='under_review'",'Start review prepares the permitted status update');
+  detail=(await post('read',{reference:ref})).data.data;if(detail.status!=='submitted')throw Error('Shortcut changed status before submission');checks++;
+  await ev("var a=document.getElementById('reportActionForm');a.elements.body.value='We are reviewing the reported concern.';a.requestSubmit()");await until("document.querySelector('#reportCaseHeading [data-status=under_review]')");
+  await check("document.getElementById('reportActionForm').querySelector('button[type=submit]').textContent==='Send message'",'Action label resets to the current operation after saving');
+  await ev("document.querySelector('[data-report-quick=status]').click();var a=document.getElementById('reportActionForm');a.elements.status.value='awaiting_information';a.elements.body.value='Please tell us when the disturbance happened.';a.requestSubmit()");await until("document.querySelector('#reportCaseHeading [data-status=awaiting_information]')");checks++;
+  await go(1,'resident/reports.php?reference='+ref);await until("document.getElementById('reportNextStep').textContent.includes('Your reply is needed')");checks++;
+  await ev("var a=document.getElementById('reportActionForm');a.elements.body.value='The disturbance happened around 10 PM.';a.requestSubmit()");await until("document.getElementById('reportConversation').textContent.includes('around 10 PM')");checks++;
+  await go(4,'superadmin/reports.php?reference='+ref);await until("!document.getElementById('reportDetail').hidden");detail=(await post('read',{reference:ref})).data.data;
+  result=await post('update',{reference:ref,version:detail.version,operation:'note',body:'Secret internal investigation',request_key:require('node:crypto').randomUUID()},[{name:'internal.png',kind:'image'}]);if(!result.data.success)throw Error(JSON.stringify(result));checks++;
+  detail=(await post('read',{reference:ref})).data.data;const internalUrl=detail.attachments.find(f=>f.display_name==='internal.png').url;
+  result=await post('update',{reference:ref,version:detail.version,operation:'status',status:'declined',body:'Insufficient information to proceed at this time.',request_key:require('node:crypto').randomUUID()});if(!result.data.success)throw Error(JSON.stringify(result));checks++;
+  await go(4,'superadmin/reports.php?reference='+ref);await until("!document.getElementById('reportDetail').hidden");
+  await ev("var a=document.getElementById('reportActionForm');a.elements.operation.value='status';a.elements.operation.dispatchEvent(new Event('change',{bubbles:true}));");
+  await check("[...document.getElementById('reportActionForm').elements.status.options].map(o=>o.value).join(',')==='under_review'",'Management status menu uses server-authorized transitions');
+  await ev("var a=document.getElementById('reportActionForm');document.querySelector('[data-report-quick=note]').click();a.elements.body.value='Private UI investigation note';a.requestSubmit()");await until("document.getElementById('reportTimeline').textContent.includes('Private UI investigation note')");checks++;
+  await go(1);result=await post('read',{reference:ref});if((JSON.stringify(result).includes('Secret internal')||JSON.stringify(result).includes('Private UI investigation note'))||result.data.data.attachments.length!==1)throw Error('Internal note or evidence leak');checks++;
+  if(await ev(`(async()=>{const r=await fetch(${JSON.stringify(internalUrl.replace('&management=1',''))});return r.status;})()`) !==404)throw Error('Internal evidence served to reporter');checks++;
+  await go(1,'resident/reports.php?reference='+ref);await until("document.getElementById('reportProgress').textContent.includes('Declined')");await check("![...document.querySelectorAll('#reportProgress li')].some(n=>n.textContent.startsWith('Resolved'))",'Declined never displayed as resolved');
+  await go(0,'report_tracking.php');result=await post('read',{reference:ar,anonymous:'1'});if(result.status!==422)throw Error('Reference alone authorized');checks++;
+  await ev('document.getElementById("reportTrackForm").elements.reference.value='+JSON.stringify(ar)+';document.getElementById("reportTrackForm").elements.access_code.value='+JSON.stringify(code)+';document.getElementById("reportTrackForm").requestSubmit()');await until("!document.getElementById('reportDetail').hidden");
+  await check("!document.body.textContent.includes('private-name.png')&&document.getElementById('reportCaseInformation').textContent.includes('Anonymous Reporter')",'Guest private timeline and generic evidence');
+  await ev("var a=document.getElementById('reportActionForm');a.elements.body.value='Private credential holder reply';a.requestSubmit()");await until("document.getElementById('reportConversation').textContent.includes('Private credential holder reply')");checks++;
+  result=await post('read',{reference:ar,anonymous:'1'});detail=result.data.data;const rotated=await post('update',{reference:ar,anonymous:'1',version:detail.version,operation:'rotate_code',request_key:require('node:crypto').randomUUID()});if(!rotated.data.success)throw Error(JSON.stringify(rotated));checks++;
+  result=await post('track',{reference:ar,access_code:code});if(result.status!==422)throw Error('Old code after rotation accepted');checks++;
+  result=await post('track',{reference:ar,access_code:rotated.data.data.access_code});if(!result.data.success)throw Error('New code failed');checks++;
+  await check("!Object.keys(localStorage).some(k=>/report|access.code/i.test(k))&&!Object.keys(sessionStorage).some(k=>/report|access.code/i.test(k))",'No private credentials in browser storage');
+  await go(2);
+  const csrfStatus=await ev("(async()=>{const c=JSON.parse(document.getElementById('reportConfig').textContent),r=await fetch(c.endpoint,{method:'POST',body:new URLSearchParams({action:'list',csrf_token:'forged'})});return r.status;})()");if(csrfStatus!==403)throw Error('CSRF bypass');checks++;
+  const makePdf=()=>{let output='%PDF-1.4\n',offsets=[0];const bodies=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] >>'];bodies.forEach((body,index)=>{offsets.push(Buffer.byteLength(output));output+=`${index+1} 0 obj\n${body}\nendobj\n`;});const xref=Buffer.byteLength(output);output+='xref\n0 4\n0000000000 65535 f \n'+offsets.slice(1).map(n=>String(n).padStart(10,'0')+' 00000 n \n').join('')+`trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;return output;};
+  result=await post('create',input({subject:'Plain PDF evidence'}),[{name:'evidence.pdf',type:'application/pdf',text:makePdf()}]);if(!result.data.success)throw Error('Valid PDF rejected '+JSON.stringify(result));checks++;
+  let pdfDetail=(await post('read',{reference:result.data.data.reference})).data.data;
+  const pdfHeaders=await ev(`(async()=>{const r=await fetch(${JSON.stringify(pdfDetail.attachments[0].url)});return {status:r.status,type:r.headers.get('content-type'),disposition:r.headers.get('content-disposition'),cache:r.headers.get('cache-control')};})()`);if(pdfHeaders.status!==200||!pdfHeaders.disposition.startsWith('attachment')||pdfHeaders.type!=='application/pdf'||!pdfHeaders.cache.includes('no-store'))throw Error('PDF must be private download-only');checks++;
+  result=await post('create',input(),[{name:'active.pdf',type:'application/pdf',text:makePdf().replace('/Catalog','/Catalog /OpenAction /JS')}]);if(result.status!==422)throw Error('Active PDF accepted');checks++;
+  result=await post('create',input(),[{name:'fake.pdf',type:'application/pdf',text:'%PDF-1.4\nnot a real document\n%%EOF'}]);if(result.status!==422)throw Error('Malformed PDF accepted');checks++;
+  result=await post('create',input(),Array.from({length:6},()=>({name:'evidence.png',kind:'image'})));if(result.status!==422)throw Error('Too many files accepted');checks++;
+  result=await post('create',input(),[{name:'huge.png',text:'x'.repeat(10*1024*1024+1)}]);if(result.status!==422)throw Error('Oversize file accepted');checks++;
+  result=await post('create',input({subject:'Reprocessed image'}),[{name:'photo.png',kind:'image',trailing:'PRIVATE_EXIF_MARKER_<?php evil();?>'}]);if(!result.data.success)throw Error('Image reprocessing failed');
+  const clean=(await post('read',{reference:result.data.data.reference})).data.data.attachments[0];
+  const cleanResponse=await ev(`(async()=>{const r=await fetch(${JSON.stringify(clean.url)});return {mime:r.headers.get('content-type'),data:await r.text()};})()`);if(cleanResponse.mime!=='image/jpeg'||cleanResponse.data.includes('PRIVATE_EXIF_MARKER'))throw Error('Image metadata/trailing content retained');checks++;
+  await go(1);await ev("document.querySelector('[data-report-tab=new]').click();document.querySelector('[name=reporting_mode][value=anonymous]').click();var f=document.getElementById('newReportForm');f.elements.subject.value='Anonymous UI report';f.elements.category.value='Noise Disturbance';f.elements.incident_date.value=new Date().toLocaleDateString('en-CA');f.elements.location.value='Lobby';f.elements.description.value='Anonymous UI case';document.getElementById('reportContinue').click();f.elements.confirm_accuracy.checked=true;document.getElementById('reportSubmit').click()");await until("document.getElementById('reportSuccess').open");
+  await check("!document.getElementById('reportAccessCodeBlock').hidden&&document.getElementById('reportAccessCode').value.length===64",'Anonymous UI displays code exactly once');await shot('anonymous-code-dark');
+  await ev("document.getElementById('reportSuccessClose').click()");await until("!document.getElementById('reportDetail').hidden");await check("document.getElementById('reportAccessCode').value===''",'Code cleared after closing confirmation');
+  await check("document.getElementById('reportCaseInformation').textContent.includes('Anonymous Reporter')&&!document.getElementById('reportCaseInformation').textContent.includes('Owner One')",'Anonymous UI case has no account identity');
+  if(errors.length)throw Error(errors.join('\n'));console.log(JSON.stringify({checks,screenshots:directory}));
+ }finally{socket?.close();chrome.kill();}
+})().catch(error=>{console.error(error);process.exitCode=1;});

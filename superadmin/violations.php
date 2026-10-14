@@ -17,6 +17,8 @@ $fineRates = getViolationFineRates();
 
 $errors = [];
 $success = '';
+$residentsResult = $connection->query("SELECT id, full_name, unit_number FROM users WHERE role = 'resident' AND is_verified = 1 AND is_active = 1 AND status = 'approved' ORDER BY full_name ASC, unit_number ASC, id ASC");
+$residents = $residentsResult ? $residentsResult->fetch_all(MYSQLI_ASSOC) : [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -25,6 +27,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         requireCapability('violations.issue');
         $isVehicleReport = trim((string)($_POST['registration_source'] ?? '')) !== '';
         $targetUserId = (int)($_POST['user_id'] ?? 0);
+        if (!$isVehicleReport && array_key_exists('resident_name', $_POST)) {
+            try {
+                if (!is_string($_POST['resident_name'])) throw new InvalidArgumentException('Enter the resident\'s full name.');
+                $targetUserId = violationResidentFromName($residents, $_POST['resident_name'], $targetUserId);
+            } catch (InvalidArgumentException $error) { $errors[] = $error->getMessage(); }
+        }
         $violationType = trim($_POST['violation_type'] ?? '');
         $description = trim($_POST['description'] ?? '');
         $location = trim($_POST['location'] ?? '');
@@ -55,8 +63,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if (!$isVehicleReport && ($targetUserId <= 0 || $violationType === '')) {
-            $errors[] = 'Please choose a resident and a violation type.';
+        if (!empty($errors)) {
+            // Resolve the typed identity before storing evidence or billing.
+        } elseif (!$isVehicleReport && ($targetUserId <= 0 || $violationType === '')) {
+            $errors[] = 'Please enter a resident name and a violation type.';
         } elseif (!$isVehicleReport && $fineAmount <= 0) {
             $errors[] = 'Enter a fine amount greater than zero.';
         } elseif ($evidenceError !== '') {
@@ -131,8 +141,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$residentsResult = $connection->query("SELECT id, full_name, unit_number FROM users WHERE role = 'resident' AND is_verified = 1 ORDER BY unit_number ASC");
-$residents = $residentsResult ? $residentsResult->fetch_all(MYSQLI_ASSOC) : [];
 $violations = getAllViolations($connection);
 $statusLabels = ['warning_issued' => 'Warning', 'unpaid' => 'Unpaid', 'paid' => 'Paid', 'disputed' => 'Disputed', 'waived' => 'Waived'];
 $statusLabels['pending']='Pending Review'; $statusLabels['rejected']='Report rejected';
@@ -220,8 +228,8 @@ if (!is_string($activeTab) || !isset($violationTabs[$activeTab])) $activeTab = '
                 <div class="dash-header-right">
                     <?php include '../notifications.php'; ?>
                     <div class="profile-menu" id="profileMenu">
-                        <button class="btn-profile-nav" id="profileToggle" type="button" aria-label="Profile menu" aria-haspopup="true" aria-expanded="false"><span class="profile-avatar"><?php echo htmlspecialchars($initials); ?></span><span class="profile-nav-name"><?php echo htmlspecialchars($username); ?></span><span class="profile-caret">▾</span></button>
-                        <div class="profile-dropdown" id="profileDropdown"><div class="profile-dropdown-header"><span class="profile-dropdown-avatar"><?php echo htmlspecialchars($initials); ?></span><div class="profile-dropdown-info"><span class="profile-dropdown-name"><?php echo htmlspecialchars($username); ?></span><span class="profile-dropdown-unit">Administrator</span></div></div><a href="../logout.php" class="profile-dropdown-item profile-dropdown-danger"><?php echo systemIcon('arrow-right', 'system-action-icon'); ?> Logout</a></div>
+                        <button class="btn-profile-nav" id="profileToggle" type="button" aria-label="Profile menu" aria-haspopup="true" aria-expanded="false"><?= profileAvatar('profile-avatar') ?><span class="profile-nav-name"><?php echo htmlspecialchars($username); ?></span><span class="profile-caret">▾</span></button>
+                        <div class="profile-dropdown" id="profileDropdown"><div class="profile-dropdown-header"><?= profileAvatar('profile-dropdown-avatar') ?><div class="profile-dropdown-info"><span class="profile-dropdown-name"><?php echo htmlspecialchars($username); ?></span><span class="profile-dropdown-unit">Administrator</span></div></div><a href="../logout.php" class="profile-dropdown-item profile-dropdown-danger"><?php echo systemIcon('arrow-right', 'system-action-icon'); ?> Logout</a></div>
                     </div>
                 </div>
             </header>
@@ -238,12 +246,14 @@ if (!is_string($activeTab) || !isset($violationTabs[$activeTab])) $activeTab = '
                     <div class="violation-form-grid">
                         <div class="violation-field">
                             <label for="violationResident" id="violationResidentLabel">Resident</label>
-                            <select name="user_id" id="violationResident" required>
-                                <option value="">Select resident…</option>
+                            <input type="text" name="resident_name" id="violationResident" list="violationResidentNames" placeholder="Type the resident's full name" maxlength="240" autocomplete="off" aria-describedby="violationResidentNameHint" value="<?= htmlspecialchars($success === '' && is_string($_POST['resident_name'] ?? null) ? $_POST['resident_name'] : '', ENT_QUOTES, 'UTF-8') ?>" required>
+                            <input type="hidden" name="user_id" id="violationResidentId" value="">
+                            <datalist id="violationResidentNames">
                                 <?php foreach ($residents as $resident): ?>
-                                    <option value="<?php echo (int)$resident['id']; ?>">Unit <?php echo htmlspecialchars($resident['unit_number']); ?> — <?php echo htmlspecialchars($resident['full_name']); ?></option>
+                                    <option value="<?= htmlspecialchars(violationResidentOption($resident), ENT_QUOTES, 'UTF-8') ?>" data-resident-id="<?= (int)$resident['id'] ?>" data-resident-name="<?= htmlspecialchars($resident['full_name'], ENT_QUOTES, 'UTF-8') ?>"></option>
                                 <?php endforeach; ?>
-                            </select>
+                            </datalist>
+                            <small id="violationResidentNameHint">Type a full name. For matching names, choose the correct unit from the suggestions.</small>
                             <small id="vehicleResidentHint" hidden>Reference only. Management confirms the responsible account during review.</small>
                         </div>
                         <div class="violation-field">

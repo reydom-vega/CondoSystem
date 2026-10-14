@@ -8,6 +8,7 @@ config.local.php
 !/database.sql
 !/migrations/2026_10_11_vehicle_violations.sql
 !/migrations/2026_10_13_digital_id.sql
+!/migrations/2026_10_14_profile_photos.sql
 *.bak
 *.zip
 

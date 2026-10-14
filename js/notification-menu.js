@@ -1,7 +1,8 @@
 (function () {
     'use strict';
 
-    const endpoint = '../api/notifications.php';
+    // Resolve from this shared asset, so root and role-specific pages both work.
+    const endpoint = new URL('../api/notifications.php', document.currentScript.src).href;
     let refreshInProgress = false;
 
     function setBadge(count) {

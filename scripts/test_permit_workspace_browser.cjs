@@ -10,7 +10,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const port = await new Promise(resolve => { const server=net.createServer(); server.listen(0,'127.0.0.1',() => { const port=server.address().port; server.close(() => resolve(port)); }); });
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'condo-permit-workspace-'));
   const chrome=spawn('C:/Program Files/Google/Chrome/Application/chrome.exe',['--headless','--no-sandbox',`--remote-debugging-port=${port}`,`--user-data-dir=${directory}`,'about:blank'],{windowsHide:true,stdio:'ignore'});
-  let socket; let checks=0; const errors=[];
+  let socket; let checks=0; const errors=[], exportedImages=[];
   try {
     let target;
     for(let i=0;i<100;i++){try{target=(await(await fetch(`http://127.0.0.1:${port}/json`)).json()).find(tab=>tab.type==='page');if(target)break;}catch{}await sleep(100);}
@@ -31,6 +31,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     };
     const click=async key=>{await ev(`document.querySelector('[data-workspace-tab="${key}"]').click()`);await sleep(300);};
     await send('Page.enable');await send('Runtime.enable');
+    await send('Page.setDownloadBehavior',{behavior:'allow',downloadPath:directory});
     await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1050,deviceScaleFactor:1,mobile:false});
     const saved = async () => until("!window.permitNavigating && document.readyState==='complete' && !!document.querySelector('.alert.success')");
     const confirmSubmit = async expression => {
@@ -45,6 +46,39 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
       await saved();
       return ev("document.querySelector('#permitRequests tbody tr [name=request_id]').value");
     };
+    const downloads = async (actor, url) => {
+      await go(actor,url);
+      await until("!!document.querySelector('#serviceQr canvas') && !!document.querySelector('[data-permit-download=jpg]')");
+      const documentData=await ev("fetch(document.querySelector('[data-permit-downloads]').dataset.exportUrl+'&download=details',{cache:'no-store'}).then(response=>response.json())");
+      for (const format of ['jpg','pdf']) {
+        await ev('CelandineTheme.set('+JSON.stringify(format==='jpg'?'dark':'light')+');document.querySelector("[data-permit-download='+format+']").click()');
+        await until("document.querySelector('[data-permit-download-feedback]').textContent.includes('download is ready.')");
+        const file=path.join(directory,documentData.reference+'.'+format);
+        for(let attempt=0;attempt<100&&!fs.existsSync(file);attempt++)await sleep(100);
+        if(!fs.existsSync(file))throw Error('Download not saved: '+file);
+        const bytes=fs.readFileSync(file);
+        if(format==='jpg') { if(bytes[0]!==255||bytes[1]!==216)throw Error('Invalid JPG'); exportedImages.push({url:documentData.qr_url,image:'data:image/jpeg;base64,'+bytes.toString('base64')}); }
+        else if(bytes.subarray(0,5).toString()!=='%PDF-')throw Error('Invalid PDF');
+        await check("[...document.querySelectorAll('[data-permit-download]')].every(button=>!button.disabled&&!button.classList.contains('portal-button-loading'))",'Owner/tenant '+actor+' downloads actual '+format.toUpperCase()+' and controls recover');
+      }
+      await shot('approved-permit-downloads-'+actor);
+      await send('Emulation.setDeviceMetricsOverride',{width:390,height:1000,deviceScaleFactor:1,mobile:false});
+      await check('document.documentElement.scrollWidth<=innerWidth+1','Permit download controls fit mobile for '+actor);
+      await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1050,deviceScaleFactor:1,mobile:false});
+    };
+    if(process.argv.includes('--downloads-only')) {
+      for(const actor of [1,2]) {
+        const id=await create(actor,'Download verification appliance '+Date.now());
+        await go(4,'superadmin/service_requests.php?kind=permit&request_id='+id);
+        await ev("document.querySelector('.permit-review').open=true");
+        await confirmSubmit("document.querySelector('button[name=action][value=gate_approved]').click()");
+        await go(actor,'resident/permits.php?tab=requests');
+        const url=await ev(`document.querySelector('#permitRequests [name=request_id][value="${id}"]').closest('tr').querySelector('a[href*=resident_service_pass]').href`);
+        await downloads(actor,url);
+      }
+      if(errors.length)throw Error(errors.join('\n'));
+      console.log('Passed '+checks+' approved permit download checks. Files: '+directory);return;
+    }
     for (const actor of [1,2]) {
       await go(actor,'resident/permits.php');
       await check("[...document.querySelectorAll('[data-workspace-tab]')].map(tab=>tab.dataset.workspaceTab).join(',')==='form,requests,history' && !document.querySelector('#permit-panel-form').hidden",`resident/tenant ${actor}: Request Form, Requests and History in order`);
@@ -90,6 +124,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     const passUrl=await ev(`document.querySelector('#permitRequests [name=request_id][value="${ownerId}"]').closest('tr').querySelector('a[href*=resident_service_pass]').href`);
     await go(1,passUrl);
     await check("!!document.querySelector('#serviceQr') && document.body.textContent.includes('Workspace Owner Appliance')",'Existing gate pass still shows QR and approved items');
+    await downloads(1,passUrl);
     await go(4,'superadmin/service_requests.php?kind=permit&request_id='+ownerId);
     await ev("document.querySelector('[name=physical_check]').checked=true");
     await confirmSubmit("document.querySelector('.permit-completion').requestSubmit()");
@@ -98,7 +133,15 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     await check("!document.querySelector('#permit-panel-history').hidden && document.querySelector('.permit-detail-panel').textContent.includes('Completed') && document.querySelector('.permit-detail-panel').textContent.includes('Model 2026')",'Completed permit details and corrected items remain available in resident History');
     await go(1,passUrl);
     await check("!document.querySelector('#serviceQr')",'Completed permit cannot issue a reusable QR');
+    await check("!document.querySelector('[data-permit-downloads]') && (async()=>{const response=await fetch(location.href+'&download=details');return response.status===403;})()",'Completed permit cannot download from its old pass URL');
     const tenantId=await create(2,'Workspace Tenant Furniture');
+    await go(4,'superadmin/service_requests.php?kind=permit&request_id='+tenantId);
+    await ev("document.querySelector('.permit-review').open=true");
+    await confirmSubmit("document.querySelector('button[name=action][value=gate_approved]').click()");
+    await go(2,'resident/permits.php?tab=requests');
+    const tenantPass=await ev(`document.querySelector('#permitRequests [name=request_id][value="${tenantId}"]').closest('tr').querySelector('a[href*=resident_service_pass]').href`);
+    await downloads(2,tenantPass);
+    await go(2,'resident/permits.php?tab=requests');
     await confirmSubmit(`document.querySelector('#permitRequests [name=request_id][value="${tenantId}"]').form.requestSubmit()`);
     await check("!document.querySelector('#permit-panel-history').hidden && document.querySelector('#permitHistory').textContent.includes('Cancelled')",'Resident cancellation opens History');
     const rejectId=await create(1,'Workspace Rejected Appliance');
@@ -123,6 +166,10 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
         }
       }
       await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1050,deviceScaleFactor:1,mobile:false});
+    }
+    await go(5,'security/scanner.php');await until("typeof Html5Qrcode==='function'");
+    for (const exported of exportedImages) {
+      await check(`(async()=>{const image=new Image();image.src=${JSON.stringify(exported.image)};await image.decode();const canvas=document.createElement('canvas');canvas.width=1200;canvas.height=800;canvas.getContext('2d').drawImage(image,0,Math.max(0,image.height-800),image.width,800,0,0,1200,800);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));return await new Html5Qrcode('reader').scanFile(new File([blob],'permit-qr.png',{type:'image/png'}),false)===${JSON.stringify(exported.url)};})()`,'Exported JPG retains the correct scannable permit QR');
     }
     if(errors.length)throw Error(errors.join('\n'));
     console.log('Passed '+checks+' permit workspace browser checks. Screenshots: '+directory);

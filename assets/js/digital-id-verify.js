@@ -24,6 +24,7 @@
     }).then(result => {
       status.textContent = result.message; status.dataset.state = result.verification_result;
       if (result.valid && result.profile && root.dataset.reviewer === 'true') {
+        if(window.CelandineProfile){const avatar=document.createElement('div');avatar.className='profile-verification-avatar';window.CelandineProfile.paint(avatar,result.profile);details.append(avatar);}
         const title = document.createElement('h2'); title.textContent = result.profile.name; details.append(title);
         for (const [label,value] of [['Role',result.profile.role], ['Unit',result.profile.unit_number], ['Staff ID',result.profile.staff_id], ['Member since',result.profile.member_since], ['Account status',result.account_status]]) {
           if (!value) continue;

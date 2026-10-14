@@ -1,5 +1,25 @@
 (() => {
   'use strict';
+  const residentName = document.getElementById('violationResident');
+  const residentId = document.getElementById('violationResidentId');
+  if (residentName && residentId) {
+    const options = [...document.querySelectorAll('#violationResidentNames option')];
+    const normalize = value => value.trim().replace(/\s+/gu, ' ').toLowerCase();
+    const resolve = () => {
+      if (residentName.disabled) { residentName.setCustomValidity(''); return; }
+      const name = normalize(residentName.value);
+      const matches = name ? options.filter(option => normalize(option.value) === name || normalize(option.dataset.residentName) === name) : [];
+      residentId.value = matches.length === 1 ? matches[0].dataset.residentId : '';
+      residentName.setCustomValidity(!name ? '' : matches.length === 1 ? '' : matches.length > 1
+        ? 'Choose the matching name and unit from the suggestions.' : 'Enter an existing resident\'s full name or choose a suggestion.');
+    };
+    residentName.addEventListener('input', resolve); residentName.addEventListener('change', resolve);
+    residentName.form.addEventListener('submit', event => {
+      resolve();
+      if (!residentName.checkValidity()) { event.preventDefault(); residentName.reportValidity(); }
+    });
+    resolve();
+  }
   const app = document.querySelector('.violation-workspace');
   if (!app) return;
   const tabs = [...app.querySelectorAll('[data-violation-tab]')];

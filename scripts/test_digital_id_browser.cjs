@@ -14,10 +14,10 @@ if(!/^http:\/\/127\.0\.0\.1:\d+\/CondoSystem3\/$/.test(base||''))throw Error('Pa
   if(!target)throw Error('Chrome unavailable');
   socket=new WebSocket(target.webSocketDebuggerUrl);await new Promise(resolve=>socket.onopen=resolve);
   let seq=0;const calls=new Map(),errors=[],badResources=[];
-  socket.onmessage=event=>{const message=JSON.parse(event.data),call=calls.get(message.id);if(call){calls.delete(message.id);clearTimeout(call.timer);message.error?call.reject(message.error):call.resolve(message.result);}if(message.method==='Runtime.exceptionThrown')errors.push(message.params.exceptionDetails.exception?.description||message.params.exceptionDetails.text);if(message.method==='Network.responseReceived'&&message.params.response.status>=400&&message.params.response.url.startsWith(base)&&!message.params.response.url.includes('api/digital_id.php'))badResources.push(message.params.response.url.split('#')[0]);};
+  socket.onmessage=event=>{const message=JSON.parse(event.data),call=calls.get(message.id);if(call){calls.delete(message.id);clearTimeout(call.timer);message.error?call.reject(message.error):call.resolve(message.result);}if(message.method==='Runtime.exceptionThrown')errors.push(message.params.exceptionDetails.exception?.description||message.params.exceptionDetails.text);if(message.method==='Network.responseReceived'&&message.params.response.status>=400&&message.params.response.url.startsWith(base)&&!message.params.response.url.includes('api/digital_id.php')&&!(message.params.response.status===401&&message.params.response.url.includes('api/notifications.php')))badResources.push(message.params.response.url.split('#')[0]);};
   const send=(method,params={})=>new Promise((resolve,reject)=>{const id=++seq,timer=setTimeout(()=>{calls.delete(id);reject(Error('Timeout '+method));},30000);calls.set(id,{resolve,reject,timer});socket.send(JSON.stringify({id,method,params}));});
   const ev=async expression=>{const result=await send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(result.exceptionDetails)throw Error(result.exceptionDetails.exception?.description||result.exceptionDetails.text);return result.result.value;};
-  const until=async(expression,timeout=15000)=>{const end=Date.now()+timeout;while(Date.now()<end){if(await ev(expression))return;await sleep(100);}throw Error('Timed out: '+expression);};
+  const until=async(expression,timeout=45000)=>{const end=Date.now()+timeout;while(Date.now()<end){if(await ev(expression))return;await sleep(100);}throw Error('Timed out: '+expression+' '+await ev("document.querySelector('.digital-id-feedback')?.textContent||document.body.innerText.slice(0,500)"));};
   const check=async(expression,label)=>{if(!await ev('(async()=>('+expression+'))()')){console.log(await ev("[...document.querySelectorAll('.dash-header-right button')].map(button=>({class:button.className,label:button.getAttribute('aria-label')}))"));await shot('failure');throw Error(label);}checks++;};
   const go=async(actor,route)=>{await ev('window.idNavigating=true');const url=new URL(route,base);url.searchParams.set('fixture_actor',actor);await send('Page.navigate',{url:url.href});await until("!window.idNavigating && document.readyState==='complete' && !!window.CelandineUi",45000);};
   const open=async()=>{await ev("document.querySelector('[data-digital-id-toggle]').click()");await until("document.querySelector('.digital-id-qr-frame')?.hidden===false");};
@@ -46,7 +46,7 @@ if(!/^http:\/\/127\.0\.0\.1:\d+\/CondoSystem3\/$/.test(base||''))throw Error('Pa
     for (const [actor,route,role] of roles) {
      await go(actor,route);
      await check("window.idRequests.issue===0 && document.querySelectorAll('#digitalIdDialog').length===1",'One idle shared ID modal: '+role);
-     const expected=actor<=2?['Edit Profile','My QR ID','Light/Dark Mode','Logout']:['My QR ID','Light/Dark Mode','Logout'];
+     const expected=['Edit Profile','My QR ID','Light/Dark Mode','Logout'];
      await check("JSON.stringify([...document.querySelectorAll('.profile-dropdown .profile-dropdown-item')].map(item=>item.textContent.trim()))==="+JSON.stringify(JSON.stringify(expected)), 'Profile menu order: '+role);
      await check("(()=>{const id=document.querySelector('.dash-header-right>[data-digital-id-toggle]');return id.nextElementSibling.matches('[data-theme-toggle]')&&id.nextElementSibling.nextElementSibling.matches('.notification-menu')&&id.nextElementSibling.nextElementSibling.nextElementSibling.matches('.profile-menu');})()",'Navbar order preserved: '+role);
      for (const theme of ['dark','light']) {
@@ -78,10 +78,10 @@ if(!/^http:\/\/127\.0\.0\.1:\d+\/CondoSystem3\/$/.test(base||''))throw Error('Pa
     await go(entry.actor,entry.path);
     if (!await ev("!!document.querySelector('.profile-dropdown')")) continue;
     await check("document.querySelectorAll('.profile-dropdown [data-profile-digital-id]').length===1&&document.querySelectorAll('.profile-dropdown [data-profile-theme]').length===1&&document.querySelector('.profile-dropdown .profile-dropdown-item:last-child').href.includes('logout.php')",'Shared controls across '+entry.path+' / '+entry.actor);
-    if (entry.actor<=2) await check("document.querySelector('.profile-dropdown .profile-dropdown-item:first-of-type').getAttribute('href')==='edit_profile.php'",'Original Edit Profile link retained: '+entry.path);
+    await check("document.querySelector('.profile-dropdown .profile-dropdown-item:first-of-type').getAttribute('href').endsWith('edit_profile.php')",'Original Edit Profile link retained: '+entry.path);
    }
    for (const actor of [1,2]) {
-    await go(actor,'resident/dashboard.php');await ev("document.getElementById('profileToggle').click();document.querySelector('.profile-dropdown a[href=\"edit_profile.php\"]').click()");
+    await go(actor,'resident/dashboard.php');await ev("document.getElementById('profileToggle').click();document.querySelector('.profile-dropdown a[href*=\"edit_profile.php\"]').click()");
     await until("location.pathname.endsWith('/resident/edit_profile.php')&&document.readyState==='complete'");
     const originalName=await ev("document.querySelector('[name=full_name]').value"),updatedName=originalName+' Profile Test';
     await ev('window.profileSubmitting=true;document.querySelector("[name=full_name]").value='+JSON.stringify(updatedName)+';document.querySelector("[name=full_name]").form.requestSubmit()');

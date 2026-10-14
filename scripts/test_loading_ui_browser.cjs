@@ -23,8 +23,16 @@ const hashes=()=>['celandine.svg','celandineorange.svg'].map(file=>crypto.create
     const role=roles.includes(url.searchParams.get('role'))?url.searchParams.get('role'):'resident';
     let body='';for await(const chunk of req)body+=chunk;nativeRequests.push({path:relative,method:req.method,body});
     if(relative==='slow.php')await sleep(2200);
-    res.writeHead(200,{'Content-Type':'text/html','Cache-Control':'no-store'});res.end(page(role));return;
+    res.writeHead(200,{'Content-Type':'text/html','Cache-Control':'no-store'});
+    const html=page(role);
+    if(url.searchParams.has('stream')) {
+     const split=html.indexOf('<main');
+     res.write(html.slice(0,split));await sleep(1400);
+     res.end(html.slice(split).replace('</body>','<img src="loading-resource.svg" alt="" width="1" height="1"></body>'));
+    } else res.end(html);
+    return;
    }
+   if(relative==='loading-resource.svg'){await sleep(1200);res.writeHead(200,{'Content-Type':'image/svg+xml','Cache-Control':'no-store'});res.end('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');return;}
    if(relative==='background.json'){await sleep(700);res.writeHead(200,{'Content-Type':'application/json'});res.end('{"success":true}');return;}
    if(!/^(?:assets\/(?:css|js|fonts|branding|vendor)\/[\w./-]+|js\/[\w.-]+|(?:styles|resident|security)\.css|celandine(?:orange|-favicon)?\.svg)$/.test(relative)){res.writeHead(404);res.end();return;}
    const file=path.resolve(root,relative);if(!file.startsWith(root+path.sep)||!fs.existsSync(file)){res.writeHead(404);res.end();return;}
@@ -51,7 +59,7 @@ const hashes=()=>['celandine.svg','celandineorange.svg'].map(file=>crypto.create
   const start=async options=>ev('window.testLoading=CelandineLoading.begin('+options+');void 0');
   const stop=async()=>ev('window.testLoading.end()');
   await send('Page.enable');await send('Runtime.enable');await send('Network.enable');
-  await send('Page.addScriptToEvaluateOnNewDocument',{source:"new MutationObserver(function(){if(document.body&&!window.themeBeforeLoadingContent){window.themeBeforeLoadingContent=document.documentElement.dataset.theme;this.disconnect();}}).observe(document,{subtree:true,childList:true});"});
+  await send('Page.addScriptToEvaluateOnNewDocument',{source:"new MutationObserver(function(){if(document.body&&!window.themeBeforeLoadingContent)window.themeBeforeLoadingContent=document.documentElement.dataset.theme;if(document.querySelector('.portal-loading-overlay:not([hidden])')){window.initialLoadingSeen=true;window.initialLoadingState=document.readyState;this.disconnect();}}).observe(document,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden']});"});
   if (process.argv.includes('--branding-only')) {
    await send('Emulation.setDeviceMetricsOverride',{width:1600,height:500,deviceScaleFactor:1,mobile:false});
    await go('resident');
@@ -76,7 +84,7 @@ const hashes=()=>['celandine.svg','celandineorange.svg'].map(file=>crypto.create
    await send('Emulation.setDeviceMetricsOverride',{width:mobile?390:1366,height:mobile?844:900,deviceScaleFactor:1,mobile});
    for(const role of roles){
     await go(role);
-    await check("document.querySelectorAll('.portal-loading-overlay').length===1 && document.querySelector('.portal-loading-overlay').hidden",'One hidden loader on initial page: '+role);
+    await check("window.initialLoadingSeen && document.querySelectorAll('.portal-loading-overlay').length===1 && document.querySelector('.portal-loading-overlay').hidden",'Initial loading appears and cleans up: '+role);
     for(const theme of ['dark','light']){
      await ev('CelandineTheme.set('+JSON.stringify(theme)+')');
      await start('{fullscreen:true}');await sleep(120);
@@ -97,6 +105,19 @@ const hashes=()=>['celandine.svg','celandineorange.svg'].map(file=>crypto.create
   }
   if(process.argv.includes('--interactions-only')) { await go('resident');await ev("CelandineTheme.set('light')"); }
   await go('resident');
+  // Stream the actual shared head/body before the remaining HTML and an image.
+  // This checks initial/reload feedback before DOMContentLoaded, not just an API call.
+  await send('Page.navigate',{url:base+'fixture.php?role=resident&stream=1'});
+  await until("location.search.includes('stream=1') && window.initialLoadingSeen && document.readyState==='loading' && !document.querySelector('.portal-loading-overlay').hidden");
+  await check("window.initialLoadingState==='loading' && document.querySelector('.portal-loading-message').textContent==='Preparing your page...'",'Initial loader appears while HTML is still arriving');
+  await until("document.readyState==='interactive'");
+  await check("!document.querySelector('.portal-loading-overlay').hidden",'Loader remains while page resources finish');
+  await until("document.readyState==='complete' && document.querySelector('.portal-loading-overlay').hidden");checks++;
+  await ev("window.reloadMarker=true;setTimeout(()=>location.reload(),0)");
+  await until("!window.reloadMarker && window.initialLoadingSeen && document.readyState==='loading'");
+  await check("!document.querySelector('.portal-loading-overlay').hidden && document.documentElement.dataset.theme==='light'",'Browser reload shows the incoming loader with the saved theme');
+  await until("document.readyState==='complete' && document.querySelector('.portal-loading-overlay').hidden");checks++;
+  await go('resident');
   await check("(()=>{CelandineTheme.set('dark');const style=document.createElement('style');style.textContent='#themeTransitionProbe,#themeTransitionProbe::before{background:var(--surface-card,#1a1e2b);color:var(--text-primary,#fff);border:1px solid var(--border-color,#343d50);transition:background-color 2s,color 2s,border-color 2s}#themeTransitionProbe::before{content:\"Theme\";display:block}';document.head.append(style);const probe=document.createElement('div');probe.id='themeTransitionProbe';document.body.append(probe);getComputedStyle(probe).backgroundColor;window.themeProbeMatches=theme=>{const expected=theme==='light'?['rgb(255, 255, 255)','rgb(26, 34, 51)','rgb(199, 208, 221)']:['rgb(26, 30, 43)','rgb(255, 255, 255)','rgb(52, 61, 80)'];return [null,'::before'].every(pseudo=>{const css=getComputedStyle(probe,pseudo);return [css.backgroundColor,css.color,css.borderTopColor].every((value,i)=>value===expected[i]);})&&!document.documentElement.classList.contains('theme-changing')&&getComputedStyle(document.querySelector(theme==='light'?'.theme-moon':'.theme-sun')).opacity==='1';};CelandineTheme.set('light');return themeProbeMatches('light');})()", 'API theme change applies final colors and icon synchronously, including legacy transitions and pseudo elements');
   await check("(()=>{document.querySelector('[data-theme-toggle]').click();return themeProbeMatches('dark')&&localStorage.getItem('condo-theme')==='dark';})()", 'Toggle switches to dark immediately and saves preference');
   await check("(()=>{for(let i=0;i<10;i++){const theme=i%2?'dark':'light';CelandineTheme.set(theme);if(!themeProbeMatches(theme))return false;}return getComputedStyle(document.getElementById('themeTransitionProbe')).transitionDuration.split(',').every(value=>value.trim()==='2s');})()", 'Rapid switching stays immediate and restores normal component transitions');
@@ -110,12 +131,25 @@ const hashes=()=>['celandine.svg','celandineorange.svg'].map(file=>crypto.create
   await check("document.querySelector('.portal-loading-overlay').hidden",'Background fetch never triggers overlay');await until('window.backgroundDone');
   await ev("document.getElementById('tabLink').addEventListener('click',event=>event.preventDefault());document.getElementById('tabLink').click()");await sleep(500);
   await check("document.querySelector('.portal-loading-overlay').hidden",'Prevented tab navigation remains local');
+  await ev("history.pushState({},'',location.pathname+'?tab=local');");await sleep(100);
+  await check("document.querySelector('.portal-loading-overlay').hidden",'Same-document tab history does not leave a loading overlay');
   // Chrome can defer CDP evaluation while a native navigation is pending.
   // Observe the old document itself and inspect its snapshot after the response.
   const nativeObserver="sessionStorage.removeItem('loading-native-snapshot');new MutationObserver(()=>{const overlay=document.querySelector('.portal-loading-overlay');if(!overlay.hidden){const button=document.querySelector('#nativeForm button');sessionStorage.setItem('loading-native-snapshot',JSON.stringify({shown:true,buttonBusy:button.classList.contains('portal-button-loading'),buttonDisabled:button.disabled}));}}).observe(document.querySelector('.portal-loading-overlay'),{attributes:true,attributeFilter:['hidden']});";
   await ev(nativeObserver+"setTimeout(()=>document.getElementById('slowLink').click(),0)");
   await until("location.pathname.endsWith('/slow.php') && document.readyState==='complete' && document.querySelector('.portal-loading-overlay')?.hidden");checks++;
-  await check("JSON.parse(sessionStorage.getItem('loading-native-snapshot')).shown",'Slow native navigation shows delayed feedback');
+  await check("JSON.parse(sessionStorage.getItem('loading-native-snapshot')).shown",'Native navigation shows immediate feedback');
+  // Even a fast native transition shows outgoing and incoming feedback without
+  // delaying the request. Recording in the old document avoids CDP races.
+  await ev(nativeObserver+"document.getElementById('slowLink').href='fixture.php?role=admin';setTimeout(()=>document.getElementById('slowLink').click(),0)");
+  await until("location.search==='?role=admin' && document.readyState==='complete' && document.querySelector('.portal-loading-overlay')?.hidden");
+  await check("window.initialLoadingSeen && JSON.parse(sessionStorage.getItem('loading-native-snapshot')).shown",'Fast native page change shows feedback on both documents');
+  await ev(nativeObserver+"window.reloadMarker=true;setTimeout(()=>location.reload(),0)");
+  await until("!window.reloadMarker && document.readyState==='complete' && document.querySelector('.portal-loading-overlay')?.hidden");
+  await check("window.initialLoadingSeen && JSON.parse(sessionStorage.getItem('loading-native-snapshot')).shown",'Reload shows outgoing and incoming feedback without a stuck overlay');
+  await ev(nativeObserver+"setTimeout(()=>history.back(),0)");
+  await until("location.pathname.endsWith('/slow.php') && document.readyState==='complete' && document.querySelector('.portal-loading-overlay')?.hidden");
+  await check("JSON.parse(sessionStorage.getItem('loading-native-snapshot')).shown",'Back navigation shows feedback and restores a clean page');
   await ev(nativeObserver+"window.nativeSubmitting=true;setTimeout(()=>document.getElementById('nativeForm').requestSubmit(document.querySelector('#nativeForm button')),0)");
   await until("!window.nativeSubmitting && document.readyState==='complete' && document.querySelector('.portal-loading-overlay')?.hidden && !document.querySelector('#nativeForm button').classList.contains('portal-button-loading')");
   await check("(()=>{const snapshot=JSON.parse(sessionStorage.getItem('loading-native-snapshot'));return snapshot.shown&&snapshot.buttonBusy&&!snapshot.buttonDisabled;})()",'Native submit feedback preserves submitter');

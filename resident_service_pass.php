@@ -8,6 +8,34 @@ $token = (string)($_GET['token'] ?? '');
 $pass = getResidentServicePass($db, $id, $token);
 if (!$pass || ((int)$pass['user_id'] !== (int)$_SESSION['user_id'] && !isSecurity() && !canReviewPermits())) { http_response_code(404); exit('Pass not found or access denied.'); }
 if ((int)$pass['user_id']===(int)$_SESSION['user_id']) requireResidentPermission($pass['request_kind']==='visitor' ? 'resident.visitors.register' : 'resident.permits.request');
+require_once __DIR__.'/includes/permit_pass_export.php';
+if (isset($_GET['download'])) {
+    header('Cache-Control: no-store, private'); header('X-Content-Type-Options: nosniff');
+    try {
+        // Re-fetch before every export so cancellation, completion or expiry
+        // cannot use approval cached in an already-open browser page.
+        $downloadRow = getResidentServicePass($db, $id, $token);
+        if (!$downloadRow || !permitPassDownloadAllowed($downloadRow)) {
+            http_response_code(403); throw new InvalidArgumentException('Downloads are available only for approved, unexpired permits.');
+        }
+        $downloadRow = gateRequest($db, $id);
+        if (!$downloadRow || !permitPassDownloadAllowed($downloadRow)) { http_response_code(403); throw new InvalidArgumentException('This permit is no longer available for download.'); }
+        $document = permitPassDownloadData($db, $downloadRow);
+        if ($_GET['download'] === 'details' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+            header('Content-Type: application/json'); echo json_encode($document + ['csrf'=>workflowCsrfToken()], JSON_THROW_ON_ERROR); exit;
+        }
+        if ($_GET['download'] !== 'pdf' || $_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(400); throw new InvalidArgumentException('Invalid download request.'); }
+        requireWorkflowCsrf();
+        $pdf = permitPassPdf($document, is_string($_POST['qr_image'] ?? null) ? $_POST['qr_image'] : '');
+        header('Content-Type: application/pdf'); header('Content-Disposition: attachment; filename="'.$document['reference'].'.pdf"'); echo $pdf; exit;
+    } catch (InvalidArgumentException $error) {
+        if (http_response_code() < 400) http_response_code(400);
+        header('Content-Type: application/json'); echo json_encode(['error'=>$error->getMessage()]); exit;
+    } catch (Throwable $error) {
+        error_log('Permit download: '.$error->getMessage()); http_response_code(500);
+        header('Content-Type: application/json'); echo json_encode(['error'=>'Unable to download this permit. Please try again.']); exit;
+    }
+}
 if (!empty($pass['gate_data'])) { include __DIR__.'/includes/property_gate_pass_page.php'; exit; }
 $message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -88,6 +116,7 @@ if ($isVisitorPass) {
     <?php renderPortalUiHead(); ?>
     <link rel="stylesheet" href="assets/css/resident-service-pass.css?v=<?= filemtime(__DIR__.'/assets/css/resident-service-pass.css') ?>">
     <script defer src="assets/js/resident-service-pass.js?v=<?= filemtime(__DIR__.'/assets/js/resident-service-pass.js') ?>"></script>
+    <?php if ($pass['request_kind'] === 'permit'): ?><script defer src="<?= htmlspecialchars(portalUiAssetUrl('assets/js/permit-pass-download.js'), ENT_QUOTES, 'UTF-8') ?>"></script><?php endif; ?>
 </head>
 <body class="portal-ui dashboard-page visitor-pass-page">
 <main class="service-pass service-panel visitor-pass" aria-labelledby="passTitle">
@@ -142,6 +171,7 @@ if ($isVisitorPass) {
     <?php if ($valid && isSecurity() && $pass['request_kind'] === 'visitor'): ?>
     <form method="post" class="service-actions visitor-pass-checkin"><?= workflowCsrfField() ?><button type="submit"><?= systemIcon('check-circle') ?>Confirm visitor check-in</button></form>
     <?php endif; ?>
+    <?php if ($pass['request_kind'] === 'permit') include __DIR__.'/includes/permit_pass_download_controls.php'; ?>
     <div class="service-actions visitor-pass-actions">
         <button type="button" class="service-btn" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/><path d="M18 12h.01"/></svg>Print Pass</button>
         <a class="service-btn service-btn-secondary" href="<?= isSuperAdmin() ? 'superadmin/scanner.php' : (isSecurity() ? 'security/scanner.php' : (canReviewPermits() ? 'superadmin/service_requests.php' : ('resident/' . ($pass['request_kind'] === 'visitor' ? 'visitors.php' : 'permits.php')))) ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7M5 12h14"/></svg>Back</a>

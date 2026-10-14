@@ -25,7 +25,7 @@ try {
     if (!$users->num_rows) throw new RuntimeException('Import the base database schema first.');
 
     $functions = [
-        'ensureUserRoles', 'ensureResidentAccountSchema', 'ensureAuthenticationSchema', 'ensurePaymentsTable', 'ensureBillingTables', 'ensurePaymongoColumns',
+        'ensureUserRoles', 'ensureResidentAccountSchema', 'ensureAuthenticationSchema', 'ensureProfilePhotoSchema', 'ensurePaymentsTable', 'ensureBillingTables', 'ensurePaymongoColumns',
         'ensureReminderColumn', 'ensureNotificationOutboxTable', 'ensureMaintenanceTable', 'ensureMessagesTable', 'ensureBookingsTable',
         'ensureAmenityBookingSchema', 'ensureAnalyticsTable', 'ensureAnnouncementsTable',
         'ensureRememberTokensTable', 'ensurePhoneVerificationColumns', 'ensureAuditLogTable',

@@ -26,6 +26,16 @@ Uploads are stored under protected `private_uploads/permit_documents`. Only JPG,
 
 Expired is calculated from the stored authorized end date/time when rendering and verifying, so it does not depend on a cron job. The persisted approval remains auditable; it never makes an expired pass valid. Request, decision, verification and completion events are retained in `permit_history`.
 
+## Approved permit downloads
+
+Residents and tenants select **View / download gate pass** (or **View / download permit** for a legacy permit) in Requests, then choose **Download JPG** or **Download PDF**. Both contain the approved details, authorized items and schedule, current verification QR, and official orange branding on white paper. Supporting documents, private account/contact fields, review forms, internal history, and the on-screen movement warning are excluded. Approval does not grant entry before the authorized schedule; security must still verify the QR and inspect the items.
+
+Each download retrieves fresh data through the existing authenticated, token-validated `resident_service_pass.php` route. Pending, returned, rejected, cancelled, completed and expired permits cannot download, including from a previously opened pass. Another resident cannot download someone else's permit by guessing its ID or copying its URL. Future approved permits may be downloaded in advance. No new database tables or migration are needed.
+
+`includes/permit_pass_export.php` provides one canonical export data model and uses the existing Dompdf renderer for PDF files. `includes/permit_pass_download_controls.php` and `assets/js/permit-pass-download.js` provide shared controls, native canvas JPG export and the existing local QR library. PDF requests require CSRF validation and accept only a bounded JPEG QR image, with all permit text read from storage and remote fetching disabled. JPEG avoids requiring PHP GD just to embed the QR. Neither downloads nor scanning mark a movement complete. A saved copy is a snapshot: cancellation/completion/expiry is still enforced by the existing server-side scanner.
+
+Run `node scripts/test_permit_workspace_browser.cjs <disposable-ui-fixture-base>` against `scripts/test_ui_redesign.php --preview` to exercise owner and tenant JPG/PDF downloads, mobile controls, the retained permit workflow and actual exported QR decoding. The PHP property gate integration suite also checks download eligibility, CSRF, invalid images and account isolation.
+
 ## Storage and changed files
 
 The existing `resident_service_requests` retains requester, category, dates, review fields and nonce. Added `gate_data` stores direction, purpose, requested/authorized schedule, immutable requested unit, transport and completion information; `qr_token_hash` stores the issued token hash and `updated_at` records changes. Related `permit_items`, `permit_documents` and `permit_history` hold repeating rows.

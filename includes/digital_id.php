@@ -34,7 +34,8 @@ function digitalIdRoleLabel(array $user): ?string {
 }
 
 function digitalIdAccount(mysqli $db, int $id, bool $lock = false): ?array {
-    $stmt = $db->prepare('SELECT id,full_name,role,account_type,unit_number,unit_owner_id,staff_id,resident_id,created_at,is_active,is_verified,status,session_version FROM users WHERE id=?' . ($lock ? ' FOR UPDATE' : ''));
+    $photo = profilePhotoSchemaReady($db) ? 'profile_photo' : 'NULL AS profile_photo';
+    $stmt = $db->prepare('SELECT '.$photo.',id,full_name,role,account_type,unit_number,unit_owner_id,staff_id,resident_id,created_at,is_active,is_verified,status,session_version FROM users WHERE id=?' . ($lock ? ' FOR UPDATE' : ''));
     $stmt->bind_param('i', $id); $stmt->execute();
     $user = $stmt->get_result()->fetch_assoc();
     if ($user && $user['role'] === 'resident') {
@@ -65,12 +66,10 @@ function digitalIdFingerprint(array $user): string {
 }
 
 function digitalIdProfile(array $user): array {
-    $profile = ['name'=>$user['full_name'], 'role'=>digitalIdRoleLabel($user), 'status'=>'Verified',
+    $profile = ['id'=>(int)$user['id'], 'initial'=>profileInitial($user['full_name']), 'photo_url'=>profilePhotoUrl($user), 'name'=>$user['full_name'], 'role'=>digitalIdRoleLabel($user), 'status'=>'Verified',
         'member_since'=>date('M Y', strtotime($user['created_at']))];
     if ($user['role'] === 'resident' && trim((string)$user['unit_number']) !== '') $profile['unit_number'] = $user['unit_number'];
     if ($user['role'] !== 'resident' && trim((string)$user['staff_id']) !== '') $profile['staff_id'] = $user['staff_id'];
-    // The current users schema has no profile photograph, tower or lease dates.
-    // Do not manufacture these fields or reuse uploaded visitor identification.
     return $profile;
 }
 

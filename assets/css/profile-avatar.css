@@ -1,0 +1,38 @@
+.portal-ui .shared-profile-avatar { display:inline-grid; place-items:center; position:relative; flex-shrink:0; overflow:hidden; border-radius:50%; background:var(--accent-primary,#d97706); color:#fff; vertical-align:middle; }
+.shared-profile-avatar>[data-avatar-initial] { display:grid; place-items:center; width:100%; height:100%; line-height:1; color:#fff; font-weight:600; }
+.shared-profile-avatar>[data-avatar-image] { position:absolute; inset:0; display:block; width:100%; height:100%; max-width:none; object-fit:cover; border-radius:inherit; }
+.profile-photo-button { display:block; position:relative; flex:0 0 80px; width:80px; height:80px; min-height:80px; padding:0; margin:0; background:transparent; border:0; border-radius:50%; box-shadow:none; cursor:pointer; }
+.profile-photo-button:hover { background:transparent; transform:none; }
+.profile-photo-button>.shared-profile-avatar { width:100%; height:100%; }
+.profile-photo-camera { position:absolute; inset:0; display:grid; place-items:center; border-radius:50%; background:#0008; color:#fff; opacity:0; transition:opacity .18s ease; pointer-events:none; }
+.profile-photo-camera svg { width:25px; height:25px; }
+.profile-photo-camera>.system-icon { display:grid; place-items:center; width:25px; height:25px; line-height:1; }
+.profile-photo-button:hover .profile-photo-camera,.profile-photo-button:focus-visible .profile-photo-camera { opacity:1; }
+.profile-photo-button:focus-visible { outline:2px solid var(--accent-link); outline-offset:4px; }
+.profile-photo-options { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:16px 0 0; }
+.profile-settings .profile-overview { flex-wrap:wrap; }
+.profile-overview>.profile-photo-options,.profile-overview>.profile-photo-feedback { flex-basis:100%; margin:0; }
+.profile-overview>.profile-photo-feedback:empty { display:none; }
+.profile-photo-options p { color:var(--text-secondary); font-size:12px; margin:0; }
+.profile-photo-options button { width:auto; min-height:44px; margin:0; padding:8px 12px; background:transparent; color:var(--status-danger); border:1px solid var(--border-color); border-radius:8px; box-shadow:none; font-size:12px; }
+.profile-photo-editor { width:min(460px,calc(100vw - 24px)); max-height:calc(100dvh - 24px); overflow:auto; margin:auto; padding:24px; border:1px solid var(--border-color); border-radius:16px; background:var(--surface-card); color:var(--text-primary); box-shadow:var(--shadow-overlay); }
+.profile-photo-editor::backdrop { background:#050a15b8; }
+.profile-photo-editor header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:20px; }
+.profile-photo-editor h2 { font-size:20px; margin:0 0 6px; }
+.profile-photo-editor p { color:var(--text-secondary); margin:0; font-size:13px; }
+.profile-photo-editor .profile-photo-close { display:grid; place-items:center; flex:0 0 36px; width:36px; height:36px; min-height:36px; padding:0; margin:0; border:1px solid var(--border-color); border-radius:9px; background:var(--surface-elevated); color:var(--text-primary); box-shadow:none; }
+.profile-photo-stage { display:block; width:min(300px,100%); aspect-ratio:1; margin:0 auto 20px; border-radius:50%; overflow:hidden; touch-action:none; cursor:grab; background:var(--input-bg); outline:2px solid var(--accent-primary); outline-offset:3px; }
+.profile-photo-stage:active { cursor:grabbing; }
+.profile-photo-stage canvas { display:block; width:100%; height:100%; }
+.portal-ui .profile-photo-editor label.field-label { display:block; margin:0 0 8px; color:var(--text-secondary); font-size:13px; }
+.profile-photo-editor input[type=range] { display:block; width:100%; margin:0; height:32px; accent-color:var(--accent-primary); }
+.profile-photo-feedback { min-height:22px; margin-top:12px!important; font-size:13px!important; }
+.profile-photo-feedback[data-error=true] { color:var(--status-danger); }
+.profile-photo-editor .profile-photo-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:10px; margin-top:20px; }
+.profile-photo-editor .profile-photo-actions button { width:auto; min-height:44px; margin:0; padding:10px 14px; border:1px solid var(--border-color); border-radius:8px; background:var(--surface-elevated); color:var(--text-primary); box-shadow:none; font-size:13px; }
+.profile-photo-editor .profile-photo-actions button.profile-photo-apply { background:var(--accent-primary); border-color:var(--accent-primary); color:#fff; }
+.profile-photo-editor button:disabled { opacity:.55; cursor:wait; }
+.profile-verification-avatar { width:80px; height:80px; font-size:28px; margin-bottom:16px; }
+.qr-digital-id-photo { grid-column:1/-1; }
+@media(max-width:700px) { .profile-photo-button { flex-basis:64px; width:64px; height:64px; min-height:64px; } .profile-photo-editor { padding:20px; } }
+@media(prefers-reduced-motion:reduce) { .profile-photo-camera { transition:none; } }

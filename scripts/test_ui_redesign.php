@@ -126,5 +126,11 @@ try {
             removeUnusedVehicleUpload($vehicle['vehicle_photo_path']);
         }
     }
+    if (isset($db) && profilePhotoSchemaReady($db)) {
+        foreach ($db->query('SELECT profile_photo FROM users WHERE profile_photo IS NOT NULL')->fetch_all(MYSQLI_ASSOC) as $account) {
+            $photo=$account['profile_photo'];
+            if (profilePhotoFilename($photo) && is_file(profilePhotoDirectory().'/'.$photo)) unlink(profilePhotoDirectory().'/'.$photo);
+        }
+    }
     $server->query("DROP DATABASE `$database`");
 }

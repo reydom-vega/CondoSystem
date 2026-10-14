@@ -195,7 +195,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve,ms));
     await wait("location.pathname.endsWith('/resident/dashboard.php') && !!window.CelandineUi");
     await check("document.querySelector('.dash-title').textContent.includes('Dashboard')",'Real fixture login reaches the resident dashboard');
     await navigate({path:'resident/edit_profile.php',actor:1});
-    await check("getComputedStyle(document.querySelector('.form-grid-2')).gridTemplateColumns.split(' ').length===1 && [...document.querySelectorAll('.float-field')].every(wrap=>wrap.querySelector('label').getBoundingClientRect().bottom<=wrap.querySelector('input').getBoundingClientRect().top+2)",'Mobile profile uses stacked fields and readable labels');
+    await check("getComputedStyle(document.querySelector('.form-grid-2')).gridTemplateColumns.split(' ').length===1 && [...document.querySelectorAll('.profile-field')].filter(wrap=>wrap.querySelector('input').getClientRects().length).every(wrap=>wrap.querySelector('label').getBoundingClientRect().bottom<=wrap.querySelector('input').getBoundingClientRect().top+2)",'Mobile profile uses stacked fields and readable labels');
     await screenshot('mobile-profile');
     await navigate({path:'signuppending.php',actor:3});
     await check("document.querySelector('.pending-card').getClientRects().length>0 && document.documentElement.scrollWidth<=innerWidth+2",'Pending approval screen is visible and responsive');

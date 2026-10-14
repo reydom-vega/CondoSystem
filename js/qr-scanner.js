@@ -92,6 +92,7 @@
         const div = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd');
         dt.textContent = name; dd.textContent = value; div.append(dt,dd); resultFields.append(div);
       });
+      if(verification.qr_type==='digital_id'&&verification.valid&&verification.profile&&window.CelandineProfile){const cell=document.createElement('div'),avatar=document.createElement('div');cell.className='qr-digital-id-photo';avatar.className='profile-verification-avatar';window.CelandineProfile.paint(avatar,verification.profile);cell.append(avatar);resultFields.prepend(cell);}
       resultFields.hidden = !resultFields.childElementCount;
       if(verification.recognized && verification.pass_url) { openResult.href = verification.pass_url; openResult.style.display = 'flex'; }
       if (verification.qr_type === 'digital_id' && verification.valid) {

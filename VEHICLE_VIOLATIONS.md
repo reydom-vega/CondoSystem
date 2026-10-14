@@ -4,6 +4,8 @@ The existing `superadmin/violations.php` page serves security, admin and superad
 
 Vehicle details are integrated into the original issuance form, with one submit button after all fields. Selecting a vehicle fills its plate, related resident/host and parking location. The incident date/time defaults to the current local time and remains editable. Use the existing Description / Evidence Notes and evidence upload fields to record the incident. A fine requires a configured violation type; a warning can use a custom type. **Clear vehicle** restores the original account-based form. The related resident/host is identification only and does not establish responsibility.
 
+In the ordinary **Issue a Violation** form, Resident is a text input: type the existing resident/tenant's full name or use a name/unit suggestion. Matching is case-insensitive and ignores extra whitespace. Duplicate full names require the qualified suggestion with the correct unit/account. Both client and server resolve the name to an eligible existing account, clear stale IDs when the name changes, and reject unknown or mismatched identities before storing evidence or adding a charge. The account and billing relationships are unchanged; free text never creates a new resident. Vehicle lookup still fills the related resident/host as read-only reference information, and **Clear vehicle** restores manual name entry. No database migration is needed for this input change.
+
 ## Modified files
 
 - `superadmin/violations.php`: lookup integration, vehicle-report submission, review actions and pending/rejected display.

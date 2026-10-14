@@ -1,10 +1,10 @@
 <?php
 /** A migration is complete only after these dependencies are available. */
-const APP_SCHEMA_VERSION = '2026.10.13.1';
+const APP_SCHEMA_VERSION = '2026.10.14.1';
 
 function deploymentSchemaRequirements(): array {
     return [
-        'users' => ['role', 'account_type', 'unit_owner_id', 'is_active', 'status', 'session_version', 'last_seen_at', 'verification_token', 'verification_expires', 'reset_token', 'reset_expires', 'failed_login_attempts', 'locked_until', 'phone_verified', 'phone_otp', 'phone_otp_expires', 'phone_otp_attempts', 'phone_otp_sent_at'],
+        'users' => ['profile_photo', 'role', 'account_type', 'unit_owner_id', 'is_active', 'status', 'session_version', 'last_seen_at', 'verification_token', 'verification_expires', 'reset_token', 'reset_expires', 'failed_login_attempts', 'locked_until', 'phone_verified', 'phone_otp', 'phone_otp_expires', 'phone_otp_attempts', 'phone_otp_sent_at'],
         'authentication_limits' => ['bucket', 'attempts', 'window_started_at'],
         'digital_id_credentials' => ['user_id','token_hash','account_fingerprint','issued_at','expires_at','revoked_at'],
         'notification_outbox' => ['deduplication_key','user_id','event_kind','entity_id','channel','recipient','subject','body','status','attempts','next_attempt_at','locked_at','sent_at'],

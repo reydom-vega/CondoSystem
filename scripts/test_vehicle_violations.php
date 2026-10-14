@@ -11,6 +11,7 @@ $port=(int)substr(strrchr($address,':'),1); $base="http://127.0.0.1:$port/CondoS
 foreach (['CONDO_DB_NAME'=>$database,'CONDO_APP_ENV'=>'test','CONDO_AUTO_MIGRATE'=>'1','CONDO_UI_FIXTURE'=>'1','CONDO_APP_URL'=>rtrim($base,'/'),'CONDO_VISITOR_VIOLATION_HOST_BILLING'=>'0'] as $key=>$value) putenv($key.'='.$value);
 $_SERVER['PHP_SELF']=$_SERVER['SCRIPT_NAME']='/CondoSystem3/scripts/test_vehicle_violations.php'; $_SERVER['HTTP_HOST']='localhost'; $_SERVER['REQUEST_METHOD']='GET';
 require_once dirname(__DIR__).'/config.php';
+require_once dirname(__DIR__).'/includes/violation_workspace.php';
 $checks=0; $http=null; $log=null; $uploadFixture=null;
 function vehicleCheck(bool $ok,string $label): void { global $checks; if (!$ok) throw new RuntimeException('FAILED: '.$label); $checks++; }
 function vehicleReject(callable $action,string $label): void { try { $action(); } catch (InvalidArgumentException $error) { vehicleCheck(true,$label); return; } throw new RuntimeException('FAILED: '.$label); }
@@ -28,6 +29,12 @@ function vehicleHttp(string $path,?array $post=null): array {
     return ['status'=>(int)curl_getinfo($curl,CURLINFO_RESPONSE_CODE),'body'=>$body];
 }
 try {
+    $nameFixtures=[['id'=>11,'full_name'=>'Same Name','unit_number'=>'101'],['id'=>12,'full_name'=>'Same Name','unit_number'=>'102'],['id'=>13,'full_name'=>'Unique Resident','unit_number'=>'103']];
+    vehicleCheck(violationResidentFromName($nameFixtures,'  unique   resident ' )===13,'typed name resolves without JavaScript and ignores case/extra whitespace');
+    vehicleReject(fn()=>violationResidentFromName($nameFixtures,'Same Name'),'duplicate name requires a qualified suggestion');
+    vehicleCheck(violationResidentFromName($nameFixtures,violationResidentOption($nameFixtures[1]))===12,'qualified suggestion resolves the correct duplicate account');
+    vehicleReject(fn()=>violationResidentFromName($nameFixtures,'Unknown Person'),'unknown typed name rejected');
+    vehicleReject(fn()=>violationResidentFromName($nameFixtures,'Unique Resident',11),'forged hidden account cannot override the typed name');
     $server->select_db($database); $server->multi_query(file_get_contents(dirname(__DIR__).'/database.sql'));
     do { $result=$server->store_result(); if ($result) $result->free(); } while ($server->more_results() && $server->next_result());
     $db=connectDb(); ensureResidentAccountSchema($db); ensureAuthenticationSchema($db); ensureAuditLogTable($db);
@@ -190,6 +197,20 @@ try {
     vehicleCheck(vehicleHttp('violation_evidence.php?fixture_actor=3&id='.$evidenceReport)['status']===200,'authorized security can view incident evidence');
     vehicleCheck(ensureVehicleViolationColumns($db) && ensureParkingLookupColumns($db),'migration helpers are idempotent');
     echo "Passed $checks vehicle lookup, history, review, billing and HTTP checks in a disposable database.\n";
+    $page=vehicleHttp('superadmin/violations.php?fixture_actor=5'); preg_match('/name="csrf_token" value="([a-f0-9]+)"/',$page['body'],$token);
+    vehicleCheck(str_contains($page['body'],'name="resident_name"') && str_contains($page['body'],'id="violationResidentNames"') && !str_contains($page['body'],'<select name="user_id"'),'admin receives a typed resident field with suggestions');
+    $typedPost=['action'=>'issue','resident_name'=>'  owner current  ','user_id'=>'','violation_type'=>'Unauthorized Parking','description'=>'Typed owner violation fixture','fine_amount'=>1000,'csrf_token'=>$token[1]];
+    $typed=vehicleHttp('superadmin/violations.php?fixture_actor=5',$typedPost);
+    $saved=$db->query("SELECT user_id FROM violations WHERE description='Typed owner violation fixture'")->fetch_assoc();
+    vehicleCheck($typed['status']===200 && str_contains($typed['body'],'added to the resident') && (int)($saved['user_id'] ?? 0)===1,'manual owner name submits and bills the correct account');
+    $typed=vehicleHttp('superadmin/violations.php?fixture_actor=4',array_replace($typedPost,['resident_name'=>'Tenant Current','description'=>'Typed tenant violation fixture']));
+    $saved=$db->query("SELECT v.user_id,p.user_id AS billing_user FROM violations v JOIN payments p ON p.id=v.payment_id WHERE v.description='Typed tenant violation fixture'")->fetch_assoc();
+    vehicleCheck($typed['status']===200 && (int)($saved['user_id'] ?? 0)===2 && (int)$saved['billing_user']===1,'superadmin typed tenant name retains owner billing integration');
+    $beforeTyped=(int)$db->query('SELECT COUNT(*) AS n FROM violations')->fetch_assoc()['n'];
+    foreach([['resident_name'=>'Unknown Person','user_id'=>1],['resident_name'=>'Owner Current','user_id'=>2],['resident_name'=>'','user_id'=>1]] as $invalidName) {
+        $typed=vehicleHttp('superadmin/violations.php?fixture_actor=5',array_replace($typedPost,$invalidName));
+        vehicleCheck($typed['status']===200 && str_contains($typed['body'],'alert error') && (int)$db->query('SELECT COUNT(*) AS n FROM violations')->fetch_assoc()['n']===$beforeTyped,'invalid/mismatched typed identity creates no violation or charge');
+    }
     if (in_array('--preview',$argv,true)) { echo "Vehicle UI preview: $base\nPress Enter to finish.\n"; fgets(STDIN); }
 } finally {
     if (is_resource($http)) { proc_terminate($http); proc_close($http); }

@@ -96,7 +96,10 @@
     document.getElementById('vehicleReportPenalty').disabled = false;
     input('user_id').value = record.account_id || ''; input('user_id').disabled = true;
     input('user_id').required = false;
-    input('user_id').options[0].textContent = 'Responsibility not yet verified';
+    const residentName = document.getElementById('violationResident');
+    residentName.value = record.account_name || ''; residentName.disabled = true; residentName.required = false; residentName.setCustomValidity('');
+    residentName.placeholder = 'Responsibility not yet verified';
+    document.getElementById('violationResidentNameHint').hidden = true;
     document.getElementById('violationResidentLabel').textContent = 'Related Resident / Host';
     document.getElementById('vehicleResidentHint').hidden = false;
     document.getElementById('violationFineHint').textContent = 'Preview of the configured rate. A charge is added only after management approval.';
@@ -139,8 +142,11 @@
     document.getElementById('vehicleReportPenalty').disabled = true;
     document.getElementById('vehicleReportPenalty').value = 'fine';
     input('violation_type').setCustomValidity('');
-    input('user_id').disabled = false; input('user_id').required = true; input('user_id').value = '';
-    input('user_id').options[0].textContent = 'Select resident…';
+    input('user_id').disabled = false; input('user_id').required = false; input('user_id').value = '';
+    const residentName = document.getElementById('violationResident');
+    residentName.value = ''; residentName.disabled = false; residentName.required = true; residentName.setCustomValidity('');
+    residentName.placeholder = "Type the resident's full name";
+    document.getElementById('violationResidentNameHint').hidden = false;
     document.getElementById('violationResidentLabel').textContent = 'Resident';
     document.getElementById('vehicleResidentHint').hidden = true;
     document.getElementById('violationFineHint').textContent = 'Configured violation types use their listed rate. Enter an amount for a custom type.';

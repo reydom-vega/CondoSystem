@@ -62,8 +62,8 @@
   function displayProfile(profile) {
     find('.digital-id-person').hidden = false;
     find('.digital-id-name').textContent = profile.name;
-    const words = profile.name.trim().split(/\s+/).filter(Boolean);
-    find('.digital-id-avatar').textContent = [words[0], words.length > 1 ? words.at(-1) : ''].filter(Boolean).map(word => Array.from(word)[0]).join('').toLocaleUpperCase();
+    if (window.CelandineProfile) window.CelandineProfile.paint(find('.digital-id-avatar'),profile);
+    else find('.digital-id-avatar').textContent=profile.initial;
     find('.digital-id-role span').textContent = profile.role;
     find('.digital-id-account-status').textContent = `Account ${profile.status.toLocaleLowerCase()}`;
     const info = find('.digital-id-info'); info.replaceChildren();

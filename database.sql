@@ -167,6 +167,7 @@ CREATE TABLE `users` (
   `rejection_reason` text DEFAULT NULL,
   `account_type` varchar(80) DEFAULT NULL,
   `unit_owner_id` int(11) DEFAULT NULL,
+  `profile_photo` varchar(80) DEFAULT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
   `last_login_at` datetime DEFAULT NULL,
   `last_seen_at` datetime DEFAULT NULL,

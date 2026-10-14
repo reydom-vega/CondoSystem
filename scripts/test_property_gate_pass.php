@@ -7,6 +7,7 @@ $testDb='condo_gate_test_'.bin2hex(random_bytes(6)); $server->query("CREATE DATA
 putenv('CONDO_DB_NAME='.$testDb); putenv('CONDO_APP_ENV=test'); putenv('CONDO_AUTO_MIGRATE=1'); putenv('CONDO_TENANT_PERMITS=1'); putenv('CONDO_PASS_SIGNING_KEY='.str_repeat('a',64));
 $_SERVER['PHP_SELF']=$_SERVER['SCRIPT_NAME']='/CondoSystem3/scripts/test_property_gate_pass.php'; $_SERVER['HTTP_HOST']='localhost'; $_SERVER['REQUEST_METHOD']='GET';
 require_once __DIR__.'/../config.php';
+require_once __DIR__.'/../includes/permit_pass_export.php';
 $checks=0;
 function gateCheck(bool $value,string $label): void { global $checks; if(!$value) throw new RuntimeException('FAILED: '.$label); $checks++; }
 function gateReject(callable $action,string $label): void { try { $action(); } catch(InvalidArgumentException $e) { gateCheck(true,$label); return; } throw new RuntimeException('FAILED: '.$label); }
@@ -143,12 +144,31 @@ try {
         [$status,$body]=$request('superadmin/service_requests.php?kind=permit&request_id='.(int)$httpRow['id'],4);
         gateCheck($status===200 && str_contains($body,'gate_approved') && str_contains($body,'receipt.pdf'),'admin HTTP preview exposes review and attachments');
         $review=['action'=>'gate_approved','request_id'=>$httpRow['id'],'csrf_token'=>$csrf];
+        $pendingRoute='resident_service_pass.php?id='.$httpRow['id'].'&token='.gateToken($httpRow);
+        [$status]=$request($pendingRoute.'&download=details',2); gateCheck($status===403,'pending permit cannot download');
         [$status]=$request('superadmin/service_requests.php?kind=permit',4,$review); gateCheck($status===302,'admin HTTP approval succeeds');
         $approved=gateRequest($db,(int)$httpRow['id']); $passRoute='resident_service_pass.php?id='.$approved['id'].'&token='.gateToken($approved);
         [$status,$body]=$request($passRoute,5); gateCheck($status===200 && str_contains($body,'id="serviceQr"') && str_contains($body,'Washing Machine'),'guard sees issued QR and authorized items');
+        foreach([1,2] as $downloadActor) {
+            $downloadRoute=$downloadActor===2 ? $passRoute : 'resident_service_pass.php?id=1&token='.str_repeat('c',64);
+            [$status,$body]=$request($downloadRoute.'&download=details',$downloadActor);
+            $export=json_decode($body,true);
+            gateCheck($status===200 && isset($export['qr_url'],$export['csrf']) && count($export['fields'])>=4,'approved owner/tenant permit download data available: '.$downloadActor);
+        }
+        [$status,$body]=$request($passRoute,2); gateCheck($status===200 && str_contains($body,'Download JPG') && str_contains($body,'Download PDF'),'approved tenant sees both download buttons');
+        [$status,$body]=$request($passRoute.'&download=details',2); gateCheck(!str_contains($body,'Supporting documents') && !str_contains($body,'receipt.pdf') && !str_contains($body,'Invalid for movement now'),'exports omit supporting documents and movement warning');
+        [$status]=$request($passRoute.'&download=details',3); gateCheck($status===404,'another resident cannot retrieve download data');
+        [$status]=$request($passRoute.'&download=pdf',3,['csrf_token'=>$csrf]); gateCheck($status===404,'another resident cannot request PDF');
+        [$status]=$request($passRoute.'&download=pdf',2,['csrf_token'=>'forged']); gateCheck($status===403,'PDF download rejects forged CSRF');
+        [$status]=$request($passRoute.'&download=pdf',2,['csrf_token'=>$csrf,'qr_image'=>'data:image/jpeg;base64,invalid']); gateCheck($status===400,'PDF rejects invalid QR image');
+        gateCheck(permitPassDownloadAllowed($approved),'approved pass can download outside current hours before expiration');
+        foreach(['pending','changes_requested','rejected','cancelled','completed','expired'] as $downloadStatus) gateCheck(!permitPassDownloadAllowed(array_replace($approved,['status'=>$downloadStatus])),'download denied for '.$downloadStatus);
+        gateCheck(!permitPassDownloadAllowed(gateRequest($db,$timed)),'expired schedule cannot download despite stored approved status');
         [$status]=$request($passRoute,3); gateCheck($status===404,'other resident cannot open token-bearing pass URL');
         [$status]=$request($passRoute,5,['action'=>'gate_completed','physical_check'=>'1','csrf_token'=>$csrf]); gateCheck($status===302,'guard explicitly completes through HTTP');
         [$status,$body]=$request($passRoute,5); gateCheck($status===200 && !str_contains($body,'id="serviceQr"') && str_contains($body,'Invalid for movement now'),'completed printable pass contains no reusable QR');
+        [$status,$body]=$request($passRoute,2); gateCheck($status===200 && !str_contains($body,'Download JPG') && !str_contains($body,'Download PDF'),'completed permit hides download controls');
+        [$status]=$request($passRoute.'&download=details',2); gateCheck($status===403,'completed permit export denied even from an old open pass');
         if (in_array('--preview',$argv,true)) {
             echo "Disposable UI preview: ".$base."resident/permits.php\nPress Enter to finish and remove the fixture.\n";
             fgets(STDIN);

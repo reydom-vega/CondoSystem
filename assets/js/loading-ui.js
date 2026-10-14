@@ -16,7 +16,7 @@
   }
   const operations = new Map(), buttons = new WeakMap(), regions = new WeakMap();
   const deferredEvents = new Set();
-  let nextId = 0, overlay, logo, message, notice, noticeTimer, nativeOperation;
+  let nextId = 0, overlay, logo, message, notice, noticeTimer, nativeOperation, initialOperation;
   const autoRegions = new Map();
   function mount() {
     if (overlay) return;
@@ -119,10 +119,12 @@
       update:text => { if (operations.has(id)) { op.message = String(text); render(); } }};
     if (navigator.onLine === false) { if (document.body) notify('You are offline. Check your connection before trying again.', true, true); return handle; }
     operations.set(id, op);
-    op.timers.push(setTimeout(() => {
+    const reveal = () => {
       if (!operations.has(id)) return;
       op.visible = true; acquireButton(op.button); acquireRegion(op); render();
-    }, Math.max(0, options.delay ?? (op.fullscreen ? 400 : 200))));
+    };
+    const delay = Math.max(0, options.delay ?? (op.fullscreen ? 400 : 200));
+    if (delay === 0) reveal(); else op.timers.push(setTimeout(reveal, delay));
     op.timers.push(setTimeout(() => { if (operations.has(id)) { op.message = 'This is taking a little longer...'; render(); } }, 5000));
     op.timers.push(setTimeout(() => { if (operations.has(id)) { op.message = 'Still working. Please keep this page open.'; render(); } }, 15000));
     op.timers.push(setTimeout(() => {
@@ -134,15 +136,32 @@
     deferredEvents.forEach(clearTimeout); deferredEvents.clear();
     [...operations.keys()].forEach(end); autoRegions.clear(); clearTimeout(noticeTimer);
     if (notice) notice.hidden = true;
-    nativeOperation = undefined;
+    nativeOperation = initialOperation = undefined;
   }
   window.CelandineLoading = {begin, reset};
   function afterEvent(callback) {
     const timer = setTimeout(() => { deferredEvents.delete(timer); callback(); }, 0);
     deferredEvents.add(timer);
   }
+  function isPageUrl(url) {
+    return url.origin === location.origin && /(?:\.php|\/)$/i.test(url.pathname)
+      && !url.pathname.includes('/api/')
+      && !/(?:receipt|export|download|document|evidence|attachment)\.php$/i.test(url.pathname)
+      && !url.searchParams.has('export') && !url.searchParams.has('download');
+  }
+  function startNavigation(options = {}) {
+    initialOperation?.end(); initialOperation = undefined;
+    nativeOperation?.end();
+    nativeOperation = begin({fullscreen:true, delay:0, message:'Opening your page...', ...options});
+  }
   function init() {
     mount();
+    // Mount as soon as the parser creates the body, including on direct visits
+    // and browser reloads. Never hold navigation or impose a minimum wait.
+    if (document.readyState !== 'complete') {
+      initialOperation = begin({fullscreen:true, delay:0, message:'Preparing your page...'});
+      window.addEventListener('load', () => { initialOperation?.end(); initialOperation = undefined; }, {once:true});
+    }
     // Empty busy regions gain placeholders; existing module messages/rows stay intact.
     const busyObserver = new MutationObserver(records => {
       for (const {target} of records) {
@@ -159,20 +178,25 @@
       const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
       if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || link.hasAttribute('download') || link.dataset.loading === 'none' || (link.target && link.target !== '_self')) return;
       const url = new URL(link.href, location.href);
-      if (url.origin !== location.origin || !/\.php$/i.test(url.pathname) || url.pathname.includes('/api/') || /(?:receipt|export|download|document|evidence|attachment)\.php$/i.test(url.pathname)) return;
+      if (!isPageUrl(url)) return;
       if (url.pathname === location.pathname && url.search === location.search && (url.hash || link.getAttribute('href').includes('#'))) return;
       afterEvent(() => {
         if (event.defaultPrevented) return; // Tabs, image viewers and existing router handlers win.
-        nativeOperation?.end(); nativeOperation = begin({fullscreen:true, message:'Opening your page...'});
+        startNavigation();
       });
     });
     document.addEventListener('submit', event => {
       const form = event.target, button = event.submitter;
-      if (!(form instanceof HTMLFormElement) || form.dataset.loading === 'none' || (form.target && form.target !== '_self') || form.method === 'dialog') return;
+      if (!(form instanceof HTMLFormElement) || form.dataset.loading === 'none') return;
+      // Controls named action/method/target can shadow the form's DOM properties.
+      const target = button?.getAttribute('formtarget') ?? form.getAttribute('target');
+      const method = button?.getAttribute('formmethod') ?? form.getAttribute('method');
+      if ((target && target !== '_self') || method?.toLowerCase() === 'dialog') return;
       const labelBefore = button?.textContent.trim();
       afterEvent(() => {
         if (!event.defaultPrevented) {
-          nativeOperation?.end(); nativeOperation = begin({fullscreen:true, button, message:form.matches('#loginForm') ? 'Preparing your dashboard...' : 'Submitting your request...'});
+          const action = new URL(button?.getAttribute('formaction') ?? form.getAttribute('action') ?? location.href, location.href);
+          if (isPageUrl(action)) startNavigation({button, message:form.matches('#loginForm') ? 'Preparing your dashboard...' : 'Submitting your request...'});
         } else if (button?.disabled || button?.getAttribute('aria-busy') === 'true') {
           const handle = begin({button});
           const op = operations.get(handle.id); if (!op) return;
@@ -184,6 +208,23 @@
         }
       });
     }, true);
+    // Includes browser reload, Back/Forward and location.assign()/reload().
+    // Observe only: do not intercept, cancel, delay or repeat navigation.
+    if (window.navigation?.addEventListener) {
+      window.navigation.addEventListener('navigate', event => {
+        if (event.destination.sameDocument || event.hashChange || event.downloadRequest != null || !isPageUrl(new URL(event.destination.url))) return;
+        const sourceElement = event.sourceElement;
+        if (sourceElement?.closest('[data-loading="none"],a[download]')) return;
+        afterEvent(() => {
+          if (!event.defaultPrevented && !nativeOperation) startNavigation({message:event.navigationType === 'reload' ? 'Reloading your page...' : 'Opening your page...'});
+        });
+      });
+      window.navigation.addEventListener('navigateerror', reset);
+      window.navigation.addEventListener('navigatesuccess', () => {
+        // Cross-document changes clean up through pagehide/pageshow instead.
+        if (document.readyState === 'complete') nativeOperation?.end();
+      });
+    }
     window.addEventListener('offline', () => { reset(); notify('You are offline. Check your connection before trying again.', true, true); });
     window.addEventListener('online', () => { if (notice && !notice.hidden) notify('You are back online.'); });
     window.addEventListener('error', event => { if (event.error && operations.size) { reset(); notify('Loading was interrupted. Please try again.', true); } });
@@ -192,5 +233,12 @@
     window.addEventListener('pagehide', reset);
     window.addEventListener('pageshow', reset);
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
+  if (document.body) init();
+  else {
+    const bodyObserver = new MutationObserver(() => {
+      if (!document.body) return;
+      bodyObserver.disconnect(); init();
+    });
+    bodyObserver.observe(root, {childList:true, subtree:true});
+  }
 })();

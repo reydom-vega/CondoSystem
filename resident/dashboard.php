@@ -96,13 +96,13 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
                     <?php include '../notifications.php'; ?>
                     <div class="profile-menu" id="profileMenu">
                         <button class="btn-profile-nav" id="profileToggle" aria-label="Profile menu" aria-haspopup="true" aria-expanded="false">
-                            <span class="profile-avatar"><?php echo htmlspecialchars($initials); ?></span>
+                            <?= profileAvatar('profile-avatar') ?>
                             <span class="profile-nav-name"><?php echo htmlspecialchars($username); ?></span>
                             <span class="profile-caret">▾</span>
                         </button>
                         <div class="profile-dropdown" id="profileDropdown">
                             <div class="profile-dropdown-header">
-                                <span class="profile-dropdown-avatar"><?php echo htmlspecialchars($initials); ?></span>
+                                <?= profileAvatar('profile-dropdown-avatar') ?>
                                 <div class="profile-dropdown-info">
                                     <span class="profile-dropdown-name"><?php echo htmlspecialchars($username); ?></span>
                                     <span class="profile-dropdown-unit"><?php echo $unitNumber; ?></span>

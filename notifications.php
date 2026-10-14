@@ -1,7 +1,6 @@
 <?php
-$scriptPath = '../js/profile-menu.js';
-echo '<script src="' . $scriptPath . '" defer></script>';
-echo '<script src="../js/notification-menu.js" defer></script>';
+echo '<script src="' . htmlspecialchars(portalUiAssetUrl('js/profile-menu.js'), ENT_QUOTES, 'UTF-8') . '" defer></script>';
+echo '<script src="' . htmlspecialchars(portalUiAssetUrl('js/notification-menu.js'), ENT_QUOTES, 'UTF-8') . '" defer></script>';
 $notifications = getNotifications();
 $notificationCount = getUnreadNotificationCount($notifications);
 $notificationsUnread = $notificationCount > 0;

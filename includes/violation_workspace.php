@@ -1,4 +1,22 @@
 <?php
+/** Keep typed names tied to an existing account, including duplicate names. */
+function violationResidentOption(array $resident): string {
+    return $resident['full_name'].' - Unit '.($resident['unit_number'] ?: 'Unassigned').' (#'.(int)$resident['id'].')';
+}
+
+function violationResidentFromName(array $residents, string $name, int $postedId = 0): int {
+    $normalize = static fn(string $value): string => mb_strtolower(trim(preg_replace('/\s+/u', ' ', $value) ?? ''), 'UTF-8');
+    if (mb_strlen($name, 'UTF-8') > 240 || $normalize($name) === '') throw new InvalidArgumentException('Enter the resident\'s full name.');
+    $matches = array_values(array_filter($residents, static fn(array $resident): bool =>
+        $normalize($resident['full_name']) === $normalize($name) || $normalize(violationResidentOption($resident)) === $normalize($name)
+    ));
+    if (count($matches) > 1) throw new InvalidArgumentException('More than one resident has that name. Choose the matching name and unit from the suggestions.');
+    if (!$matches) throw new InvalidArgumentException('No eligible resident matches that name. Enter a full name or choose a suggestion.');
+    $id = (int)$matches[0]['id'];
+    if ($postedId > 0 && $postedId !== $id) throw new InvalidArgumentException('The resident name and account do not match. Enter the name again.');
+    return $id;
+}
+
 /** Shared tab presentation; the existing violation controllers own access and actions. */
 function renderViolationWorkspaceTabs(array $tabs, string $active, array $counts = []): void
 {

@@ -25,19 +25,24 @@ function preflightIniBytes(string $value): int {
     return (int)($bytes * match ($unit) { 'g' => 1073741824, 'm' => 1048576, 'k' => 1024, default => 1 });
 }
 preflightCheck(PHP_VERSION_ID >= 80100, 'PHP 8.1 or later');
-foreach (['mysqli', 'mysqlnd', 'curl', 'fileinfo', 'mbstring', 'dom', 'openssl', 'session'] as $extension) preflightCheck(extension_loaded($extension), "PHP extension: {$extension}");
+foreach (['mysqli', 'mysqlnd', 'curl', 'fileinfo', 'mbstring', 'dom', 'openssl', 'session', 'gd'] as $extension) preflightCheck(extension_loaded($extension), "PHP extension: {$extension}");
+if (extension_loaded('gd')) {
+    $imageSupport=gd_info();
+    preflightCheck(!empty($imageSupport['JPEG Support']) && !empty($imageSupport['PNG Support']) && !empty($imageSupport['WebP Support']), 'GD supports JPEG, PNG and WebP profile pictures');
+}
 preflightCheck(is_file($root . '/vendor/autoload.php'), 'Composer dependencies are installed');
 preflightCheck(filter_var(ini_get('file_uploads'), FILTER_VALIDATE_BOOLEAN), 'PHP file uploads are enabled');
 preflightCheck(preflightIniBytes((string)ini_get('upload_max_filesize')) >= 10 * 1048576, 'PHP permits attachments up to 10 MB');
 $postLimit = preflightIniBytes((string)ini_get('post_max_size'));
 preflightCheck($postLimit === 0 || $postLimit >= 12 * 1048576, 'PHP multipart request limit is at least 12 MB');
 preflightCheck(is_dir($root . '/private_uploads') && is_writable($root . '/private_uploads'), 'Private upload storage is writable');
+preflightCheck(is_dir($root . '/private_uploads/profile_photos') && is_writable($root . '/private_uploads/profile_photos'), 'Private profile photo storage is writable');
 require_once $root . '/includes/visitor_identity.php';
 try {
     visitorIdRetentionDays();
     preflightCheck(is_writable(visitorIdStorageDirectory()), 'Visitor ID storage is writable and outside public directories');
 } catch (Throwable $e) { preflightCheck(false, 'Configure private visitor ID storage and a retention period of 1–365 days; run the migration'); }
-foreach (['.htaccess','includes/.htaccess','private_uploads/.htaccess','scripts/.htaccess','vendor/.htaccess','inventory/.htaccess'] as $file) preflightCheck(is_file($root . '/' . $file), "HTTP protection file: {$file}");
+foreach (['.htaccess','includes/.htaccess','private_uploads/.htaccess','private_uploads/profile_photos/.htaccess','scripts/.htaccess','vendor/.htaccess','inventory/.htaccess'] as $file) preflightCheck(is_file($root . '/' . $file), "HTTP protection file: {$file}");
 
 $production = $production || appIsProduction();
 if ($production) {
@@ -92,7 +97,7 @@ if ($httpUrl !== null) {
     $allowed = is_array($parts) && in_array($parts['scheme'] ?? '', ['http','https'], true) && !empty($parts['host']) && !isset($parts['user']) && !isset($parts['pass']) && !isset($parts['query']) && !isset($parts['fragment']);
     preflightCheck($allowed && (!$production || ($parts['scheme'] ?? '') === 'https'), 'HTTP check target is a valid app URL');
     if ($allowed && extension_loaded('curl')) {
-        $forbidden = ['/.env','/.git/HEAD','/config.php','/database.sql','/composer.json','/condo_units.csv','/parking-inventory.csv','/scripts/preflight.php','/vendor/autoload.php','/includes/workflows.php','/private_uploads/.htaccess','/INFINITYFREE_SETUP.zip','/debug_live_updates.html'];
+        $forbidden = ['/.env','/.git/HEAD','/config.php','/database.sql','/composer.json','/condo_units.csv','/parking-inventory.csv','/scripts/preflight.php','/vendor/autoload.php','/includes/workflows.php','/private_uploads/.htaccess','/private_uploads/profile_photos/.htaccess','/INFINITYFREE_SETUP.zip','/debug_live_updates.html'];
         $public = ['/index.php', '/styles.css'];
         $curl = curl_init();
         curl_setopt_array($curl, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => false, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 10]);

@@ -4,7 +4,7 @@ This release prepares the existing PHP/MySQL application for a controlled deploy
 
 ## Server requirements
 
-Use an updated PHP 8.4 or later release for production, Apache 2.4, and MySQL/MariaDB with InnoDB. The application retains PHP 8.1 syntax compatibility for local development; production preflight requires PHP 8.4+. Check the [PHP support schedule](https://www.php.net/supported-versions.php) and install current security updates. Enable PHP `mysqli`, `mysqlnd`, `curl`, `fileinfo`, `mbstring`, `dom`, `openssl` and `session`. Allow individual uploads up to 10 MB and multipart requests of at least 12 MB. Keep `display_errors` off and route error logs to private storage. Review dependencies with `composer audit --locked` in the deployment environment.
+Use an updated PHP 8.4 or later release for production, Apache 2.4, and MySQL/MariaDB with InnoDB. The application retains PHP 8.1 syntax compatibility for local development; production preflight requires PHP 8.4+. Check the [PHP support schedule](https://www.php.net/supported-versions.php) and install current security updates. Enable PHP `mysqli`, `mysqlnd`, `curl`, `fileinfo`, `mbstring`, `dom`, `openssl`, `session` and `gd` (JPEG/PNG/WebP support). Allow individual uploads up to 10 MB and multipart requests of at least 12 MB. Keep `display_errors` off and route error logs to private storage. Review dependencies with `composer audit --locked` in the deployment environment.
 
 Apache must honor the repository's `.htaccess` files (`AllowOverride` must permit its authorization, rewrite and options directives). These files deny configuration, private documents, dependency source, tools, database exports and repository metadata. Apache describes both [authorization directives](https://httpd.apache.org/docs/2.4/mod/mod_authz_core.html#require) and [how overrides are enabled](https://httpd.apache.org/docs/2.4/howto/htaccess.html). On another web server, install equivalent explicit denial rules; `.htaccess` is not interpreted by nginx or PHP's development server.
 
@@ -52,6 +52,8 @@ These flags also apply to family/relative and friend occupants. Tenant billing s
 6. Make `private_uploads` writable by the PHP worker, with no direct HTTP access. Back up uploads together with the database. Keep server session storage private and writable.
 
 ## Upgrade an existing installation
+
+The global profile-photo release adds only nullable `users.profile_photo`. An otherwise current installation can run `php scripts/migrate_profile_photos.php --apply`; the full release migration includes the same idempotent change. Enable GD for the web PHP worker (Hostinger PHP Configuration ? Extensions ? gd; XAMPP `php.ini` ? `extension=gd`, then restart Apache). Protect and back up `private_uploads/profile_photos` with the database. Confirm direct HTTP access is denied and only the authenticated `profile_photo.php` endpoint serves images. See [PROFILE_UI.md](PROFILE_UI.md) for roles, private media rules and tests.
 
 The Digital Condo ID release adds only hashed, short-lived identity credentials to `digital_id_credentials`. An otherwise current installation can use `php scripts/migrate_digital_id.php --apply`; the normal release migration also includes this table. See [DIGITAL_CONDO_ID.md](DIGITAL_CONDO_ID.md) for verification permissions, QR expiration, revocation, retention and tests. Production issuance requires the canonical HTTPS URL. Digital ID verification does not authorize physical entry or replace visitor and parking passes.
 

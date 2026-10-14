@@ -62,6 +62,8 @@ function systemSidebarIcon(string $name): string {
         'paperclip' => '<path d="m8 12.5 7.8-7.8a3.5 3.5 0 0 1 5 5L10 20.5a5 5 0 0 1-7.1-7.1L14 2.3"/>',
         'send' => '<path d="m22 2-7 20-4-9-9-4zM22 2 11 13"/>',
         'file-text' => '<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h7"/>',
+        'eye' => '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+        'camera' => '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/>',
         'default' => '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
     ];
 

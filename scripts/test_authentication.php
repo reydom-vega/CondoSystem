@@ -126,6 +126,21 @@ try {
         curl_setopt($curl,CURLOPT_POSTFIELDS,http_build_query($profile)); curl_exec($curl);
         authCheck(curl_getinfo($curl,CURLINFO_HTTP_CODE)===503 && $db->query('SELECT full_name FROM users WHERE id=1')->fetch_assoc()['full_name']==='Updated Fixture','failed password write rolls back entire profile update');
         $db->query('DROP TRIGGER reject_fixture_password');
+        $beforeSecurity=$db->query('SELECT full_name,username,email,contact_number,unit_number,password_hash,session_version FROM users WHERE id=1')->fetch_assoc();
+        foreach ([['current_password'=>'wrong'],['new_password'=>'weak','confirm_password'=>'weak'],['confirm_password'=>'DifferentPassword@123']] as $invalidPassword) {
+            $passwordPost=array_replace(['action'=>'update_password','csrf_token'=>$profileMatch[1],'current_password'=>'NewPassword@123','new_password'=>'SeparatePassword@123','confirm_password'=>'SeparatePassword@123'], $invalidPassword);
+            curl_setopt($curl,CURLOPT_POSTFIELDS,http_build_query($passwordPost)); $securityHtml=curl_exec($curl);
+            authCheck(curl_getinfo($curl,CURLINFO_HTTP_CODE)===200 && str_contains($securityHtml,'alert error') && $db->query('SELECT full_name,username,email,contact_number,unit_number,password_hash,session_version FROM users WHERE id=1')->fetch_assoc()===$beforeSecurity,'separate password form rejects invalid credentials without changing the profile');
+        }
+        $passwordPost=['action'=>'update_password','csrf_token'=>$profileMatch[1],'current_password'=>'NewPassword@123','new_password'=>'SeparatePassword@123','confirm_password'=>'SeparatePassword@123','full_name'=>'Must Not Change','email'=>'injected@example.invalid','contact_number'=>'09999999999','username'=>'injected','unit_number'=>'9999'];
+        curl_setopt($curl,CURLOPT_POSTFIELDS,http_build_query($passwordPost)); $securityHtml=curl_exec($curl);
+        $afterSecurity=$db->query('SELECT full_name,username,email,contact_number,unit_number,password_hash,session_version FROM users WHERE id=1')->fetch_assoc();
+        authCheck(str_contains($securityHtml,'Password updated.') && password_verify('SeparatePassword@123',$afterSecurity['password_hash']) && (int)$afterSecurity['session_version']===(int)$beforeSecurity['session_version']+1,'separate password update uses hashing and the existing session revocation policy');
+        authCheck(array_intersect_key($afterSecurity,array_flip(['full_name','username','email','contact_number','unit_number']))===array_intersect_key($beforeSecurity,array_flip(['full_name','username','email','contact_number','unit_number'])),'password-only POST ignores all injected personal and readonly fields');
+        authCheck(!str_contains($securityHtml,$afterSecurity['password_hash']) && !str_contains($securityHtml,'value="SeparatePassword@123"'),'passwords and hashes are never rendered in the profile');
+        $passwordPost['current_password']='SeparatePassword@123'; $passwordPost['new_password']=$passwordPost['confirm_password']='NewPassword@123';
+        curl_setopt($curl,CURLOPT_POSTFIELDS,http_build_query($passwordPost)); curl_exec($curl);
+        authCheck(password_verify('NewPassword@123',$db->query('SELECT password_hash FROM users WHERE id=1')->fetch_assoc()['password_hash']),'password update retains the authenticated session for another secure change');
         curl_setopt_array($curl,[CURLOPT_HTTPGET=>true,CURLOPT_URL=>$base.'/logout.php']); $html=curl_exec($curl);
         authCheck(curl_getinfo($curl,CURLINFO_HTTP_CODE)===200 && preg_match('/name="csrf_token" value="([a-f0-9]+)"/',$html,$match)===1, 'logout GET offers protected confirmation');
         authCheck(str_contains($html,'href="resident/dashboard.php"') && str_contains($html,'Return to dashboard'), 'approved resident can return to their dashboard from sign out');

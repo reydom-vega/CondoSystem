@@ -128,6 +128,14 @@ function residentCanPayBill(mysqli $db,int $actorId,int $billUserId,?int $paymen
         if (!$bill || (int)$bill['user_id']!==$billUserId) return false;
         if ($bill['billing_scope']==='visitor_parking')return $actor['account_kind']==='owner'&&$actorId===$billUserId;
         if ($bill['billing_scope']==='personal_parking') return $actor['account_kind']==='tenant' && $actorId===$billUserId;
+        if ($bill['billing_scope']==='amenity_reservation') {
+            if($actorId!==$billUserId) return false;
+            if($actor['account_kind']==='owner') return true;
+            if($actor['account_kind']!=='tenant') return false;
+            $booking=$db->prepare('SELECT id FROM bookings WHERE payment_id=? AND user_id=? LIMIT 1');
+            $booking->bind_param('ii',$paymentId,$actorId); $booking->execute();
+            return (bool)$booking->get_result()->fetch_assoc();
+        }
     }
     return $actor && $actor['approved'] && $actor['account_kind']==='owner' && in_array($billUserId,residentBillingUserIds($db,$actorId),true);
 }

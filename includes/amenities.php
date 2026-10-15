@@ -190,7 +190,8 @@ function decideAmenityBooking(mysqli $db,int $id,string $action,string $reason='
                     $rateCents=(int)round((float)$booking['hourly_rate']*100);
                     $feeCents=(int)round((float)$booking['total_fee']*100);
                     if($rateCents<=0 || $feeCents!==$rateCents*(int)$schedule['duration_hours']) throw new InvalidArgumentException('This legacy request needs cancellation and resubmission with the current pool pricing.');
-                    $paymentId=createAmenityReservationBill($db,$booking,(int)$context['billing_user_id']);
+                    $payerId=$context['account_kind']==='tenant' ? (int)$context['id'] : (int)$context['billing_user_id'];
+                    $paymentId=createAmenityReservationBill($db,$booking,$payerId);
                     $link=$db->prepare('UPDATE bookings SET payment_id=? WHERE id=? AND payment_id IS NULL'); $link->bind_param('ii',$paymentId,$id); $link->execute();
                     if($link->affected_rows!==1) throw new RuntimeException('Could not link reservation billing.');
                 }

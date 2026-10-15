@@ -40,12 +40,12 @@ function ensureVehicleViolationColumns(mysqli $db): bool {
 
 function requireVehicleViolationLookup(): void {
     requireCapability('violations.manage', true);
-    requireCapability('vehicles.read', true);
+    requireCapability('vehicles.lookup', true);
 }
 
 /** Explicit field lists keep private ownership documents, access tokens and contact details out of lookup responses. */
 function vehicleViolationRecord(mysqli $db, string $source, int $id, bool $lock = false): ?array {
-    if (!canAccess('violations.manage') || !canAccess('vehicles.read')) throw new InvalidArgumentException('Vehicle lookup is not permitted.');
+    if (!canAccess('violations.manage') || !canAccess('vehicles.lookup')) throw new InvalidArgumentException('Vehicle lookup is not permitted.');
     if ($id < 1) return null;
     if ($source === 'registered') {
         $sql = "SELECT v.id, v.user_id AS account_id, v.plate_number AS plate, v.make, v.model, v.color, v.year,
@@ -88,7 +88,7 @@ function vehicleViolationRecord(mysqli $db, string $source, int $id, bool $lock 
 }
 
 function searchViolationVehicles(mysqli $db, string $mode, string $query): array {
-    if (!canAccess('violations.manage') || !canAccess('vehicles.read')) throw new InvalidArgumentException('Vehicle lookup is not permitted.');
+    if (!canAccess('violations.manage') || !canAccess('vehicles.lookup')) throw new InvalidArgumentException('Vehicle lookup is not permitted.');
     $query = trim($query);
     if (!in_array($mode, ['plate','slot'], true) || strlen($query) > 30) throw new InvalidArgumentException('Choose a search mode and enter up to 30 characters.');
     $needle = $mode === 'plate' ? normalizePlateNumber($query) : strtoupper($query);
@@ -138,7 +138,7 @@ function vehicleViolationHistoryScope(array $record): array {
 }
 
 function vehicleViolationHistory(mysqli $db, array $record, array $input): array {
-    if (!canAccess('violations.manage') || !canAccess('vehicles.read')) throw new InvalidArgumentException('Vehicle history is not permitted.');
+    if (!canAccess('violations.manage') || !canAccess('vehicles.lookup')) throw new InvalidArgumentException('Vehicle history is not permitted.');
     $scope = vehicleViolationHistoryScope($record);
     $params = [$scope['ref'], $scope['plate'], $scope['plate']]; $types = 'iss';
     $where = $scope['where'];
@@ -191,7 +191,7 @@ function vehicleViolationHistory(mysqli $db, array $record, array $input): array
 }
 
 function vehicleViolationDetails(mysqli $db, int $id): ?array {
-    if (!canAccess('violations.manage') || !canAccess('vehicles.read')) throw new InvalidArgumentException('Violation details are not permitted.');
+    if (!canAccess('violations.manage') || !canAccess('vehicles.lookup')) throw new InvalidArgumentException('Violation details are not permitted.');
     $stmt=$db->prepare("SELECT v.*, issuer.full_name AS reporting_personnel, reviewer.full_name AS reviewer_name,
         u.full_name AS legacy_account_name, u.unit_number AS legacy_unit_number, p.status AS payment_status
         FROM violations v LEFT JOIN users issuer ON issuer.id=v.issued_by LEFT JOIN users reviewer ON reviewer.id=v.reviewed_by
@@ -209,7 +209,7 @@ function vehicleViolationDetails(mysqli $db, int $id): ?array {
 }
 
 function submitVehicleViolationReport(mysqli $db, array $input, ?string $evidencePath = null): int {
-    if (!canAccess('violations.issue') || !canAccess('vehicles.read')) throw new InvalidArgumentException('Vehicle reporting is not permitted.');
+    if (!canAccess('violations.issue') || !canAccess('vehicles.lookup')) throw new InvalidArgumentException('Vehicle reporting is not permitted.');
     $source=(string)($input['registration_source'] ?? '');
     $recordId=(int)($input['related_record_id'] ?? 0);
     $record=null;

@@ -1,0 +1,27 @@
+<?php
+$auditInitial=[];$auditInitialError='';if($_GET){try{$valid=auditReportFilters($_GET);foreach(['mode','day','month','start','end','q','role','module','action','status','sort']as$key)if(isset($_GET[$key]))$auditInitial[$key]=$_GET[$key];}catch(DomainException $e){$auditInitialError=$e->getMessage();}}
+$auditToday=(new DateTimeImmutable('today',new DateTimeZone('Asia/Manila')))->format('Y-m-d');$auditE=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8');
+?>
+<section class="audit-workspace" data-audit-log>
+<script type="application/json" data-audit-config><?= json_encode(['endpoint'=>buildUrl('api/audit_log.php'),'export'=>buildUrl('audit_log_export.php'),'csrf'=>workflowCsrfToken(),'today'=>$auditToday,'initial'=>$auditInitial,'initial_error'=>$auditInitialError],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_QUOT|JSON_HEX_APOS) ?></script>
+<div class="unit-page-head"><div><h2>Audit Log</h2><p>Monitor and review recorded activities across The Celandine Condo Management System.</p></div></div>
+<section class="unit-management-panel audit-controls">
+<form data-audit-filters data-loading="manual">
+<div class="audit-period-tabs" role="group" aria-label="Reporting period"><?php foreach(['daily'=>'Daily','monthly'=>'Monthly','range'=>'Custom Range']as$value=>$label): ?><button type="button" data-audit-mode="<?= $value ?>" aria-pressed="<?= $value==='daily'?'true':'false' ?>"><?= $label ?></button><?php endforeach; ?></div>
+<input type="hidden" name="mode" value="daily">
+<div class="audit-date-fields"><label data-audit-daily>Reporting date<input type="date" name="day" value="<?= $auditToday ?>" required></label><label data-audit-monthly hidden>Reporting month<input type="month" name="month" value="<?= substr($auditToday,0,7) ?>" disabled required></label><label data-audit-range hidden>Start Date<input type="date" name="start" value="<?= $auditToday ?>" disabled required></label><label data-audit-range hidden>End Date<input type="date" name="end" value="<?= $auditToday ?>" disabled required></label><p data-audit-period-label aria-live="polite"></p></div>
+<div class="audit-filter-grid"><label class="audit-search">Search<input type="search" name="q" maxlength="120" placeholder="Search name, staff ID, action, or module..."></label><label>Role<select name="role"><option value="">All Roles</option><?php foreach(array_merge(getUserRoles(),['tenant'=>'Tenant','system'=>'System','unknown'=>'Unknown historical role'])as$key=>$label): ?><option value="<?= $auditE($key) ?>"><?= $auditE($label) ?></option><?php endforeach; ?></select></label>
+<label>Module<select name="module"><option value="">All Modules</option><?php $modules=array_unique(array_values(auditReportModules()));sort($modules);foreach(array_merge($modules,['Other'])as$module): ?><option><?= $auditE($module) ?></option><?php endforeach; ?></select></label>
+<label>Action Type<select name="action"><option value="">All Actions</option></select></label><label>Status<select name="status"><option value="">All Statuses</option><option value="success">Success</option><option value="failed">Failed</option><option value="refused">Refused</option><option value="unknown">Not recorded</option></select></label><label>Sort<select name="sort"><option value="newest">Newest First</option><option value="oldest">Oldest First</option></select></label></div>
+<div class="audit-actions"><button type="submit" class="service-btn">Apply Filters</button><button type="button" data-audit-clear class="service-btn service-btn-secondary">Clear Filters</button></div>
+</form>
+<div class="audit-actions audit-export-actions"><button type="button" data-audit-export="pdf" class="service-btn"><?= systemIcon('file-text','system-action-icon') ?> Download PDF</button><button type="button" data-audit-export="png" class="service-btn"><?= systemIcon('image','system-action-icon') ?> Download Image</button><button type="button" data-audit-export="preview" class="service-btn service-btn-secondary"><?= systemIcon('eye','system-action-icon') ?> Preview Report</button></div>
+<p data-audit-message role="status" aria-live="polite" hidden></p>
+<p class="audit-note" data-audit-export-limit></p>
+</section>
+<div class="audit-stats" data-audit-summary aria-live="polite"></div>
+<template data-audit-stat-icons><?php foreach(['total'=>'clipboard-list','success'=>'check-circle','failed'=>'violations','users'=>'users']as$key=>$icon): ?><span data-audit-stat-icon="<?= $key ?>"><?= systemIcon($icon,'system-action-icon') ?></span><?php endforeach; ?></template>
+<p class="audit-note">Success and failure totals count explicit recorded outcomes only. Rejections are decisions, not system failures. Historical outcomes remain “Not recorded.”</p>
+<section class="unit-management-panel"><div class="unit-table-wrap"><table class="unit-table audit-table"><thead><tr><?php foreach(['Date & Time (PH)','Actor / User','Staff / User ID','Role','Module','Activity / Action','Status','Details']as$title): ?><th><?= $auditE($title) ?></th><?php endforeach; ?></tr></thead><tbody data-audit-rows><tr><td colspan="8">Loading audit records...</td></tr></tbody></table></div><div class="audit-pagination" data-audit-pagination></div></section>
+<dialog class="audit-dialog" data-audit-dialog aria-labelledby="auditDetailTitle"><div class="audit-dialog-header"><h2 id="auditDetailTitle">Audit Record Details</h2><button type="button" data-audit-close aria-label="Close audit details"><?= systemIcon('close','system-action-icon') ?></button></div><div data-audit-detail></div></dialog>
+</section>

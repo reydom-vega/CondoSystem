@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             refreshSession();
 
             trackEvent('user_login', $user['role'] ?? 'resident', (int)$user['id']);
-            logAudit('login', 'authentication', (int)$user['id'], 'Successful login');
+            logAudit('login', 'authentication', (int)$user['id'], 'Successful login', null, 'success');
 
             if ($rememberMe) {
                 issueRememberToken((int)$user['id']);

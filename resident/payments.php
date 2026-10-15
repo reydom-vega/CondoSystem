@@ -58,11 +58,11 @@ $success = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireWorkflowCsrf();
-    if (!$canPay) { http_response_code(403); exit('Only the approved unit owner can pay bills. Tenant billing access is read-only.'); }
+    if (!$canPay) { http_response_code(403); exit('Your account cannot make payments. You can review available statements.'); }
     $requestedBillId=(int)($_POST['bill_id'] ?? 0);
     $authorizeBill=$connection->prepare('SELECT user_id FROM payments WHERE id=?');
     $authorizeBill->bind_param('i',$requestedBillId); $authorizeBill->execute(); $requestedBill=$authorizeBill->get_result()->fetch_assoc();
-    if (!$requestedBill || !residentCanPayBill($connection,$userId,(int)$requestedBill['user_id'],$requestedBillId)) { http_response_code(403); exit('You are not authorized to pay this bill. Tenants can pay only their own parking charges.'); }
+    if (!$requestedBill || !residentCanPayBill($connection,$userId,(int)$requestedBill['user_id'],$requestedBillId)) { http_response_code(403); exit('You are not authorized to pay this bill. Tenants can pay only their own parking and booking charges.'); }
     $formAction = $_POST['form_action'] ?? '';
     if ($formAction === 'pay_bill') {
         $result = startResidentBillPayment($connection, (int)($_POST['bill_id'] ?? 0), $userId,
@@ -160,10 +160,10 @@ $nextDueDate = $dueDates[0] ?? null;
                 <div class="alert error"><ul><?php foreach ($errors as $error): ?><li><?php echo htmlspecialchars($error); ?></li><?php endforeach; ?></ul></div>
             <?php endif; ?>
             <?php if (!$canPay): ?>
-                <div class="alert"><strong>Billing is read-only for authorized occupants.</strong> You can review your unit's itemized statements and recorded payment status. The approved unit owner pays shared unit bills; tenants pay their own requested parking.</div>
+                <div class="alert"><strong>Billing is read-only for authorized occupants.</strong> You can review your unit's itemized statements and recorded payment status. The approved unit owner pays shared unit bills; tenants pay their own requested parking and amenity bookings.</div>
             <?php endif; ?>
             <?php if (($residentContext['account_kind'] ?? '')==='tenant'): ?>
-                <div class="alert">You pay for parking requested through your account. Unit dues and other shared bills are handled by the unit owner.</div>
+                <div class="alert">You pay for parking and amenity bookings requested through your account. Unit dues and other shared bills are handled by the unit owner.</div>
             <?php endif; ?>
 
             <p class="billing-intro">Review your itemized bills, choose a payment method, and find receipts for completed payments.</p>

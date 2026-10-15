@@ -1,5 +1,5 @@
 <?php
-/** Owner-only payment and read-only tenant statements, without provider calls. */
+/** Shared unit liability and personally requested tenant charges; no provider calls. */
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 
 // The renderer can only use this suite's disposable database.
@@ -292,6 +292,72 @@ try {
     tenantBillCheck(tenantBillRequest('resident/payment_receipt.php',['actor'=>1,'get'=>['id'=>$personalBill]])['status']===404,'owner cannot download tenant personal parking receipt');
     $db->query("INSERT INTO parking_slots(slot_code,slot_type) VALUES('TEN-R3','resident')");
     tenantBillCheck(markParkingStickerIssued((int)$personalOrder['id'],6),'paid tenant personal sticker receives inventory slot');
+    // Booking approval must bill the requesting tenant and enforce the same
+    // identity at payment initiation, checkout return, receipt and notifications.
+    $bookingDate=date('Y-m-d',strtotime('+30 days'));
+    tenantBillActor($db,2);
+    tenantBillCheck(createAmenityBooking($db,2,'Swimming Pool',$bookingDate,'08:00',3,2),'tenant submits personal pool reservation');
+    $tenantBooking=(int)$db->query("SELECT id FROM bookings WHERE user_id=2 AND booking_date='$bookingDate' AND booking_time='08:00:00'")->fetch_assoc()['id'];
+    tenantBillActor($db,6);
+    $pendingBooking=$db->query('SELECT * FROM bookings WHERE id='.$tenantBooking)->fetch_assoc();
+    $beforeBookingBills=(int)$db->query('SELECT COUNT(*) n FROM payments')->fetch_assoc()['n'];
+    try { createAmenityReservationBill($db,$pendingBooking,1); throw new RuntimeException('Wrong booking payer accepted.'); }
+    catch(InvalidArgumentException $error) { tenantBillCheck(true,'bill helper rejects routing tenant reservation to unit owner'); }
+    tenantBillCheck((int)$db->query('SELECT COUNT(*) n FROM payments')->fetch_assoc()['n']===$beforeBookingBills,'wrong payer does not create an invoice');
+    tenantBillCheck(decideAmenityBooking($db,$tenantBooking,'approved'),'management approves tenant reservation');
+    $bookingRow=$db->query('SELECT b.status,b.payment_id,p.user_id,p.billing_scope,p.amount FROM bookings b JOIN payments p ON p.id=b.payment_id WHERE b.id='.$tenantBooking)->fetch_assoc();
+    $bookingBill=(int)$bookingRow['payment_id'];
+    tenantBillCheck((int)$bookingRow['user_id']===2 && $bookingRow['billing_scope']==='amenity_reservation' && (float)$bookingRow['amount']===(float)(2*AMENITY_POOL_HOURLY_RATE),'tenant booking bill belongs to tenant at saved reservation price');
+    tenantBillCheck(residentCanPayBill($db,2,2,$bookingBill) && !residentCanPayBill($db,1,2,$bookingBill) && !residentCanPayBill($db,3,2,$bookingBill) && !residentCanPayBill($db,4,2,$bookingBill),'only requesting tenant can pay booking invoice');
+    tenantBillCheck(decideAmenityBooking($db,$tenantBooking,'approved') && (int)$db->query('SELECT COUNT(*) n FROM payments')->fetch_assoc()['n']===$beforeBookingBills+1,'repeated approval keeps exactly one booking invoice');
+    $tenantPage=tenantBillRequest('resident/payments.php',['actor'=>2]);
+    tenantBillCheck(str_contains($tenantPage['body'],'name="bill_id" value="'.$bookingBill.'"'),'tenant sees booking payment controls');
+    $ownerPage=tenantBillRequest('resident/payments.php',['actor'=>1]);
+    tenantBillCheck(!str_contains($ownerPage['body'],'name="bill_id" value="'.$bookingBill.'"'),'owner has no payment control for tenant booking');
+    tenantBillCheck(tenantBillRequest('resident/payments.php',['actor'=>1,'post'=>['form_action'=>'pay_bill','bill_id'=>$bookingBill,'payment_method'=>'cash']])['status']===403,'forged owner payment for tenant booking denied');
+    tenantBillActor($db,1);
+    tenantBillCheck(!startResidentBillPayment($db,$bookingBill,1,'cash',[])['success'],'owner cannot initiate tenant booking cash payment');
+    tenantBillActor($db,2);
+    tenantBillCheck(startResidentBillPayment($db,$bookingBill,2,'cash',[])['success'],'tenant selects cash for own booking');
+    tenantBillCheck(!startResidentBillPayment($db,$ownerBill,2,'cash',[])['success'],'booking permission does not permit owner unit dues');
+    tenantBillActor($db,6);
+    tenantBillCheck(notifyResidentOfNewBill($bookingBill),'tenant booking billing notice queued');
+    tenantBillCheck(confirmCashBillPayment($db,$bookingBill),'management verifies tenant booking cash payment');
+    tenantBillCheck($db->query('SELECT status FROM bookings WHERE id='.$tenantBooking)->fetch_assoc()['status']==='confirmed','verified tenant payment confirms original booking');
+    $bookingJobs=$db->query("SELECT * FROM notification_outbox WHERE entity_id=$bookingBill AND event_kind IN ('bill_notice','payment_receipt')")->fetch_all(MYSQLI_ASSOC);
+    tenantBillCheck(count($bookingJobs)===4 && count(array_filter($bookingJobs,static fn($job)=>(int)$job['user_id']===2))===4,'booking statement and receipt routed to requesting tenant only');
+    foreach($bookingJobs as$job)tenantBillCheck(notificationStillRelevant($db,$job)===($job['event_kind']==='payment_receipt'),'booking notice/receipt relevance follows verified payment');
+    tenantBillCheck(tenantBillRequest('resident/payment_receipt.php',['actor'=>2,'get'=>['id'=>$bookingBill]])['status']===200,'requesting tenant downloads paid booking receipt');
+    tenantBillCheck(tenantBillRequest('resident/payment_return.php',['actor'=>2,'get'=>['payment_id'=>$bookingBill]])['status']===200,'requesting tenant views booking payment status');
+    tenantBillCheck(tenantBillRequest('resident/payment_receipt.php',['actor'=>1,'get'=>['id'=>$bookingBill]])['status']===404,'owner cannot download tenant booking receipt');
+    tenantBillActor($db,2);
+    tenantBillCheck(createAmenityBooking($db,2,'Swimming Pool',$bookingDate,'12:00',2,1),'tenant submits another booking for checkout test');
+    $onlineBooking=(int)$db->query("SELECT id FROM bookings WHERE user_id=2 AND booking_date='$bookingDate' AND booking_time='12:00:00'")->fetch_assoc()['id'];
+    tenantBillActor($db,6);decideAmenityBooking($db,$onlineBooking,'approved');
+    $onlineBill=(int)$db->query('SELECT payment_id FROM bookings WHERE id='.$onlineBooking)->fetch_assoc()['payment_id'];
+    tenantBillActor($db,2);
+    $adapter=createPaymongoCheckoutSession($onlineBill,[['category'=>'Amenity Reservation','amount'=>AMENITY_POOL_HOURLY_RATE]],'Booking','Tenant','fixture2@example.invalid','http://localhost/success','http://localhost/cancel',[],[]);
+    tenantBillCheck(!$adapter['success'] && str_contains($adapter['error'],'No PayMongo payment methods'),'tenant passes provider adapter authorization without making a network request');
+    $db->query("UPDATE payments SET paymongo_checkout_id='cs_tenant_booking',checkout_url='https://checkout.paymongo.com/cs_tenant_booking',payment_method='online' WHERE id=$onlineBill");
+    tenantBillActor($db,2);putenv('CONDO_TENANT_AMENITIES=0');
+    $resumed=startResidentBillPayment($db,$onlineBill,2,'online',[]);
+    tenantBillCheck($resumed['success'] && !empty($resumed['resumed']),'tenant resumes own saved booking checkout even when new bookings disabled');
+    tenantBillActor($db,1);
+    tenantBillCheck(!startResidentBillPayment($db,$onlineBill,1,'online',[])['success'],'owner cannot resume tenant booking checkout');
+    $ownerView=array_values(array_filter(getResidentVisibleBills($db,1),static fn($b)=>(int)$b['id']===$onlineBill));
+    tenantBillCheck(count($ownerView)===1 && !isset($ownerView[0]['checkout_url']),'shared statement withholds tenant booking checkout URL from owner');
+    putenv('CONDO_TENANT_AMENITIES=1');
+    $_SESSION=[];
+    $bookingPayment=['internal_payment_id'=>$onlineBill,'checkout_id'=>'cs_tenant_booking','paymongo_payment_id'=>'pay_tenant_booking','payment_channel'=>'gcash','amount'=>AMENITY_POOL_HOURLY_RATE*100,'currency'=>'PHP','payment_status'=>'paid','event_type'=>'checkout_session.payment.paid','livemode'=>false];
+    tenantBillCheck(!empty(confirmPaymongoCheckoutPayment($db,$bookingPayment)['confirmed']),'verified gateway fixture settles tenant booking');
+    tenantBillCheck(!empty(confirmPaymongoCheckoutPayment($db,$bookingPayment)['already_paid']),'retried booking payment remains idempotent');
+    tenantBillCheck($db->query('SELECT status FROM bookings WHERE id='.$onlineBooking)->fetch_assoc()['status']==='confirmed','gateway settlement confirms tenant booking');
+    tenantBillActor($db,1);
+    tenantBillCheck(createAmenityBooking($db,1,'Swimming Pool',$bookingDate,'15:00',2,1),'owner submits own booking');
+    $ownerBooking=(int)$db->query("SELECT id FROM bookings WHERE user_id=1 AND booking_date='$bookingDate' AND booking_time='15:00:00'")->fetch_assoc()['id'];
+    tenantBillActor($db,6);decideAmenityBooking($db,$ownerBooking,'approved');
+    $ownerBookingBill=(int)$db->query('SELECT payment_id FROM bookings WHERE id='.$ownerBooking)->fetch_assoc()['payment_id'];
+    tenantBillCheck(residentCanPayBill($db,1,1,$ownerBookingBill) && !residentCanPayBill($db,2,1,$ownerBookingBill),'owner booking remains payable only by its billed owner');
     $db->query('UPDATE users SET is_active=0 WHERE id=1');
     tenantBillCheck(getResidentVisibleBills($db,2)===[] && !residentCanPayBill($db,1,2),'revoked unit owner removes tenant billing scope and payer rights');
     echo 'Passed '.$checks." tenant billing checks in a disposable database; no provider calls.\n";

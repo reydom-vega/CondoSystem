@@ -5,7 +5,7 @@ $residentVehiclePage=$residentVehiclePage??false;
 $isResident=($_SESSION['role']??'')==='resident';
 if ($isResident && !$residentVehiclePage) redirect('../resident/vehicles.php');
 if ($residentVehiclePage && !$isResident) redirect('../superadmin/registeredvehicles.php');
-if (!$isResident && !canReviewPermits() && !isSecurity()) { http_response_code(403); exit('Access denied.'); }
+if (!$isResident) requireCapability('vehicles.read');
 if ($isResident) {
     requireApproval();
     requireResidentPermission('resident.vehicles.register');

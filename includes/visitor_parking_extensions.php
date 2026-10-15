@@ -17,8 +17,8 @@ function vpRequestExtension(mysqli $db,int $request,array $input): int {
     if(!residentHasPermission('resident.parking.request'))throw new InvalidArgumentException('Resident parking access is required.');$actor=(int)$_SESSION['user_id'];
     $until=vpUtcInput(vpText($input,'requested_until',16,true));$reason=vpText($input,'extension_reason',1000,true);$key=vpText($input,'request_key',64,true);
     $db->begin_transaction();try{
-        $s=$db->prepare("SELECT * FROM parking_requests WHERE id=? AND user_id=? AND request_type='visitor' AND status='approved' AND actual_check_out IS NULL AND fee_policy_version=1 FOR UPDATE");$s->bind_param('ii',$request,$actor);$s->execute();$row=$s->get_result()->fetch_assoc();if(!$row)throw new InvalidArgumentException('Active visitor parking reservation not found.');
-        $start=$row['actual_check_in']?:$row['expected_arrival_utc'];$quote=vpQuote($start,$until);if(!$quote['extended']||$until<=vpNow()||vpMicros($until)-vpMicros($start)>365*86400000000)throw new InvalidArgumentException('Request a future departure beyond 24 hours, within one year.');
+        $s=$db->prepare("SELECT * FROM parking_requests WHERE id=? AND user_id=? AND request_type='visitor' AND status='approved' AND actual_check_out IS NULL AND fee_policy_version>=1 FOR UPDATE");$s->bind_param('ii',$request,$actor);$s->execute();$row=$s->get_result()->fetch_assoc();if(!$row)throw new InvalidArgumentException('Active visitor parking reservation not found.');
+        $start=$row['actual_check_in']?:($row['reservation_start_utc']?:$row['expected_arrival_utc']);$quote=vpQuote($start,$until);if(!$quote['extended']||$until<=vpNow()||vpMicros($until)-vpMicros($start)>365*86400000000)throw new InvalidArgumentException('Request a future departure beyond 24 hours, within one year.');
         if(!empty($row['authorized_until'])&&$until<=$row['authorized_until'])throw new InvalidArgumentException('The requested departure is already authorized.');
         $id=vpInsertExtension($db,$request,$actor,$start,$until,$reason,$key);$db->commit();return $id;
     }catch(Throwable $error){$db->rollback();throw $error;}
@@ -43,7 +43,7 @@ function vpDecideExtension(mysqli $db,int $id,string $decision,string $note,stri
         $s=$db->prepare("SELECT * FROM parking_extensions WHERE id=? AND status='pending' FOR UPDATE");$s->bind_param('i',$id);$s->execute();$extension=$s->get_result()->fetch_assoc();if(!$extension){if($manageTransaction)$db->rollback();return false;}
         $until=null;
         if($decision==='approved'){
-            $until=$approvedInput!==''?vpUtcInput($approvedInput):$extension['requested_until'];$start=$row['actual_check_in']?:$row['expected_arrival_utc'];
+            $until=$approvedInput!==''?vpUtcInput($approvedInput):$extension['requested_until'];$start=$row['actual_check_in']?:($row['reservation_start_utc']?:$row['expected_arrival_utc']);
             if($until> $extension['requested_until']||$until<=vpNow()||!vpQuote($start,$until)['extended'])throw new InvalidArgumentException('Confirm a future authorized end within the requested extension period.');
             $s=$db->prepare('SELECT * FROM parking_slots WHERE id=? FOR UPDATE');$s->bind_param('i',$row['slot_id']);$s->execute();$slot=$s->get_result()->fetch_assoc();
             if(!$slot||$slot['slot_type']!=='visitor'||$slot['status']==='maintenance'||($slot['status']==='occupied'&&(!$row['actual_check_in']||(int)$slot['assigned_user_id']!==(int)$row['user_id']||$slot['vehicle_plate']!==$row['vehicle_plate']))||vpSlotConflict($db,(int)$slot['id'],(int)$row['id'],$start,$until))throw new InvalidArgumentException('The requested extension conflicts with parking availability.');
@@ -69,14 +69,14 @@ function monitorVisitorParking(mysqli $db): array {
     foreach($expired as$item){$db->begin_transaction();try{
         $s=$db->prepare('SELECT id FROM parking_requests WHERE id=? AND actual_check_in IS NULL FOR UPDATE');$s->bind_param('i',$item['parking_request_id']);$s->execute();if(!$s->get_result()->fetch_assoc()){$db->rollback();continue;}
         $s=$db->prepare("UPDATE parking_extensions SET status='expired' WHERE id=? AND status IN ('pending','approved') AND COALESCE(approved_until,requested_until)<UTC_TIMESTAMP(6)");$s->bind_param('i',$item['id']);$s->execute();
-        if($s->affected_rows&&!logAudit('expire','parking_extension',(int)$item['id'],'Requested/authorized end passed before arrival. Original decision retained.',$db))throw new RuntimeException('Expiry audit failed.');
+        if($s->affected_rows&&!logAudit('expire','parking_extension',(int)$item['id'],'Requested/authorized end passed before arrival. Original decision retained.',$db,'success',true))throw new RuntimeException('Expiry audit failed.');
         $db->commit();
     }catch(Throwable $error){$db->rollback();throw $error;}}
     $ids=$db->query('SELECT id FROM parking_requests WHERE actual_check_in IS NOT NULL AND actual_check_out IS NULL ORDER BY COALESCE(last_monitored_at,actual_check_in),id LIMIT 500')->fetch_all(MYSQLI_ASSOC);
     foreach($ids as$item){$db->begin_transaction();try{
         $s=$db->prepare('SELECT * FROM parking_requests WHERE id=? AND actual_check_in IS NOT NULL AND actual_check_out IS NULL FOR UPDATE');$s->bind_param('i',$item['id']);$s->execute();$row=$s->get_result()->fetch_assoc();if(!$row){$db->rollback();continue;}$counts['checked']++;$now=vpNow();$compliance=vpCompliance($row,$now);
         // Warn once during the last hour before the standard limit.
-        if(vpMicros($now)-vpMicros($row['actual_check_in'])>=23*3600000000)vpNotify($db,(int)$row['id'],'reaching24','Visitor parking is reaching 24 hours. Parking beyond 24 hours requires management approval.');
+        if((empty($row['rate_policy_snapshot'])||json_decode($row['rate_policy_snapshot'],true,512,JSON_THROW_ON_ERROR)['extension_required'])&&vpMicros($now)-vpMicros($row['actual_check_in'])>=23*3600000000)vpNotify($db,(int)$row['id'],'reaching24','Visitor parking is reaching 24 hours. Parking beyond 24 hours requires management approval.');
         if($compliance!==$row['parking_compliance']){
             $s=$db->prepare('UPDATE parking_requests SET parking_compliance=? WHERE id=?');$s->bind_param('si',$compliance,$row['id']);$s->execute();$counts['changed']++;
             if(in_array($compliance,['unapproved_extended','overstayed_approved'],true)){vpNotify($db,(int)$row['id'],$compliance.':'.($row['authorized_until']??'standard'),'Visitor parking requires review: '.str_replace('_',' ',$compliance).'. The vehicle remains parked and fees continue.',true);if(!logAudit('overstay','visitor_parking',(int)$row['id'],$compliance,$db))throw new RuntimeException('Overstay audit failed.');}

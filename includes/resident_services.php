@@ -94,7 +94,7 @@ function decideResidentServiceRequest(mysqli $db, int $id, string $status, strin
         catch (InvalidArgumentException $e) { return false; }
     }
     if (!in_array($status, ['approved', 'rejected'], true) || strlen($notes) > 500) return false;
-    $kind = isSecurity() ? 'visitor' : (canReviewPermits() ? null : 'denied');
+    $kind = canAccess('permits.review') ? null : (canAccess('visitors.review') ? 'visitor' : 'denied');
     if ($kind === 'denied') return false;
     if ($manageTransaction && !ensureParkingTables($db)) return false;
     $actor = (int)$_SESSION['user_id'];

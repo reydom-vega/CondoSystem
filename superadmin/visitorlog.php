@@ -136,7 +136,7 @@ $flash = getFlash();
                     <?php endforeach; ?>
                 </nav>
                 <section class="unit-management-panel" id="visitor-log-panel-form" role="tabpanel" aria-labelledby="visitor-log-tab-form" tabindex="0" data-workspace-panel="form" <?= $visitorLogTab !== 'form' ? 'hidden' : '' ?>>
-                    <h3 class="section-title">Log a Visitor In</h3>
+                    <h3 class="section-title">Log a Visitor In</h3><p>For visitors bringing a vehicle, <a href="service_requests.php?kind=visitor&amp;tab=requests#staffAssistedVisitor">prepare a sponsored visitor registration with parking</a>. Vehicle entry is recorded separately by Security after approval and sponsor fee acknowledgment.</p>
                     <form method="post" action="visitorlog.php?tab=form" class="visitor-form"><?php echo workflowCsrfField(); ?>
                         <input type="hidden" name="action" value="checkin">
                         <div class="field"><label for="visitorName">Visitor name</label><input id="visitorName" name="visitor_name" maxlength="120" placeholder="e.g. Juan Dela Cruz" required></div>

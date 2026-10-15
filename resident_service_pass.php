@@ -168,7 +168,7 @@ if ($isVisitorPass) {
         <?= systemIcon($valid ? 'shield' : 'info') ?>
         <div><h2 id="securityInstructionsTitle"><?= $valid ? 'At the gate' : 'Entry notice' ?></h2><p id="passSecurityInstruction"><?= passEscape($securityInstruction) ?></p></div>
     </aside>
-    <?php if ($valid && isSecurity() && $pass['request_kind'] === 'visitor'): ?>
+    <?php if ($valid && isSecurity() && $pass['request_kind'] === 'visitor' && empty($visitorVehicle)): ?>
     <form method="post" class="service-actions visitor-pass-checkin"><?= workflowCsrfField() ?><?php if(!empty($visitorVehicle)): ?><label class="checkbox"><input type="checkbox" name="vehicle_entry_confirmed" value="1" required> I have verified actual vehicle arrival and its assigned visitor slot. The parking timer starts now.</label><?php endif; ?><button type="submit"><?= systemIcon('check-circle') ?><?= !empty($visitorVehicle)?'Confirm visitor &amp; vehicle check-in':'Confirm visitor check-in' ?></button></form>
     <?php endif; ?>
     <?php if($isVisitorPass && visitorParkingFeesReady($db)){ $vpLink=$db->query('SELECT id FROM parking_requests WHERE visitor_registration_id='.(int)$id." AND status='approved' ORDER BY id DESC LIMIT 1")->fetch_assoc();if($vpLink){$vpOnlyRequest=(int)$vpLink['id'];include __DIR__.'/includes/visitor_parking_widget.php';unset($vpOnlyRequest);}} ?>

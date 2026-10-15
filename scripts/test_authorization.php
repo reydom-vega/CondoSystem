@@ -47,11 +47,24 @@ try {
     $db->query("UPDATE users SET status = 'pending' WHERE id IN (2,8,9)");
     $db->query('UPDATE users SET is_verified = 0 WHERE id = 8');
     ensurePaymentsTable($db); ensurePaymongoColumns($db); ensureResidentServicesTables($db); ensureParkingTables($db); ensureVisitorLogsTable($db); ensureVisitorLogColumns($db); ensureVehiclesTable($db); ensureStickerVehicleLinks($db); ensureBillingTables($db); ensureMessagesTable($db); ensureBookingsTable($db); ensureMaintenanceTable($db); ensureViolationsTable($db); ensureAnnouncementsTable($db); ensureRememberTokensTable($db);
-    ensureNotificationOutboxTable($db); ensureCommunityReportSchema($db);
+    ensureNotificationOutboxTable($db); ensureCommunityReportSchema($db); ensureVisitorParkingFeeSchema($db);
+    ensureQrScanHistorySchema($db);
     // Manual visitor logging belongs to management; QR gate operations stay available.
     authorizationActor($db,3);
     checkAuthorization(!canAccess('visitors.logs') && canAccess('security.gate'), 'security loses manual visitor logs while retaining gate access');
     checkAuthorization(!in_array('Visitor Log', array_column(staffSidebarLinks(),2), true), 'security menu has no Visitor Log');
+    foreach(['Registered Vehicles','Visitor Registrations','Parking & Stickers']as$removed)checkAuthorization(!in_array($removed,array_column(staffSidebarLinks(),2),true),'security menu removes '.$removed);
+    foreach(['vehicles.read','visitors.review','visitors.identity.review','parking.review']as$cap)checkAuthorization(!canAccess($cap),'security management capability removed '.$cap);
+    checkAuthorization(canAccess('vehicles.lookup')&&canAccess('parking.gate'),'incident lookup and QR gate operations retained');
+    foreach(['superadmin/registeredvehicles.php','superadmin/service_requests.php','superadmin/parking.php']as$removedRoute){
+        checkAuthorization(authorizationRequest($removedRoute,3,null,['get'=>['kind'=>'visitor']])['status']===403,'removed security page denied '.$removedRoute);
+        checkAuthorization(authorizationRequest($removedRoute,3,['action'=>'approved','request_id'=>1],['get'=>['kind'=>'visitor']])['status']===403,'removed security page POST denied '.$removedRoute);
+    }
+    $db->query("UPDATE users SET status='pending' WHERE id=3"); // Default on legacy/staff-created accounts; not a staff access rule.
+    $home=authorizationRequest('security/security_dashboard.php',3);
+    checkAuthorization($home['status']===200&&str_contains($home['body'],'My Reports Awaiting Review')&&!str_contains($home['body'],'Recent Parking Requests')&&!str_contains($home['body'],'js/live-updates.js'),'security dashboard shows gate work without removed queues');
+    checkAuthorization(authorizationRequest('api/security_dashboard.php',3)['status']===200,'dedicated security updates accessible');
+    foreach([1,4,5,6,7]as$other)checkAuthorization(authorizationRequest('api/security_dashboard.php',$other)['status']===403,'security updates denied for other role '.$other);
     $visitorPost=['action'=>'checkin','visitor_name'=>'Manual Admin Guest','visitor_contact'=>'09123456789','unit_number'=>'0101','purpose'=>'Delivery'];
     foreach (['superadmin/visitorlog.php','security/visitor_log.php'] as $visitorPage) {
         checkAuthorization(authorizationRequest($visitorPage,3)['status']===403,'security cannot open '.$visitorPage);
@@ -89,7 +102,7 @@ try {
         $result = authorizationRequest($page, $actor, null, ['get' => ['user_id' => 1]]);
         checkAuthorization($result['status'] === 403, 'specialty role cannot access ' . $page);
     }
-    foreach ([[5,'superadmin/residents.php'],[5,'superadmin/announcements.php'],[4,'superadmin/pending_accounts.php'],[3,'superadmin/registeredvehicles.php'],[4,'superadmin/notification_delivery.php'],[5,'api/admin_dashboard.php'],[1,'api/dashboard.php']] as [$actor, $page]) {
+    foreach ([[5,'superadmin/residents.php'],[5,'superadmin/announcements.php'],[4,'superadmin/pending_accounts.php'],[5,'superadmin/registeredvehicles.php'],[4,'superadmin/notification_delivery.php'],[5,'api/admin_dashboard.php'],[1,'api/dashboard.php']] as [$actor, $page]) {
         $result = authorizationRequest($page, $actor);
         checkAuthorization($result['status'] === 200, 'authorized route responds ' . $page);
     }

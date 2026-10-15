@@ -33,6 +33,7 @@ CREATE TABLE `analytics` (
   `ip_address` varchar(45) DEFAULT NULL,
   `user_agent` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  INDEX ix_insight_created (created_at,event_type),
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
   KEY `event_type` (`event_type`),
@@ -68,6 +69,10 @@ CREATE TABLE `audit_logs` (
   `admin_id` int(11) DEFAULT NULL,
   `admin_name` varchar(100) DEFAULT NULL,
   `admin_role` varchar(30) DEFAULT NULL,
+  `actor_name_snapshot` varchar(150) DEFAULT NULL,
+  `actor_identifier` varchar(30) DEFAULT NULL,
+  `actor_role_snapshot` varchar(30) DEFAULT NULL,
+  `outcome` varchar(20) DEFAULT NULL,
   `action` varchar(100) NOT NULL,
   `entity_type` varchar(50) NOT NULL,
   `entity_id` int(11) DEFAULT NULL,
@@ -77,7 +82,12 @@ CREATE TABLE `audit_logs` (
   PRIMARY KEY (`id`),
   KEY `admin_id` (`admin_id`),
   KEY `entity_type` (`entity_type`,`entity_id`),
-  KEY `created_at` (`created_at`)
+  KEY `created_at` (`created_at`),
+  KEY `ix_audit_period` (`created_at`,`id`),
+  KEY `ix_audit_actor_period` (`admin_id`,`created_at`),
+  KEY `ix_audit_module_period` (`entity_type`,`created_at`),
+  KEY `ix_audit_role_period` (`actor_role_snapshot`,`created_at`),
+  KEY `ix_audit_outcome_period` (`outcome`,`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE `authentication_limits` (
@@ -237,6 +247,7 @@ CREATE TABLE `violations` (
   `location` varchar(255) DEFAULT NULL,
   `evidence_path` varchar(255) DEFAULT NULL,
   `admin_remarks` text DEFAULT NULL,
+  INDEX ix_insight_bill (payment_id,bill_item_id),
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
   KEY `status` (`status`),
@@ -256,6 +267,8 @@ CREATE TABLE `visitor_logs` (
   `time_out` datetime DEFAULT NULL,
   `status` enum('checked_in','checked_out') NOT NULL DEFAULT 'checked_in',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  INDEX ix_insight_entry (time_in),
+  INDEX ix_insight_exit (time_out),
   PRIMARY KEY (`id`),
   KEY `logged_by` (`logged_by`),
   KEY `status` (`status`),
@@ -282,6 +295,7 @@ CREATE TABLE `bookings` (
   `approved_at` datetime DEFAULT NULL,
   `rejection_reason` varchar(500) DEFAULT NULL,
   `cancellation_note` varchar(500) DEFAULT NULL,
+  INDEX ix_insight_created (created_at,status),
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
   UNIQUE KEY `ux_booking_payment` (`payment_id`),
@@ -304,6 +318,7 @@ CREATE TABLE `maintenance_requests` (
   `completion_note` text DEFAULT NULL,
   `before_photo_path` varchar(64) DEFAULT NULL,
   `after_photo_path` varchar(64) DEFAULT NULL,
+  INDEX ix_insight_created (created_at,status,issue_type),
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
   CONSTRAINT `fk_maintenance_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
@@ -400,6 +415,9 @@ CREATE TABLE `payments` (
   `billing_period_end` date DEFAULT NULL,
   `billing_scope` varchar(30) NOT NULL DEFAULT 'unit',
   `payment_channel` varchar(30) DEFAULT NULL,
+  INDEX ix_insight_created (created_at,status),
+  INDEX ix_insight_paid (paid_at,status),
+  INDEX ix_insight_due (status,due_date),
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_payment_checkout` (`paymongo_checkout_id`),
   UNIQUE KEY `ux_payment_gateway` (`paymongo_payment_id`),
@@ -453,6 +471,7 @@ CREATE TABLE `resident_service_requests` (
   `identity_reviewed_at` datetime DEFAULT NULL,
   `identity_review_note` varchar(500) DEFAULT NULL,
   `id_deleted_at` datetime DEFAULT NULL,
+  INDEX ix_insight_registration (request_kind,created_at,status),
   PRIMARY KEY (`id`),
   UNIQUE KEY `access_token` (`access_token`),
   KEY `user_id` (`user_id`,`request_kind`,`status`),
@@ -473,6 +492,19 @@ CREATE TABLE `bill_items` (
   CONSTRAINT `fk_bill_items_payment` FOREIGN KEY (`payment_id`) REFERENCES `payments` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+CREATE TABLE parking_rate_versions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  effective_from DATETIME(6) NOT NULL,
+  policy_json LONGTEXT NOT NULL,
+  created_by INT DEFAULT NULL,
+  created_at DATETIME(6) NOT NULL,
+  reason VARCHAR(1000) NOT NULL,
+  INDEX ix_parking_rate_effective(effective_from,id),
+  CONSTRAINT fk_parking_rate_actor FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO parking_rate_versions(id,effective_from,policy_json,created_at,reason) VALUES(2,UTC_TIMESTAMP(6),'{"id":2,"grace_seconds":900,"base_seconds":10800,"base_cents":5000,"hour_cents":2500,"overnight_cents":30000,"overnight_start":"22:00","overnight_end":"06:00","late_rule":"review_late","extension_required":1}',UTC_TIMESTAMP(6),'Initial grace, standard and overnight policy; late arrivals require review.');
+
 CREATE TABLE `parking_requests` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
@@ -489,6 +521,18 @@ CREATE TABLE `parking_requests` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `visitor_registration_id` int(11) DEFAULT NULL,
   `fee_policy_version` TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  `reservation_start_utc` DATETIME(6) DEFAULT NULL,
+  `fee_ack_rate_id` INT DEFAULT NULL,
+  `fee_acknowledged_by` INT DEFAULT NULL,
+  `registration_actor_id` INT DEFAULT NULL,
+  `registration_authority` VARCHAR(1000) DEFAULT NULL,
+  `rate_version_id` INT DEFAULT NULL,
+  `rate_policy_snapshot` LONGTEXT DEFAULT NULL,
+  `calculation_snapshot` LONGTEXT DEFAULT NULL,
+  `fee_state` VARCHAR(30) NOT NULL DEFAULT 'legacy',
+  `rate_reviewed_by` INT DEFAULT NULL,
+  `rate_reviewed_at` DATETIME(6) DEFAULT NULL,
+  `rate_review_reason` VARCHAR(1000) DEFAULT NULL,
   `vehicle_type` VARCHAR(30) DEFAULT NULL,
   `vehicle_model` VARCHAR(60) DEFAULT NULL,
   `vehicle_color` VARCHAR(30) DEFAULT NULL,
@@ -518,8 +562,13 @@ CREATE TABLE `parking_requests` (
   UNIQUE KEY `ux_visitor_parking_bill` (`payment_id`),
   UNIQUE KEY `ux_active_visitor_plate` (`active_parking_plate`),
   UNIQUE KEY `ux_active_visitor_slot` (`active_parking_slot`),
+  CONSTRAINT fk_parking_fee_ack_rate_id FOREIGN KEY (fee_ack_rate_id) REFERENCES parking_rate_versions(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_parking_rate_version_id FOREIGN KEY (rate_version_id) REFERENCES parking_rate_versions(id) ON DELETE RESTRICT,
   CONSTRAINT fk_visitor_parking_bill FOREIGN KEY (payment_id) REFERENCES payments(id) ON DELETE RESTRICT,
   CONSTRAINT fk_visitor_parking_payer FOREIGN KEY (billing_user_id) REFERENCES users(id) ON DELETE RESTRICT,
+  INDEX ix_insight_entry (actual_check_in),
+  INDEX ix_insight_exit (actual_check_out,fee_state),
+  INDEX ix_insight_billing (fee_state,payment_id),
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
   KEY `status` (`status`),
@@ -591,6 +640,8 @@ CREATE INDEX IF NOT EXISTS ix_violation_vehicle ON violations (vehicle_id,incide
 CREATE INDEX IF NOT EXISTS ix_violation_visitor ON violations (visitor_registration_id,incident_at,id);
 CREATE INDEX IF NOT EXISTS ix_violation_plate ON violations (observed_plate_normalized,incident_at,id);
 CREATE INDEX IF NOT EXISTS ix_violation_review ON violations (review_status,id);
+CREATE INDEX IF NOT EXISTS ix_insight_created ON violations (created_at,review_status);
+CREATE INDEX IF NOT EXISTS ix_insight_reviewed ON violations (reviewed_at,review_status);
 CREATE INDEX IF NOT EXISTS ix_violation_slot ON violations (parking_slot_id,incident_at,id);
 ALTER TABLE parking_slots ADD COLUMN IF NOT EXISTS lookup_plate VARCHAR(20) GENERATED ALWAYS AS (REGEXP_REPLACE(UPPER(vehicle_plate), '[^A-Z0-9]', '')) STORED;
 ALTER TABLE parking_requests ADD COLUMN IF NOT EXISTS lookup_plate VARCHAR(20) GENERATED ALWAYS AS (REGEXP_REPLACE(UPPER(vehicle_plate), '[^A-Z0-9]', '')) STORED;
@@ -681,6 +732,7 @@ CREATE TABLE IF NOT EXISTS job_reports (
  snapshot MEDIUMTEXT NOT NULL, snapshot_hash CHAR(64) NOT NULL,
  status VARCHAR(12) NOT NULL DEFAULT 'submitted', filed_at DATETIME(6) NOT NULL,
  UNIQUE KEY jr_period_version(user_id,report_type,period_start,version),
+  INDEX ix_insight_filed (filed_at,staff_role,status),
  INDEX jr_review(status,filed_at), INDEX jr_staff(staff_id,staff_name),
  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE RESTRICT,
  FOREIGN KEY(previous_report_id) REFERENCES job_reports(id) ON DELETE RESTRICT

@@ -5,12 +5,7 @@ require_once __DIR__.'/../includes/parking_workspace.php';
 if (!isLoggedIn()) {
     redirect('../login.php');
 }
-if (!isAdmin()) {
-    redirect('../resident/dashboard.php');
-}
-if (!isSecurity() && !canReviewPermits()) {
-    redirect('../admin/admin_dashboard.php');
-}
+requireCapability('parking.review');
 
 $username = $_SESSION['username'] ?? 'Administrator';
 $nameParts = preg_split('/\s+/', trim($username));

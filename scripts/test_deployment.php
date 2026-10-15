@@ -31,7 +31,9 @@ try {
     do { $result = $server->store_result(); if ($result) $result->free(); } while ($server->more_results() && $server->next_result());
     $before = deploymentTestCli(['scripts/preflight.php']);
     deploymentTestCheck($before['status'] === 1, 'base-only install fails readiness without changes');
-    deploymentTestCheck(deploymentSchemaProblems($server) === [], 'consolidated schema includes every required table and column');
+    // Immutable-report triggers are installed by the mandatory PHP migration.
+    $baseProblems = array_values(array_filter(deploymentSchemaProblems($server), static fn(string $problem): bool => !str_starts_with($problem, 'Missing immutable report trigger: ')));
+    deploymentTestCheck($baseProblems === [], 'consolidated schema includes every required table and column');
     $marker = $server->query('SELECT COUNT(*) AS n FROM app_schema_versions')->fetch_assoc();
     deploymentTestCheck((int)$marker['n'] === 0, 'preflight does not record migration readiness');
     $noApply = deploymentTestCli(['scripts/migrate.php']);

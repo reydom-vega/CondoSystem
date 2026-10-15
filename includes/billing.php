@@ -174,6 +174,9 @@ function getOpenBillForUser(mysqli $connection, int $userId): ?array {
 /** Called only inside the locked approval transaction; reuse payments and bill_items. */
 function createAmenityReservationBill(mysqli $db,array $booking,int $payerId): int {
     if(!canAccess('bookings.review') || $booking['amenity']!=='Swimming Pool' || $booking['status']!=='pending' || $booking['payment_id']!==null) throw new InvalidArgumentException('A pending pool reservation is required for automatic billing.');
+    $requester=residentContext($db,(int)$booking['user_id']);
+    $expectedPayer=$requester && $requester['account_kind']==='tenant' ? (int)$requester['id'] : (int)($requester['billing_user_id'] ?? 0);
+    if(!$requester || !$requester['approved'] || $payerId!==$expectedPayer || $payerId<1) throw new InvalidArgumentException('The booking must be billed to its authorized payer. Tenant reservations are paid by the requesting tenant.');
     $amount=(string)$booking['total_fee'];
     $due=$booking['booking_date'];
     $insert=$db->prepare("INSERT INTO payments (user_id,amount,payment_method,status,due_date,billing_scope) VALUES (?,?,'unbilled','pending',?,'amenity_reservation')");
@@ -181,7 +184,7 @@ function createAmenityReservationBill(mysqli $db,array $booking,int $payerId): i
     $description='Swimming Pool · Booking #'.$booking['id'].' · Unit '.$booking['unit_number'].' · '.$booking['booking_date'].' '.substr($booking['booking_time'],0,5).'–'.substr($booking['end_time'],0,5).' · '.$booking['duration_hours'].' hour(s) × PHP '.$booking['hourly_rate'];
     $line=$db->prepare("INSERT INTO bill_items (payment_id,category,description,amount) VALUES (?,'Amenity Reservation',?,?)");
     $line->bind_param('iss',$paymentId,$description,$amount); $line->execute();
-    if(!logAudit('bill_created','payment',$paymentId,'Automatic pool charge for booking #'.$booking['id'].'; unit payer #'.$payerId,$db)) throw new RuntimeException('Could not audit reservation billing.');
+    if(!logAudit('bill_created','payment',$paymentId,'Automatic pool charge for booking #'.$booking['id'].'; booking payer #'.$payerId,$db)) throw new RuntimeException('Could not audit reservation billing.');
     return $paymentId;
 }
 

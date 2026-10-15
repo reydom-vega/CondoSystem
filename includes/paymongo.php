@@ -288,7 +288,7 @@ function paymongoPaymentMethodsForSelection(string $selection): array {
 function createPaymongoCheckoutSession(int $paymentId, array $items, string $description, string $residentName, string $residentEmail, string $successUrl, string $cancelUrl, array $extraMetadata = [], ?array $paymentMethodTypes = null): array {
     // The provider adapter also enforces payer authorization so a forged direct
     // call cannot bypass the resident payment workflow.
-    $denied=['success'=>false,'checkout_url'=>null,'checkout_id'=>null,'error'=>'Only the approved unit owner or the tenant billed for their own parking can start a payment.'];
+    $denied=['success'=>false,'checkout_url'=>null,'checkout_id'=>null,'error'=>'Only the approved unit owner or the tenant billed for their own parking or booking can start a payment.'];
     if (!isLoggedIn()) return $denied;
     $authorizationDb=connectDb();
     $billOwner=$authorizationDb->prepare('SELECT user_id,status,amount,paymongo_checkout_id FROM payments WHERE id=? LIMIT 1');

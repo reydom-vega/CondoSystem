@@ -1,12 +1,14 @@
 <?php
 /** A migration is complete only after these dependencies are available. */
-const APP_SCHEMA_VERSION = '2026.10.14.4';
+const APP_SCHEMA_VERSION = '2026.10.15.3';
+require_once __DIR__.'/analytics_schema.php';
 
 function deploymentSchemaRequirements(): array {
     return [
         'job_reports'=>['reference','user_id','staff_id','staff_name','staff_role','report_type','period_start','period_end','version','previous_report_id','request_key','request_digest','snapshot','snapshot_hash','status','filed_at'],
         'job_report_drafts'=>['user_id','report_type','period_start','notes','revision','updated_at'],
         'job_report_reviews'=>['report_id','actor_id','actor_name','action','feedback','created_at','request_key'],
+        'parking_rate_versions'=>['effective_from','policy_json','created_by','created_at','reason'],
         'parking_extensions'=>['parking_request_id','requested_by','expected_start_utc','requested_until','approved_until','status','request_key','decided_by','decided_at'],
         'community_reports'=>['reference','reporting_mode','review_scope','assigned_reviewer_id','request_hash','submission_hash','audit_head','version','created_at','closed_at'],
         'report_identities'=>['report_id','user_id','last_read_event_id'],
@@ -26,9 +28,9 @@ function deploymentSchemaRequirements(): array {
         'analytics' => ['event_type'],
         'announcements' => ['expires_at'],
         'remember_tokens' => ['selector', 'validator_hash', 'expires_at', 'session_version'],
-        'audit_logs' => ['admin_role', 'entity_type', 'entity_id'],
+        'audit_logs' => ['admin_role', 'entity_type', 'entity_id','actor_name_snapshot','actor_identifier','actor_role_snapshot','outcome'],
         'parking_slots' => ['slot_code', 'slot_type', 'status', 'assigned_user_id', 'lookup_plate'],
-        'parking_requests' => ['fee_policy_version','vehicle_type','vehicle_model','vehicle_color','expected_arrival_utc','expected_departure_utc','reservation_end_utc','requested_slot_id','fee_acknowledged_at','actual_check_in','actual_check_out','rate_snapshot','billing_user_id','billing_scope_snapshot','sponsor_unit_snapshot','visitor_name_snapshot','authorized_until','parking_compliance','billable_seconds','billable_hours','parking_fee','last_monitored_at','payment_id','checked_in_by','checked_out_by','active_parking_plate','active_parking_slot','visitor_registration_id','slot_id','status','lookup_plate'],
+        'parking_requests' => ['registration_authority','reservation_start_utc','fee_ack_rate_id','fee_acknowledged_by','registration_actor_id','rate_version_id','rate_policy_snapshot','calculation_snapshot','fee_state','rate_reviewed_by','rate_reviewed_at','rate_review_reason','fee_policy_version','vehicle_type','vehicle_model','vehicle_color','expected_arrival_utc','expected_departure_utc','reservation_end_utc','requested_slot_id','fee_acknowledged_at','actual_check_in','actual_check_out','rate_snapshot','billing_user_id','billing_scope_snapshot','sponsor_unit_snapshot','visitor_name_snapshot','authorized_until','parking_compliance','billable_seconds','billable_hours','parking_fee','last_monitored_at','payment_id','checked_in_by','checked_out_by','active_parking_plate','active_parking_slot','visitor_registration_id','slot_id','status','lookup_plate'],
         'parking_policy' => ['sticker_price', 'sticker_max_quantity', 'visitor_max_days'],
         'parking_sticker_orders' => ['quantity', 'bill_payment_id', 'claim_status', 'issued_at', 'issued_by'],
         'vehicles' => ['normalized_plate', 'or_cr_path', 'or_cr_mime', 'status'],
@@ -80,6 +82,12 @@ function deploymentSchemaProblems(mysqli $db): array {
         foreach ($columns as $column) {
             if (!in_array([$column], array_values($indexes), true)) $problems[] = "Missing unique index: {$table}.{$column}";
         }
+    }
+    foreach(analyticsReportingIndexes()as$table=>$required) {
+        if(!isset($tables[$table]))continue;
+        $actual=[];$result=$db->query("SHOW INDEX FROM `$table`");
+        while($row=$result->fetch_assoc())$actual[$row['Key_name']][(int)$row['Seq_in_index']]=$row['Column_name'];
+        foreach($required as$name=>$columns){$found=$actual[$name]??[];ksort($found);if(implode(',',$found)!==$columns)$problems[]="Missing/mismatched reporting index: {$table}.{$name}";}
     }
     if(isset($tables['job_reports'])) {
         $triggers=[]; $result=$db->query('SHOW TRIGGERS'); while($row=$result->fetch_assoc())$triggers[]=$row['Trigger'];

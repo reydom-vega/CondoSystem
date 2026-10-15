@@ -11,7 +11,7 @@
                 <?php if($future && in_array($booking['status'],['pending','approved','confirmed'],true)): ?>
                     <?php if($review): ?><p class="amenity-history-note">Contact PMO to review cancellation and any payment or refund.</p><?php else: ?><form method="post" action="book_amenity.php"><?= workflowCsrfField() ?><input type="hidden" name="action" value="cancel"><input type="hidden" name="booking_id" value="<?= (int)$booking['id'] ?>"><button class="service-btn service-btn-danger" type="submit">Cancel reservation</button></form><?php endif; ?>
                 <?php endif; ?>
-                <?php if($booking['payment_id'] && in_array($booking['payment_status'],['pending','overdue'],true)): ?><a href="payments.php" class="service-btn service-btn-secondary">View unit bill</a><?php endif; ?>
+                <?php if($booking['payment_id'] && in_array($booking['payment_status'],['pending','overdue'],true)): ?><a href="payments.php" class="service-btn service-btn-secondary">View booking bill</a><?php endif; ?>
                 </div>
                 </article>
             <?php endforeach; ?>

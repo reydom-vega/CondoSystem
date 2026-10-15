@@ -4,59 +4,24 @@ require_once '../config.php';
 if (!isLoggedIn()) {
     redirect('../login.php');
 }
-if (!isSuperAdmin()) {
-    redirect('../resident/dashboard.php');
-}
+requireCapability('audit.read');
 
 $username = $_SESSION['username'] ?? 'Administrator';
 $nameParts = preg_split('/\s+/', trim($username));
 $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? substr(end($nameParts), 0, 1) : ''));
 
-$search = trim($_GET['search'] ?? '');
-$actionFilter = $_GET['action'] ?? 'all';
-$entityFilter = $_GET['entity'] ?? 'all';
-$roleFilter = $_GET['role'] ?? 'all';
-
-$allLogs = getAuditLogs(500);
-$actionOptions = array_values(array_unique(array_column($allLogs, 'action')));
-sort($actionOptions);
-$entityOptions = array_values(array_unique(array_column($allLogs, 'entity_type')));
-sort($entityOptions);
-$roleLabels = getUserRoles();
-$roleOptions = array_keys($roleLabels);
-
-$logs = array_values(array_filter($allLogs, function (array $log) use ($search, $actionFilter, $entityFilter, $roleFilter): bool {
-    if ($actionFilter !== 'all' && $log['action'] !== $actionFilter) {
-        return false;
-    }
-    if ($entityFilter !== 'all' && $log['entity_type'] !== $entityFilter) {
-        return false;
-    }
-    if ($roleFilter !== 'all' && ($log['resolved_role'] ?? '') !== $roleFilter) {
-        return false;
-    }
-    if ($search !== '') {
-        $haystack = strtolower(implode(' ', [$log['actor_id'], $log['admin_name'], $log['resolved_role'], $log['action'], $log['entity_type'], $log['details']]));
-        if (strpos($haystack, strtolower($search)) === false) {
-            return false;
-        }
-    }
-    return true;
-}));
+require_once __DIR__.'/../includes/audit_report.php';
+try { auditReportActor(connectDb()); } catch (DomainException $e) { http_response_code($e->getCode() ?: 403); renderPortalError('Access denied.'); exit; }
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Celandine</title>
+    <title>Audit Log | The Celandine</title>
     <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('styles.css'), ENT_QUOTES, 'UTF-8') ?>">
-    <style>
-        .audit-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
-        .audit-approve, .audit-create, .audit-mark_paid, .audit-webhook_confirm, .audit-assign, .audit-issue, .audit-waive, .audit-bulk_generate, .audit-checkin { background: #10b98122; color: var(--theme-success,#10b981); }
-        .audit-reject, .audit-delete { background: #ef444422; color: var(--theme-danger,#ef4444); }
-        .audit-update, .audit-notify, .audit-send_reminders, .audit-release, .audit-update_status, .audit-auto_login, .audit-login, .audit-checkout { background: #3b82f622; color: var(--theme-info,#60a5fa); }
-    </style>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('services.css'),ENT_QUOTES,'UTF-8') ?>">
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('assets/css/audit-log.css'),ENT_QUOTES,'UTF-8') ?>">
 <?php renderPortalUiHead(); ?>
 </head>
 <body class="portal-ui dashboard-page admin-page">
@@ -79,76 +44,9 @@ $logs = array_values(array_filter($allLogs, function (array $log) use ($search, 
                 </div>
             </header>
 
-            <section class="unit-page-head">
-                <div><h2>Audit Log</h2><p>Every admin approval, rejection, and change — who did it, when, and to what.</p></div>
-                <div class="unit-summary"><span><?php echo count($logs); ?> of <?php echo count($allLogs); ?> shown</span></div>
-            </section>
-
-            <section class="unit-management-panel">
-                <form class="unit-filters" method="get" action="auditlog.php">
-                    <label for="logSearch">Search</label>
-                    <input id="logSearch" type="search" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Admin name, detail...">
-
-                    <label for="logAction">Action</label>
-                    <select id="logAction" name="action">
-                        <option value="all">All actions</option>
-                        <?php foreach ($actionOptions as $opt): ?>
-                            <option value="<?php echo htmlspecialchars($opt); ?>" <?php echo $actionFilter === $opt ? 'selected' : ''; ?>><?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $opt))); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-
-                    <label for="logEntity">Entity</label>
-                    <select id="logEntity" name="entity">
-                        <option value="all">All types</option>
-                        <?php foreach ($entityOptions as $opt): ?>
-                            <option value="<?php echo htmlspecialchars($opt); ?>" <?php echo $entityFilter === $opt ? 'selected' : ''; ?>><?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $opt))); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-
-                    <label for="logRole">Role</label>
-                    <select id="logRole" name="role">
-                        <option value="all">All roles</option>
-                        <?php foreach ($roleOptions as $opt): ?>
-                            <option value="<?php echo htmlspecialchars($opt); ?>" <?php echo $roleFilter === $opt ? 'selected' : ''; ?>><?php echo htmlspecialchars($roleLabels[$opt] ?? ucfirst($opt)); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-
-                    <button type="submit">Filter</button>
-                </form>
-
-                <div class="unit-table-wrap">
-                    <table class="unit-table">
-                        <thead><tr><th>When</th><th>Staff ID</th><th>Role</th><th>Action</th><th>Entity</th><th>Details</th><th>IP</th></tr></thead>
-                        <tbody>
-                            <?php if (empty($logs)): ?>
-                                <tr><td colspan="7" class="unit-empty">No matching audit entries.</td></tr>
-                            <?php else: foreach ($logs as $log): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars(date('M j, Y g:i A', strtotime($log['created_at']))); ?></td>
-                                    <td><?php echo htmlspecialchars($log['actor_id'] ?: 'System'); ?></td>
-                                    <td><span class="audit-badge"><?php echo htmlspecialchars(ucfirst($log['resolved_role'] ?? 'Unknown')); ?></span></td>
-                                    <td><span class="audit-badge audit-<?php echo htmlspecialchars($log['action']); ?>"><?php echo htmlspecialchars(str_replace('_', ' ', $log['action'])); ?></span></td>
-                                    <td><?php echo htmlspecialchars(str_replace('_', ' ', $log['entity_type'])); ?><?php if ($log['entity_id']): ?> #<?php echo (int)$log['entity_id']; ?><?php endif; ?></td>
-                                    <td><?php echo htmlspecialchars($log['details'] ?: '—'); ?></td>
-                                    <td><small><?php echo htmlspecialchars($log['ip_address'] ?: '—'); ?></small></td>
-                                </tr>
-                            <?php endforeach; endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+            <?php include __DIR__.'/../includes/audit_workspace.php'; ?>
         </main>
     </div>
-    <script>
-        const menuToggle = document.getElementById('menuToggle');
-        const sidebar = document.getElementById('sidebar');
-        const overlay = document.getElementById('sidebarOverlay');
-        /* Navigation is handled by the shared UI module. */
-        /* Navigation is handled by the shared UI module. */
-        const profileMenu = document.getElementById('profileMenu');
-        const profileToggle = document.getElementById('profileToggle');
-        profileToggle.addEventListener('click', (event) => { event.stopPropagation(); const isOpen = profileMenu.classList.toggle('open'); profileToggle.setAttribute('aria-expanded', isOpen); });
-        document.addEventListener('click', (event) => { if (!profileMenu.contains(event.target)) { profileMenu.classList.remove('open'); profileToggle.setAttribute('aria-expanded', 'false'); } });
-    </script>
+    <script src="<?= htmlspecialchars(portalUiAssetUrl('assets/js/audit-log.js'),ENT_QUOTES,'UTF-8') ?>" defer></script>
 </body>
 </html>

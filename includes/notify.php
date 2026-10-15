@@ -12,7 +12,7 @@ function emailLayout(string $eyebrow, string $heading, string $bodyHtml): string
         . $bodyHtml . '<p style="color:#9ca3af;font-size:11px;margin-top:28px;">The Celandine &middot; Automated resident portal message.</p></div></body></html>';
 }
 
-/** Financial notices go to the unit owner or the tenant billed for personal parking. */
+/** Financial notices go to the unit owner or the tenant billed for their own parking or amenity reservation. */
 function billingNoticeContact(mysqli $db,int $billUserId,?int $paymentId=null): ?array {
     $context=residentContext($db,$billUserId);
     if (!$context || !$context['billing_user_id']) return null;

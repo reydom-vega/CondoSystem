@@ -3,6 +3,7 @@ require_once 'config.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireWorkflowCsrf();
     forgetRememberToken();
+    if (isLoggedIn()) logAudit('logout','authentication',(int)$_SESSION['user_id'],'User signed out.',null,'success');
     $_SESSION = [];
     if (ini_get('session.use_cookies')) {
         $params = session_get_cookie_params();

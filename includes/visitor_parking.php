@@ -24,9 +24,8 @@ function insertLinkedVisitorParking(mysqli $db, int $userId, int $visitorId, str
 function requestLinkedVisitorParking(mysqli $db, int $userId, int $visitorId, array $input): int {
     if (!ensureResidentServicesTables($db) || !ensureParkingTables($db)) throw new RuntimeException('Visitor parking storage is unavailable.');
     $policy = getParkingPolicy($db);
-    $plan=vpPlanInput($db,$userId,$input);
-    $start = (new DateTimeImmutable($plan['start'],new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(date_default_timezone_get()))->format('Y-m-d');
-    $end = (new DateTimeImmutable($plan['end'],new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(date_default_timezone_get()))->format('Y-m-d');
+    $visitor=gateRequest($db,$visitorId);if(!$visitor||(int)$visitor['user_id']!==$userId||$visitor['request_kind']!=='visitor')throw new InvalidArgumentException('Select your registered visitor.');
+    $start=$visitor['start_date'];$end=$visitor['end_date']?:$start;
     $db->begin_transaction();
     try {
         $id = insertLinkedVisitorParking($db, $userId, $visitorId, (string)($input['vehicle_plate'] ?? ''), (string)($input['vehicle_description'] ?? ''), $start, $end, $policy, $input);
@@ -44,10 +43,8 @@ function registerVisitorWithParking(mysqli $db, int $userId, array $input, array
         $db->begin_transaction();
         $id = insertResidentServiceRequest($db, $userId, 'visitor', $input, $identity + $upload);
         if (($input['needs_parking'] ?? '') === '1') {
-            $plan=vpPlanInput($db,$userId,$input);
-            $date=(new DateTimeImmutable($plan['start'],new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(date_default_timezone_get()))->format('Y-m-d');
-            $last=(new DateTimeImmutable($plan['end'],new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(date_default_timezone_get()))->format('Y-m-d');
-            insertLinkedVisitorParking($db, $userId, $id, (string)($input['vehicle_plate'] ?? ''), (string)($input['vehicle_description'] ?? ''), $date, $last, $policy, $input);
+            $visitor=gateRequest($db,$id);
+            insertLinkedVisitorParking($db,$userId,$id,(string)($input['vehicle_plate']??''),(string)($input['vehicle_description']??''),$visitor['start_date'],$visitor['end_date']?:$visitor['start_date'],$policy,$input);
         }
         $db->commit(); return $id;
     } catch (Throwable $e) { $db->rollback(); removeVisitorIdFile($upload['name']); throw $e; }

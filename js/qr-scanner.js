@@ -86,7 +86,7 @@
       resultLabel.textContent = label(verification.verification_result).toUpperCase();
       result.textContent = typeLabel(verification.qr_type);
       resultMessage.textContent = verification.message;
-      const fields = {'Parking slot':verification.parking_slot,'Parking compliance':verification.parking_compliance,'Parking rate':verification.parking_rate,'Time in':verification.parking_time_in,'Estimated parking fee':verification.parking_estimate,'Authorized until':verification.parking_approved_until,'Visitor / Requester':verification.subject_name || verification.requester_name,'Role':verification.account_role,'Account status':verification.account_status,'Current eligibility':verification.privileges?.join('; '),'Unit':verification.unit_number,'Pass / Permit':verification.pass_number,'Visit date':verification.visit_date,'Purpose':verification.visit_purpose,'Number of visitors':verification.visitor_count,'Identity verification':verification.identity_status ? label(verification.identity_status) : '', 'Vehicle plate':verification.vehicle_plate,'Vehicle':verification.vehicle_description,'Parking approval':verification.parking_status ? label(verification.parking_status) : ''};
+      const fields = {'Grace remaining':verification.parking_grace_remaining,'Rate review':verification.parking_rate_review,'Parking slot':verification.parking_slot,'Parking compliance':verification.parking_compliance,'Parking rate':verification.parking_rate,'Time in':verification.parking_time_in,'Estimated parking fee':verification.parking_estimate,'Authorized until':verification.parking_approved_until,'Visitor / Requester':verification.subject_name || verification.requester_name,'Role':verification.account_role,'Account status':verification.account_status,'Current eligibility':verification.privileges?.join('; '),'Unit':verification.unit_number,'Pass / Permit':verification.pass_number,'Visit date':verification.visit_date,'Purpose':verification.visit_purpose,'Number of visitors':verification.visitor_count,'Identity verification':verification.identity_status ? label(verification.identity_status) : '', 'Vehicle plate':verification.vehicle_plate,'Vehicle':verification.vehicle_description,'Parking approval':verification.parking_status ? label(verification.parking_status) : ''};
       Object.entries(fields).forEach(([name,value]) => {
         if(!value) return;
         const div = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd');
@@ -102,6 +102,7 @@
           resultFields.replaceChildren(); resultFields.hidden = true; openResult.style.display = 'none'; openResult.removeAttribute('href');
         }, Math.max(0,(verification.expires_at - verification.server_time) * 1000 - (performance.now() - scanStarted)));
       }
+      if(verification.qr_type==='visitor'&&verification.parking_session_id)window.dispatchEvent(new CustomEvent('visitor-parking:select',{detail:{id:verification.parking_session_id}}));
       loadHistory();
       return true;
     } catch(error) { resultCard.dataset.state = 'error'; resultLabel.textContent = 'UNABLE TO VERIFY'; resultMessage.textContent = `${error.message} Try the scan again.`; result.textContent = 'Verification could not be saved'; return false; }

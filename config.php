@@ -475,7 +475,7 @@ function getNotifications(): array {
     if ($role === 'resident' && isApproved()) {
         $billUsers=residentBillingUserIds($connection,$userId);
         $payer=residentUserHasPermission($connection,$userId,'resident.billing.pay');
-        if ($billUsers && ensurePaymentsTable($connection)) $add($count("SELECT COUNT(*) AS total FROM payments WHERE user_id IN (".implode(',',array_map('intval',$billUsers)).") AND status IN ('pending','overdue')"), 'credit-card', $payer ? 'Payments need attention' : 'Unit bills available', $payer ? 'bills await payment.' : 'bills can be viewed; the unit owner handles payment.', 'resident/payments.php');
+        if ($billUsers && ensurePaymentsTable($connection)) $add($count("SELECT COUNT(*) AS total FROM payments WHERE user_id IN (".implode(',',array_map('intval',$billUsers)).") AND status IN ('pending','overdue')"), 'credit-card', $payer ? 'Payments need attention' : 'Bills available', $payer ? 'bills await payment.' : 'bills are available. Review statements and charges payable by your account.', 'resident/payments.php');
         if (residentUserHasPermission($connection,$userId,'resident.messages.use') && ensureMessagesTable($connection)) $add($count("SELECT COUNT(*) AS total FROM messages WHERE user_id = $userId AND sender_role = 'admin' AND is_read = 0"), 'messages', 'New message from Management', 'unread messages are in your inbox.', 'resident/messages.php');
         if (residentUserHasPermission($connection,$userId,'resident.maintenance.request') && ensureMaintenanceTable($connection)) $add($count("SELECT COUNT(*) AS total FROM maintenance_requests WHERE user_id = $userId AND status IN ('approved','in_progress','completed','reopened')"), 'maintenance', 'Maintenance request update', 'requests have updates or need confirmation.', 'resident/maintenance.php');
         if (ensureAnnouncementsTable($connection)) $add($count("SELECT COUNT(*) AS total FROM announcements WHERE priority = 'high' AND is_active = 1 AND (expires_at IS NULL OR expires_at > NOW()) AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)"), 'announcements', 'Important announcement', 'important announcements were posted.', 'resident/announcements.php');
@@ -1110,6 +1110,7 @@ function deleteAnnouncement(int $announcementId): bool {
  * newer, self-contained feature logic.
  */
 require_once __DIR__ . '/includes/audit.php';
+require_once __DIR__ . '/includes/analytics_schema.php';
 require_once __DIR__ . '/includes/portal_ui.php';
 require_once __DIR__ . '/includes/authorization.php';
 require_once __DIR__ . '/includes/resident_policy.php';
@@ -1137,6 +1138,7 @@ require_once __DIR__ . '/includes/access_scanner.php';
 require_once __DIR__ . '/includes/qr_scan_history.php';
 require_once __DIR__ . '/includes/visitor_parking.php';
 require_once __DIR__ . '/includes/visitor_parking_fees.php';
+require_once __DIR__ . '/includes/visitor_assisted_registration.php';
 require_once __DIR__ . '/includes/visitor_parking_extensions.php';
 require_once __DIR__ . '/includes/visitor_parking_views.php';
 require_once __DIR__ . '/includes/visitor_parking_approval.php';

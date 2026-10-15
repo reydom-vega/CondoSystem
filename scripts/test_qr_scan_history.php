@@ -24,7 +24,7 @@ try {
     scanCheck($legacy['event_time_utc']==='2026-09-30 16:00:00','legacy local timestamp converted to UTC');
     scanCheck(!str_contains($legacy['scanned_content'],'secret-legacy-token') && $legacy['verification_result']==='unknown','legacy IDs retained but tokens redacted without invented outcomes');
     scanActor(2,'resident'); $visitorId=fixtureCreateResidentServiceRequest($db,2,'visitor',['visitor_name'=>'Family Guest','visitor_count'=>'3','details'=>'Family visit','start_date'=>date('Y-m-d')]);
-    scanActor(5,'security'); scanCheck(decideResidentServiceRequest($db,$visitorId,'approved','Welcome'),'security approves visitor fixture'); $visitor=gateRequest($db,$visitorId); $visitorUrl=residentServicePassUrl($visitor);
+    scanActor(4,'admin'); scanCheck(decideResidentServiceRequest($db,$visitorId,'approved','Welcome'),'management approves visitor fixture'); $visitor=gateRequest($db,$visitorId); $visitorUrl=residentServicePassUrl($visitor); scanActor(5,'security');
     $uuid=scanUuid(); $event=recordQrVerification($db,$visitorUrl,$uuid); $scanId=$event['id'];
     scanCheck($event['verification']['valid'] && $event['verification']['qr_type']==='visitor','visitor verification recorded');
     $snapshot=$db->query('SELECT * FROM qr_scan_logs WHERE id='.$scanId)->fetch_assoc();
@@ -35,6 +35,7 @@ try {
     $duplicate=recordQrVerification($db,$visitorUrl,scanUuid()); scanCheck($duplicate['id']===$scanId,'rapid camera repetition suppressed server-side');
     scanReject(fn()=>recordQrVerification($db,'https://unrelated.invalid/',$uuid),'request ID cannot be reused for another QR');
     scanCheck(gateRequest($db,$visitorId)['status']==='approved','verification alone does not check visitor in');
+    scanActor(5,'security');
     scanCheck(checkInRegisteredVisitor($db,$visitorId,$visitor['access_token']),'confirmed entry still works');
     scanCheck((int)$db->query("SELECT COUNT(*) AS n FROM qr_scan_logs WHERE reference_id=$visitorId AND scan_action='check_in'")->fetch_assoc()['n']===1,'check-in logged once in same transaction');
     scanCheck(!checkInRegisteredVisitor($db,$visitorId,$visitor['access_token']),'duplicate check-in denied');
@@ -63,7 +64,7 @@ try {
     scanActor(4,'admin'); gateTransition($db,$cancelledId,'approved'); $cancelledUrl=gatePassUrl(gateRequest($db,$cancelledId)); gateTransition($db,$cancelledId,'cancelled');
     scanCheck(recordQrVerification($db,$cancelledUrl,scanUuid())['verification']['verification_result']==='cancelled','cancelled property scan recorded accurately');
     scanActor(2,'resident'); $rollbackVisitor=fixtureCreateResidentServiceRequest($db,2,'visitor',['visitor_name'=>'Rollback Guest','details'=>'Rollback test','start_date'=>date('Y-m-d')]);
-    scanActor(5,'security'); decideResidentServiceRequest($db,$rollbackVisitor,'approved',''); $rollbackRow=gateRequest($db,$rollbackVisitor);
+    scanActor(4,'admin'); decideResidentServiceRequest($db,$rollbackVisitor,'approved',''); $rollbackRow=gateRequest($db,$rollbackVisitor); scanActor(5,'security');
     $countBefore=(int)$db->query('SELECT COUNT(*) AS n FROM visitor_logs')->fetch_assoc()['n'];
     $db->query("CREATE TRIGGER qr_action_failure BEFORE INSERT ON qr_scan_logs FOR EACH ROW BEGIN IF NEW.scan_action='check_in' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Injected action history failure'; END IF; END");
     scanCheck(!checkInRegisteredVisitor($db,$rollbackVisitor,$rollbackRow['access_token']),'history write failure refuses visitor entry');

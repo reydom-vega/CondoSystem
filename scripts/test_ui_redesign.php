@@ -41,6 +41,7 @@ try {
       (6,'superadmin','Superadmin Staff','super@example.invalid','09123456789','$hash',NULL,'superadmin',1,'approved',NULL,NULL),
       (7,'treasurer','Treasurer Staff','treasurer@example.invalid','09123456789','$hash',NULL,'treasurer',1,'approved',NULL,NULL),
       (8,'maintenance','Maintenance Staff','maintenance@example.invalid','09123456789','$hash',NULL,'maintenance',1,'approved',NULL,NULL)");
+    if(in_array('--security-only',$argv,true))$db->query("UPDATE users SET status='pending' WHERE role='security'");
     $db->query("INSERT INTO announcements(admin_id,title,content,category,priority) VALUES(6,'Community schedule','Please contact the management office for assistance.','General','high')");
     $db->query("INSERT INTO maintenance_requests(user_id,issue_type,description,location,urgency) VALUES(1,'Plumbing','Please check the kitchen tap.','Kitchen','normal')");
     $db->query("INSERT INTO messages(user_id,sender_role,body) VALUES(1,'resident','May I ask about the community schedule?'),(1,'admin','The management office can help you with the current schedule.')");
@@ -66,14 +67,16 @@ try {
     $gate=savePropertyGateRequest($db,['permit_type'=>'Property Gate Pass','direction'=>'entry','purpose'=>'New Appliance / Furniture','details'=>'Kitchen equipment','start_date'=>date('Y-m-d'),'start_time'=>'00:00','end_time'=>'23:59','transporter'=>'Fixture Delivery','vehicle_plate'=>'ABC123','items'=>[['item_name'=>'Refrigerator','category'=>'Appliance','quantity'=>'1','description'=>'Silver']]]);
     uiActor($db,6); decideResidentServiceRequest($db,$visitor,'approved',''); gateTransition($db,$gate,'approved');
     if(in_array('--visitor-parking-only',$argv,true)){
+        $approvalFixtureStorage=sys_get_temp_dir().'/condo-approval-ui-'.bin2hex(random_bytes(12));putenv('CONDO_VISITOR_ID_STORAGE='.$approvalFixtureStorage);visitorIdStorageDirectory(true);
         $db->query("INSERT INTO parking_slots(slot_code,slot_type) VALUES('VP-UI-OWNER','visitor'),('VP-UI-TENANT','visitor'),('VP-UI-RECEIPT','visitor')");
         $slots=$db->query("SELECT id FROM parking_slots WHERE slot_code LIKE 'VP-UI-%' ORDER BY id")->fetch_all(MYSQLI_ASSOC);
         foreach([[1,'UI-OWNER',0,2],[2,'UI-TENANT',1,48],[1,'UI-PAID',2,2]]as[$host,$plate,$index,$hours]){
             uiActor($db,$host);$guest=fixtureCreateResidentServiceRequest($db,$host,'visitor',['visitor_name'=>'Guest '.$plate,'visitor_count'=>'1','details'=>'Parking UI test','start_date'=>date('Y-m-d')]);
-            $plan=['vehicle_type'=>'Car','vehicle_model'=>'Vios','vehicle_color'=>'Silver','expected_arrival'=>date('Y-m-d'). 'T00:00','expected_departure'=>date('Y-m-d\TH:i',time()+$hours*3600),'parking_fee_ack'=>'1','extension_reason'=>'Family staying overnight'];
+            $plan=['vehicle_type'=>'Car','vehicle_model'=>'Vios','vehicle_color'=>'Silver','expected_arrival'=>date('Y-m-d'). 'T00:00','expected_departure'=>date('Y-m-d\TH:i',time()+$hours*3600),'parking_fee_ack'=>'1','parking_rate_version'=>'2','extension_reason'=>'Family staying overnight'];
             $policy=getParkingPolicy($db);$db->begin_transaction();try{$parkingId=insertLinkedVisitorParking($db,$host,$guest,$plate,'Silver car',date('Y-m-d'),substr($plan['expected_departure'],0,10),$policy,$plan);$db->commit();}catch(Throwable $error){$db->rollback();throw $error;}
             uiActor($db,4);decideResidentServiceRequest($db,$guest,'approved','');if(!decideParkingRequest($parkingId,'approved',(int)$slots[$index]['id'],''))throw new RuntimeException('Parking UI seed approval failed.');
-            if($plate==='UI-PAID'){uiActor($db,5);vpVehicleCheckIn($db,$parkingId);$paid=vpCheckoutSession($db,$parkingId);$paidParkingBill=(int)$paid['payment_id'];$db->query("UPDATE payments SET payment_method='cash' WHERE id=$paidParkingBill");uiActor($db,6);if(!confirmCashBillPayment($db,$paidParkingBill))throw new RuntimeException('Parking UI seed payment failed.');}
+            if($hours>24){uiActor($db,$host);vpRequestExtension($db,$parkingId,['requested_until'=>date('Y-m-d\TH:i',time()+$hours*3600),'extension_reason'=>'Family staying overnight','request_key'=>bin2hex(random_bytes(24))]);}
+            if($plate==='UI-PAID'){uiActor($db,5);vpVehicleCheckIn($db,$parkingId);$db->query('UPDATE parking_requests SET actual_check_in=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 90 MINUTE) WHERE id='.$parkingId);$paid=vpCheckoutSession($db,$parkingId);$paidParkingBill=(int)$paid['payment_id'];if(!$paidParkingBill){uiActor($db,4);$paid=vpFinalizeRateReview($db,$parkingId,['late_rule'=>'present_at_start','reason'=>'Confirmed regular late-arrival policy for fixture.']);$paidParkingBill=(int)$paid['payment_id'];}$db->query("UPDATE payments SET payment_method='cash' WHERE id=$paidParkingBill");uiActor($db,6);if(!confirmCashBillPayment($db,$paidParkingBill))throw new RuntimeException('Parking UI seed payment failed.');}
         }
     }
     if(in_array('--approval-only',$argv,true)){
@@ -83,9 +86,13 @@ try {
             $name=bin2hex(random_bytes(24)).'.png';$image=imagecreatetruecolor(640,400);$background=imagecolorallocate($image,245,246,250);imagefill($image,0,0,$background);$ink=imagecolorallocate($image,30,40,60);imagestring($image,5,30,50,'TEST ID DOCUMENT - FICTIONAL VISITOR',$ink);imagestring($image,5,30,110,$plate,$ink);imagepng($image,$approvalFixtureStorage.'/'.$name);imagedestroy($image);
             $s=$db->prepare("UPDATE resident_service_requests SET identity_status='pending',id_document_name=? WHERE id=?");$s->bind_param('si',$name,$guest);$s->execute();
             $code='APPROVAL-'.$host;$db->query("INSERT INTO parking_slots(slot_code,slot_type) VALUES('$code','visitor')");$slot=(int)$db->insert_id;
-            $plan=['vehicle_type'=>'Car','vehicle_model'=>'Vios','vehicle_color'=>'Silver','expected_arrival'=>date('Y-m-d\TH:i'),'expected_departure'=>date('Y-m-d\TH:i',time()+$hours*3600),'parking_fee_ack'=>'1','extension_reason'=>'Family staying overnight','requested_slot_id'=>(string)$slot];
+            $plan=['vehicle_type'=>'Car','vehicle_model'=>'Vios','vehicle_color'=>'Silver','expected_arrival'=>date('Y-m-d\TH:i'),'expected_departure'=>date('Y-m-d\TH:i',time()+$hours*3600),'parking_fee_ack'=>'1','parking_rate_version'=>'2','extension_reason'=>'Family staying overnight','requested_slot_id'=>(string)$slot];
             $policy=getParkingPolicy($db);$db->begin_transaction();try{insertLinkedVisitorParking($db,$host,$guest,$plate,'Silver car',date('Y-m-d'),substr($plan['expected_departure'],0,10),$policy,$plan);$db->commit();}catch(Throwable $error){$db->rollback();throw $error;}
         }
+    }
+    if(in_array('--audit-only',$argv,true)){
+        $statement=$db->prepare("INSERT INTO audit_logs(admin_id,admin_name,admin_role,actor_name_snapshot,actor_identifier,actor_role_snapshot,action,entity_type,entity_id,details,outcome,created_at) VALUES(6,'Super Admin','superadmin','Super Admin','STAFF-00006','superadmin','update','parking_slot',?,'password=PRIVATE-TEST-TOKEN; reporter-private@example.invalid',?,?)");
+        for($index=1;$index<=80;$index++){$outcome=$index%5===0?'failed':($index%7===0?null:'success');$at=date('Y-m-d').' 08:'.str_pad((string)($index%60),2,'0',STR_PAD_LEFT).':00';$statement->bind_param('iss',$index,$outcome,$at);$statement->execute();}
     }
     $manifest=[]; $add=static function(string $path,int $actor,string $label) use (&$manifest):void { $manifest[]=['path'=>$path,'actor'=>$actor,'label'=>$label]; };
     foreach(['homepage.php','login.php','signup.php','forgot_password.php','reset_password.php','verify.php','verify_pending.php','resend_verification.php'] as $page) $add($page,0,'Public / account');
@@ -112,11 +119,14 @@ try {
     // An actual forbidden role route verifies the shared 403 screen.
     $add('superadmin/staff.php',5,'Access denied');
     $add('report_tracking.php',0,'Anonymous tracking');
+    if(in_array('--security-only',$argv,true))$manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>$entry['actor']===5&&$entry['label']!=='Access denied'));
+    if(in_array('--analytics-only',$argv,true))$manifest=[['path'=>'superadmin/analytics.php','actor'=>6,'label'=>'System Analytics']];
+    if(in_array('--audit-only',$argv,true))$manifest=[['path'=>'superadmin/auditlog.php','actor'=>6,'label'=>'Super Admin audit workspace']];
     if(in_array('--jobs-only',$argv,true))$manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>in_array(explode('?',$entry['path'])[0],['job_report.php','superadmin/staff.php'],true)&&$entry['label']!=='Access denied'));
     if(in_array('--reports-only',$argv,true))$manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>in_array($entry['path'],['resident/reports.php','superadmin/reports.php','report_tracking.php'],true)));
     if(in_array('--approval-only',$argv,true))$manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>in_array(explode('?',$entry['path'])[0],['resident/visitors.php','resident/parking.php','superadmin/parking.php','superadmin/service_requests.php','security/scanner.php'],true)&&!str_contains($entry['path'],'kind=permit')));
     if(in_array('--visitor-parking-only',$argv,true)||in_array('--parking-only',$argv,true)){
-        $manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>in_array(explode('?',$entry['path'])[0],['resident/parking.php','resident/visitors.php','resident/payments.php','superadmin/parking.php','superadmin/unitpayments.php','security/scanner.php','superadmin/scanner.php','resident_service_pass.php'],true)));
+        $manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>in_array(explode('?',$entry['path'])[0],['resident/parking.php','resident/visitors.php','resident/payments.php','superadmin/service_requests.php','superadmin/parking.php','superadmin/unitpayments.php','security/scanner.php','superadmin/scanner.php','resident_service_pass.php'],true)));
         if(isset($paidParkingBill))$manifest[]=['path'=>'resident/payment_receipt.php?id='.$paidParkingBill,'actor'=>1,'label'=>'Paid visitor parking PDF'];
     }
     putenv('CONDO_UI_MANIFEST='.json_encode($manifest,JSON_THROW_ON_ERROR));

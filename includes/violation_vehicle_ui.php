@@ -1,4 +1,4 @@
-<?php if (canAccess('vehicles.read')): ?>
+<?php if (canAccess('vehicles.lookup')): ?>
 <div <?php echo violationWorkspacePanelAttributes('lookup', $activeTab); ?>>
 <section class="unit-management-panel vehicle-lookup-panel" id="vehicleLookup" data-api="<?= htmlspecialchars(buildUrl('api/violation_vehicles.php'),ENT_QUOTES,'UTF-8') ?>" data-can-review="<?= canAccess('violations.review') ? '1' : '0' ?>" data-visitor-policy="<?= appSetting('CONDO_VISITOR_VIOLATION_HOST_BILLING','0')==='1' ? '1' : '0' ?>">
     <h2 class="section-title">Vehicle &amp; Parking Lookup</h2>

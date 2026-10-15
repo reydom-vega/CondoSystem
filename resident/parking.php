@@ -173,7 +173,7 @@ function parkingFormValue(string $field, string $default = ''): string { return 
             <?php if (residentHasPermission('resident.parking.request')): ?>
             <section class="payment-methods-card parking-request-card" id="visitorParking">
                 <h3 class="section-title">Visitor Parking</h3>
-                <p class="amenity-desc">Choose your registered visitor and add their vehicle. The parking period must include their visit date. PHP 50 per started hour; beyond 24 hours requires Admin/Super Admin approval. A parking pass requires an approved visitor registration and an assigned slot.</p>
+                <p class="amenity-desc">Choose your registered visitor and add their vehicle. The first 15 minutes are free; the first 3 hours cost PHP 50, followed by PHP 25 per started hour. Qualifying overnight parking costs PHP 300. Beyond 24 hours requires Admin/Super Admin approval. A parking pass requires an approved visitor registration and an assigned slot.</p>
                 <?php if (residentHasPermission('resident.visitors.register')): ?><div class="service-button-row"><a class="service-btn" href="visitors.php?tab=form&amp;needs_parking=1">Register visitor with parking</a></div><?php endif; ?>
                 <?php if (!$parkingVisitors): ?><div class="service-empty-state"><p>No registered visitors are available for a new parking request. Check your <a href="parking.php?tab=requests">existing parking requests</a> in the Requests tab.</p></div><?php else: ?>
                 <form method="POST" action="parking.php#visitorParking" class="visitor-parking-form"><?php echo workflowCsrfField(); ?>

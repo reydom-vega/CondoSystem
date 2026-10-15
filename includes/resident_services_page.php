@@ -5,8 +5,8 @@ require_once __DIR__ . '/permit_workspace.php';
 if (!isLoggedIn()) redirect('../login.php');
 $staffServices = $staffServices ?? false;
 if ($staffServices) {
-    if (!isSecurity() && !canReviewPermits()) { http_response_code(403); exit('Access denied.'); }
-    $serviceKind = isSecurity() ? 'visitor' : (($_GET['kind'] ?? 'permit') === 'visitor' ? 'visitor' : 'permit');
+    $serviceKind = ($_GET['kind'] ?? 'permit') === 'visitor' ? 'visitor' : 'permit';
+    requireCapability($serviceKind==='visitor' ? 'visitors.review' : 'permits.review');
 } else {
     if (isAdmin()) redirect('../admin/admin_dashboard.php');
     requireApproval();
@@ -29,6 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 gateTransition($db, $id, substr($action, 5), $_POST);
             }
             logAudit('update', 'resident_service_request', $id, $action);
+        } elseif ($staffServices && $serviceKind === 'visitor' && $action === 'register_assisted') {
+            $id=vpRegisterAssistedVisitor($db,$_POST,$_FILES);
         } elseif ($staffServices && $serviceKind === 'visitor' && $action === 'review_identity') {
             if (!reviewVisitorIdentity($db, $id, (string)($_POST['identity_decision'] ?? ''), trim((string)($_POST['identity_review_note'] ?? '')), (string)($_POST['identity_version'] ?? ''))) throw new InvalidArgumentException('Identity review could not be saved. Reload and review the current ID document; include a reason when rejecting it.');
         } elseif ($staffServices) {
@@ -115,6 +117,7 @@ if ($serviceKind === 'permit' && isset($_GET['request_id'])) {
 <?php else: ?>
 <div class="visitor-workspace" data-workspace-tabs>
 <?php renderVisitorWorkspaceTabs($visitorTabs, $visitorActiveTab, $visitorGroups, $staffServices); ?>
+<?php if($staffServices && $serviceKind==='visitor'): include __DIR__.'/visitor_assisted_form.php'; endif; ?>
 <?php if (!$staffServices): ?><section <?= visitorWorkspacePanelAttributes('form', $visitorActiveTab) ?>><?php endif; ?>
 <?php if (!$staffServices && $ready): ?>
 <section class="service-panel"><h2><?= $serviceKind === 'visitor' ? 'Register an expected visitor' : 'Request a permit' ?></h2><p><?= $serviceKind === 'visitor' ? ('Tell security who is visiting your unit and when.' . ($canRequestParking ? ' If your guest brings a vehicle, submit their parking request here too.' : ' Visitor parking is disabled for your account type.')) : 'Management reviews your request. An approved permit authorizes only the activity and dates shown.' ?></p>

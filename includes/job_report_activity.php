@@ -16,11 +16,12 @@ function jrAuditCatalog(): array {
         'parking_sticker'=>['Parking','Parking sticker',['issue','sticker_issued']],
         'parking_inventory'=>['Parking','Parking inventory',['import']],
         'parking_policy'=>['Parking','Parking policy',['configure']],
+        'parking_rate'=>['Parking','Visitor parking rate',['configure']],
         'vehicle'=>['Vehicles','Vehicle registration',['approve','reject','create','update']],
         'violation'=>['Violations','Violation record',['issue','citation_issued','vehicle_reported','vehicle_report_approved','vehicle_report_rejected','waive','reject','reject_dispute','update']],
         'visitor_identity'=>['Visitors','Visitor identification',['verified','rejected']],
         'resident_service_request'=>['Requests','Service request',['approve','reject','approved','rejected','update']],
-        'visitor_parking'=>['Parking','Visitor parking',['check_in','check_out']],
+        'visitor_parking'=>['Parking','Visitor parking',['check_in','check_out','free_checkout','finalize_rate']],
         'job_report'=>['Job Reports','Job report',['file','reviewed','returned']],
     ];
 }
@@ -75,7 +76,7 @@ function jrActivities(mysqli $db,int $user,array $p,array $filters=[],bool $comp
 }
 function jrRoleMetrics(mysqli $db,int $user,array $p,string $role): array {
     $conditions=[
-        'security'=>['Visitor Entries'=>"module='Visitors' AND description='Visitor checked in'",'Visitor Exits'=>"module='Visitors' AND description='Visitor checked out'",'QR Verifications'=>"module='QR Verification'",'Parking Checkouts'=>"module='Parking' AND description='Visitor parking vehicle checked out'"],
+        'security'=>['Visitor Entries'=>"module='Visitors' AND description='Visitor checked in'",'Visitor Exits'=>"module='Visitors' AND description='Visitor checked out'",'QR Verifications'=>"module='QR Verification'",'Parking Checkouts'=>"module='Parking' AND description IN ('Visitor parking vehicle checked out','Visitor parking free checkout')"],
         'maintenance'=>['Requests Updated'=>"module='Maintenance'",'Requests Completed'=>"module='Maintenance' AND description='Maintenance request completed'",'Status Updates'=>"module='Maintenance' AND activity_type='update'"],
         'treasurer'=>['Billing Records Processed'=>"module='Billing'",'Payments Verified'=>"module='Billing' AND description IN ('Billing record cash payment confirmed','Billing record payment reconciled','Billing record payment confirmed')",'Billing Updates'=>"module='Billing' AND updated=1"],
         'admin'=>['Requests Reviewed'=>"module IN ('Bookings','Requests','Parking','Visitors') AND description REGEXP '(approved|rejected|verified)$'",'Reservations Processed'=>"module='Bookings'",'Maintenance Updates'=>"module='Maintenance'"],

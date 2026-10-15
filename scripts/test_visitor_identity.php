@@ -75,7 +75,7 @@ try {
     }
     [$status]=identityHttp('resident/visitors.php',1,array_replace($input,['csrf_token'=>'invalid','valid_id'=>$upload()]));
     identityCheck($status===403 && $count()===0, 'invalid CSRF cannot upload or register');
-    $combined=array_replace($input,['valid_id'=>$upload(),'needs_parking'=>'1','vehicle_type'=>'Car','expected_arrival'=>date('Y-m-d').'T00:00','expected_departure'=>date('Y-m-d').'T23:59','parking_fee_ack'=>'1','vehicle_plate'=>'ID1234','vehicle_description'=>'Silver sedan']);
+    $combined=array_replace($input,['valid_id'=>$upload(),'needs_parking'=>'1','vehicle_type'=>'Car','expected_arrival'=>date('Y-m-d').'T00:00','expected_departure'=>date('Y-m-d').'T23:59','parking_fee_ack'=>'1','parking_rate_version'=>'2','vehicle_plate'=>'ID1234','vehicle_description'=>'Silver sedan']);
     [$status]=identityHttp('resident/visitors.php',2,$combined);
     identityCheck($status===302 && $count()===1,'tenant can submit real multipart registration with linked parking');
     $row=$db->query('SELECT * FROM resident_service_requests ORDER BY id DESC LIMIT 1')->fetch_assoc(); $id=(int)$row['id'];
@@ -86,11 +86,11 @@ try {
     $passPath='resident_service_pass.php?id='.$id.'&token='.$row['access_token']; $passUrl=residentServicePassUrl($row);
     [$status,$body]=identityHttp($passPath,2);
     identityCheck($status===200 && !str_contains($body,'id="serviceQr"') && !str_contains($body,'PRIVATE-ID-9876543210') && !str_contains($body,$row['id_document_name']), 'pending pass has no QR or ID data');
-    foreach ([1,2,3,7,8] as $actor) identityCheck(identityHttp('visitor_id_document.php?request_id='.$id,$actor)[0]===403,'unauthorized role cannot read document: '.$actor);
+    foreach ([1,2,3,5,7,8] as $actor) identityCheck(identityHttp('visitor_id_document.php?request_id='.$id,$actor)[0]===403,'unauthorized role cannot read document: '.$actor);
     identityCheck(identityHttp('visitor_id_document.php?request_id='.$id,0)[0]===302,'anonymous document access requires login');
     [, $html] = identityHttp('resident/visitors.php',2);
     preg_match('/name="csrf_token" value="([a-f0-9]+)"/',$html,$match); $csrf=$match[1]; $input['csrf_token']=$csrf;
-    foreach ([4,5,6] as $actor) {
+    foreach ([4,6] as $actor) {
         [$status,$body,$headers]=identityHttp('visitor_id_document.php?request_id='.$id,$actor);
         identityCheck($status===200 && $body===file_get_contents($png) && str_contains(strtolower($headers),'no-store') && str_contains(strtolower($headers),'nosniff'), 'authorized reviewer receives protected ID: '.$actor);
     }
@@ -98,7 +98,10 @@ try {
     identityCheck(identityHttp('superadmin/service_requests.php?kind=visitor',1,$review)[0]===403,'resident cannot forge staff identity review');
     identityCheck(identityHttp('superadmin/service_requests.php?kind=visitor',4,array_replace($review,['csrf_token'=>'bad']))[0]===403,'review requires valid CSRF');
     identityActor(5,'security');
-    identityCheck(decideResidentServiceRequest($db,$id,'approved','Visit approved'),'visit approval remains separate');
+    identityCheck(!decideResidentServiceRequest($db,$id,'approved','Visit approved'),'security cannot approve visitor registrations');
+    identityActor(4,'admin');
+    identityCheck(decideResidentServiceRequest($db,$id,'approved','Visit approved'),'management visit approval remains separate');
+    identityActor(5,'security');
     identityCheck(!checkInRegisteredVisitor($db,$id,$row['access_token'],true) && !verifyAccessScan($db,$passUrl)['valid'], 'visit approval without identity cannot admit visitor');
     // Reproduce legacy parking approval while the visitor ID is still pending.
     $parkingPath='parking_pass.php?request_id='.$parkingId.'&signature='.parkingPassSignature($parkingId);
@@ -121,7 +124,9 @@ try {
     $row=identityRow($db,$id);
     identityCheck($row['identity_status']==='verified' && (int)$row['identity_reviewed_by']===4 && $row['identity_reviewed_at']!==null,'review records actual staff actor and timestamp');
     identityCheck(!verifyAccessScan($db,$passUrl)['valid'] && !checkInRegisteredVisitor($db,$id,$row['access_token'],true), 'identity approval still waits for linked parking');
-    identityCheck(decideParkingRequest($parkingId,'approved',1,''),'existing parking approval works');
+    identityActor(4,'admin');
+    identityCheck(decideParkingRequest($parkingId,'approved',1,''),'management parking approval works');
+    identityActor(5,'security');
     [$status,$body]=identityHttp($parkingPath,2);
     identityCheck($status===200 && str_contains($body,'id="qrCode"') && str_contains($body,'id="downloadPass"') && !str_contains($body,'cdnjs.cloudflare.com/ajax/libs/qrcodejs'),'verified and approved parking pass opens with the local QR renderer');
     $scan=verifyAccessScan($db,$passUrl);
@@ -130,8 +135,8 @@ try {
     identityCheck(!str_contains($json,'id_number') && !str_contains($json,'PRIVATE-ID') && !str_contains($json,$row['id_document_name']) && !str_contains($json,'id_document'), 'scanner JSON excludes ID references, images and paths');
     [$status,$body]=identityHttp($passPath,2);
     identityCheck($status===200 && str_contains($body,'id="serviceQr"') && str_contains($body,'ID1234') && str_contains($body,'Identity verification') && !str_contains($body,'ID reference ending'), 'approved pass has QR and safe visitor details');
-    identityCheck(identityHttp('superadmin/service_requests.php?kind=visitor',5,array_replace($review,['identity_decision'=>'rejected','identity_review_note'=>'']))[0]===200 && identityRow($db,$id)['identity_status']==='verified','rejection requires a reason');
-    identityCheck(identityHttp('superadmin/service_requests.php?kind=visitor',5,array_replace($review,['identity_decision'=>'rejected','identity_review_note'=>'Please upload a readable image.']))[0]===302,'security rejects an identification document');
+    identityCheck(identityHttp('superadmin/service_requests.php?kind=visitor',4,array_replace($review,['identity_decision'=>'rejected','identity_review_note'=>'']))[0]===200 && identityRow($db,$id)['identity_status']==='verified','rejection requires a reason');
+    identityCheck(identityHttp('superadmin/service_requests.php?kind=visitor',4,array_replace($review,['identity_decision'=>'rejected','identity_review_note'=>'Please upload a readable image.']))[0]===302,'management rejects an identification document');
     $rejected=identityRow($db,$id);
     identityCheck($rejected['identity_status']==='rejected' && $rejected['access_token']!==$row['access_token'] && !verifyAccessScan($db,$passUrl)['valid'], 'rejection immediately revokes old QR token');
     $replacement=['csrf_token'=>$csrf,'action'=>'replace_identity','request_id'=>$id,'id_type'=>'Passport','valid_id'=>$upload()];
@@ -142,10 +147,12 @@ try {
     identityCheck($row['identity_status']==='pending' && $row['identity_reviewed_by']===null && $row['id_number_last4']===null && !is_file($storage.'/'.$rejected['id_document_name']), 'replacement resets review, deletes old file and does not retain a previous number');
     identityCheck(identityHttp('superadmin/service_requests.php?kind=visitor',4,$review)[0]===200 && identityRow($db,$id)['identity_status']==='pending','stale review cannot approve a replacement document that was not reviewed');
     identityCheck(ensureVisitorIdentitySchema($db) && identityRow($db,$id)['id_document_name']===$row['id_document_name'],'repeat migration retains uploaded documents');
+    identityActor(4,'admin');
     $db->query("CREATE TRIGGER fail_identity_audit BEFORE INSERT ON audit_logs FOR EACH ROW BEGIN IF NEW.entity_type='visitor_identity' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Simulated identity audit failure'; END IF; END");
     identityCheck(!reviewVisitorIdentity($db,$id,'verified','Matches') && identityRow($db,$id)['identity_status']==='pending','review and audit roll back together');
     $db->query('DROP TRIGGER fail_identity_audit');
-    identityCheck(reviewVisitorIdentity($db,$id,'verified','Matches'),'security verifies replacement identity');
+    identityCheck(reviewVisitorIdentity($db,$id,'verified','Matches'),'management verifies replacement identity');
+    identityActor(5,'security');
     $row=identityRow($db,$id); $passUrl=residentServicePassUrl($row);
     identityCheck(checkInRegisteredVisitor($db,$id,$row['access_token'],true),'verified visitor checks in through existing QR workflow');
     $row=identityRow($db,$id); $logId=(int)$row['visitor_log_id'];
@@ -180,7 +187,7 @@ try {
     }
     $filesBefore=iterator_count(new FilesystemIterator($storage)); $rowsBefore=$count();
     $db->query("CREATE TRIGGER fail_identity_parking BEFORE INSERT ON parking_requests FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Simulated linked parking failure'");
-    [$status,$body]=identityHttp('resident/visitors.php',1,array_replace($input,['needs_parking'=>'1','vehicle_type'=>'Car','expected_arrival'=>date('Y-m-d').'T00:00','expected_departure'=>date('Y-m-d').'T23:59','parking_fee_ack'=>'1','vehicle_plate'=>'ROLLBACKID','valid_id'=>$upload()]));
+    [$status,$body]=identityHttp('resident/visitors.php',1,array_replace($input,['needs_parking'=>'1','vehicle_type'=>'Car','expected_arrival'=>date('Y-m-d').'T00:00','expected_departure'=>date('Y-m-d').'T23:59','parking_fee_ack'=>'1','parking_rate_version'=>'2','vehicle_plate'=>'ROLLBACKID','valid_id'=>$upload()]));
     identityCheck($status===200 && str_contains($body,'alert error') && $count()===$rowsBefore && iterator_count(new FilesystemIterator($storage))===$filesBefore,'parking failure rolls back registration and deletes its new ID file');
     $db->query('DROP TRIGGER fail_identity_parking');
     $legacyToken=bin2hex(random_bytes(32));
@@ -197,7 +204,7 @@ try {
     // Keep one pending registration for optional browser review; no test ID data is real.
     identityHttp('resident/visitors.php',1,array_replace($input,['visitor_name'=>'Browser Identity Guest','id_number'=>'','valid_id'=>$upload()]));
     if (in_array('--preview',$argv,true)) {
-        [$browserStatus]=identityHttp('resident/visitors.php',1,array_replace($input,['visitor_name'=>'Browser Parking Guest','id_number'=>'','valid_id'=>$upload(),'needs_parking'=>'1','vehicle_type'=>'Car','expected_arrival'=>date('Y-m-d').'T00:00','expected_departure'=>date('Y-m-d').'T23:59','parking_fee_ack'=>'1','vehicle_plate'=>'BROWSER-PARK','vehicle_description'=>'Browser fixture vehicle']));
+        [$browserStatus]=identityHttp('resident/visitors.php',1,array_replace($input,['visitor_name'=>'Browser Parking Guest','id_number'=>'','valid_id'=>$upload(),'needs_parking'=>'1','vehicle_type'=>'Car','expected_arrival'=>date('Y-m-d').'T00:00','expected_departure'=>date('Y-m-d').'T23:59','parking_fee_ack'=>'1','parking_rate_version'=>'2','vehicle_plate'=>'BROWSER-PARK','vehicle_description'=>'Browser fixture vehicle']));
         identityCheck($browserStatus===302,'browser parking fixture registers with a current CSRF token');
         $browserVisitor=$db->query("SELECT * FROM resident_service_requests WHERE visitor_name='Browser Parking Guest' ORDER BY id DESC LIMIT 1")->fetch_assoc();
         $browserId=(int)$browserVisitor['id'];$browserParking=(int)$db->query('SELECT id FROM parking_requests WHERE visitor_registration_id='.$browserId)->fetch_assoc()['id'];

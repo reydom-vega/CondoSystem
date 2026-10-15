@@ -84,8 +84,8 @@ try {
     poolCheck((int)$db->query("SELECT COUNT(*) n FROM bookings WHERE booking_date='$raceDate' AND status='approved'")->fetch_assoc()['n']===1,'only one active reservation after concurrency');
     // Tenant booking belongs to the owner once, and payment confirmation stays trusted.
     $tenant=poolCreate($db,2,$next,'16:00',3,1); poolActor(4); decideAmenityBooking($db,$tenant,'approved'); $tenantBill=(int)poolRow($db,$tenant)['payment_id'];
-    poolCheck((int)$db->query('SELECT user_id FROM payments WHERE id='.$tenantBill)->fetch_assoc()['user_id']===1,'tenant pool fee charged once to unit owner');
-    poolCheck(residentCanPayBill($db,1,1,$tenantBill) && !residentCanPayBill($db,2,1,$tenantBill),'existing owner-only unit payment rules retained');
+    poolCheck((int)$db->query('SELECT user_id FROM payments WHERE id='.$tenantBill)->fetch_assoc()['user_id']===2,'tenant pool fee charged once to requesting tenant');
+    poolCheck(residentCanPayBill($db,2,2,$tenantBill) && !residentCanPayBill($db,1,2,$tenantBill),'only requesting tenant may pay personal reservation');
     $db->query("UPDATE payments SET paymongo_checkout_id='cs_pool_fixture',payment_method='online' WHERE id=$tenantBill");
     poolActor(2); poolReject(fn()=>decideAmenityBooking($db,$tenant,'cancelled'),'online checkout cancellation requires PMO');
     $context=['internal_payment_id'=>$tenantBill,'checkout_id'=>'cs_pool_fixture','paymongo_payment_id'=>'pay_pool_fixture','payment_channel'=>'gcash','amount'=>300000,'currency'=>'PHP','payment_status'=>'paid','event_type'=>'checkout_session.payment.paid','livemode'=>false];

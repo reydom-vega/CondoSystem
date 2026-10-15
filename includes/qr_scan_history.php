@@ -30,7 +30,10 @@ function qrAppendEvent(mysqli $db,array $scanner,array $data,string $action='ver
     $json=$verification ? json_encode(array_diff_key($verification,['pass_url'=>true]),JSON_THROW_ON_ERROR) : null;
     $stmt=$db->prepare("INSERT INTO qr_scan_logs (user_id,username,scanned_content,content_type,qr_type,reference_id,subject_name,requester_name,unit_number,pass_number,scanner_full_name,scanner_role,scan_action,verification_result,remarks,event_time_utc,created_at_utc,content_hash,request_key,verification_json) VALUES (?,?,?,'event',?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP(),?,?,?)");
     $stmt->bind_param('isssissssssssssss',$scanner['id'],$scanner['name'],$safe,$type,$ref,$subject,$requester,$unit,$pass,$scanner['name'],$scanner['role'],$action,$outcome,$remarks,$contentHash,$key,$json);
-    $stmt->execute(); return (int)$db->insert_id;
+    $stmt->execute(); $id=(int)$db->insert_id;
+    // Physical movements already have their own audit call sites. Add only verification here.
+    if($action==='verification'&&!logAudit('verification','qr_scan',$id,'Recorded QR verification; outcome '.$outcome.'.',$db,$outcome==='valid'?'success':'refused'))throw new RuntimeException('Could not record QR audit event.');
+    return $id;
 }
 
 function qrActionEvent(mysqli $db,array $row,string $action,string $remarks=''): void {

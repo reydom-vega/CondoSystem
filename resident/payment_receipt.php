@@ -19,14 +19,14 @@ if ($paymentId <= 0) {
 $connection = connectDb();
 $actorContext=residentContext($connection,$userId);
 if (!$actorContext || !$actorContext['approved'] || !in_array($actorContext['account_kind'],['owner','tenant'],true)) {
-    http_response_code(403); exit('Only the approved unit owner can download payment receipts.');
+    http_response_code(403); exit('Payment receipts are not available for this account.');
 }
 ensurePaymongoColumns($connection);
 ensureBillingTables($connection);
 if ($actorContext['account_kind']==='tenant') {
     $check=$connection->prepare('SELECT user_id FROM payments WHERE id=?');
     $check->bind_param('i',$paymentId); $check->execute(); $tenantBill=$check->get_result()->fetch_assoc();
-    if (!$tenantBill || !residentCanPayBill($connection,$userId,(int)$tenantBill['user_id'],$paymentId)) { http_response_code(403); exit('You can download receipts only for your own parking bills.'); }
+    if (!$tenantBill || !residentCanPayBill($connection,$userId,(int)$tenantBill['user_id'],$paymentId)) { http_response_code(403); exit('You can download receipts only for your own parking or booking bills.'); }
 }
 $receipt=paymentReceiptData($connection,$paymentId);
 if (!$receipt || !residentCanPayBill($connection,$userId,(int)$receipt['user_id'],$paymentId)) {
@@ -67,10 +67,22 @@ ob_start();
         .total td { padding-top: 14px; border-bottom: 0; font-size: 16px; font-weight: bold; }
         .total .amount { color: #a96800; }
         .footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid #e5e9ef; color: #657186; font-size: 9px; }
+        .parking-receipt { padding: 24px 28px; }
+        .parking-receipt .brand { padding-bottom: 10px; }
+        .parking-receipt h1 { margin-top: 14px; font-size: 22px; }
+        .parking-receipt h2 { margin: 12px 0 6px; font-size: 15px; }
+        .parking-receipt .meta { margin: 12px 0 14px; }
+        .parking-receipt .meta td { padding: 6px 9px; }
+        .parking-receipt .parking-meta { margin: 6px 0 12px; }
+        .parking-receipt .parking-meta td { padding: 5px 8px; }
+        .parking-receipt .items th, .parking-receipt .items td { padding: 7px 8px; }
+        .parking-receipt .footer { margin-top: 16px; padding-top: 10px; }
+        .items thead { display: table-header-group; }
+        .items tr { page-break-inside: avoid; }
     </style>
 </head>
 <body>
-    <div class="receipt">
+    <div class="receipt<?= !empty($receipt['visitor_parking']) ? ' parking-receipt' : '' ?>">
         <table class="brand"><tr>
             <td><?= brandDocumentHtml() ?><div class="muted">Official payment receipt</div></td>
             <td style="text-align:right;color:#187344;font-weight:bold">PAID</td>

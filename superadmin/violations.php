@@ -196,7 +196,7 @@ if ($violationSearch !== '' || $violationStatus !== 'all') {
 }
 $commonTypes = array_keys($fineRates);
 $violationTabs = ['issue' => 'Issue a Violation'];
-if (canAccess('vehicles.read')) $violationTabs['lookup'] = 'Vehicle & Parking Lookup';
+if (canAccess('vehicles.lookup')) $violationTabs['lookup'] = 'Vehicle & Parking Lookup';
 $violationTabs['history'] = 'History';
 $activeTab = $_GET['tab'] ?? ((isset($_GET['search']) || isset($_GET['status'])) ? 'history' : 'issue');
 if ($_SERVER['REQUEST_METHOD'] === 'POST') $activeTab = ($_POST['action'] ?? '') === 'issue' ? 'issue' : 'history';
@@ -363,7 +363,7 @@ if (!is_string($activeTab) || !isset($violationTabs[$activeTab])) $activeTab = '
                                     <td><?php echo !empty($violation['admin_remarks']) ? nl2br(htmlspecialchars($violation['admin_remarks'])) : '—'; ?></td>
                                     <td>
                                         <div class="violation-row-actions">
-                                        <?php if (canAccess('vehicles.read')): ?><button type="button" class="btn-small btn-neutral" data-vehicle-violation-details="<?= (int)$violation['id'] ?>"><?= $violation['review_status']==='pending' && canAccess('violations.review') ? 'Review report' : 'View details' ?></button><?php endif; ?>
+                                        <?php if (canAccess('vehicles.lookup')): ?><button type="button" class="btn-small btn-neutral" data-vehicle-violation-details="<?= (int)$violation['id'] ?>"><?= $violation['review_status']==='pending' && canAccess('violations.review') ? 'Review report' : 'View details' ?></button><?php endif; ?>
                                         <?php if (canAccess('violations.review') && in_array($violation['status'], ['unpaid', 'disputed'], true)): ?>
                                             <div class="violation-actions">
                                             <?php if ($violation['status'] === 'disputed'): ?>
@@ -379,7 +379,7 @@ if (!is_string($activeTab) || !isset($violationTabs[$activeTab])) $activeTab = '
                                                     <button type="submit" name="decision" value="waive" class="btn-small btn-approve">Waive</button>
                                                 </form>
                                             </div>
-                                        <?php elseif (!canAccess('vehicles.read')): ?>—<?php endif; ?>
+                                        <?php elseif (!canAccess('vehicles.lookup')): ?>—<?php endif; ?>
                                         </div>
                                     </td>
                                 </tr>

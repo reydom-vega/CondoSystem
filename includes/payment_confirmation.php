@@ -98,7 +98,7 @@ function confirmPaymongoCheckoutPayment(mysqli $db, array $context, ?int $expect
         $update->bind_param('sssi', $context['paymongo_payment_id'], $context['event_type'], $context['payment_channel'], $bill['id']);
         if (!$update->execute() || $update->affected_rows !== 1) throw new RuntimeException('Payment changed before confirmation.');
         settleLinkedBillRecords($db, (int)$bill['id']);
-        if (!logAudit('gateway_confirm','payment',(int)$bill['id'],'PayMongo confirmed the checkout amount and currency.',$db)) throw new RuntimeException('Could not audit payment confirmation.');
+        if (!logAudit('gateway_confirm','payment',(int)$bill['id'],'PayMongo confirmed amount/currency; payment reference '.$context['paymongo_payment_id'],$db,'success',true)) throw new RuntimeException('Could not audit payment confirmation.');
         notifyResidentOfPayment((int)$bill['id'], $db);
         $db->commit();
         return ['confirmed'=>true,'payment'=>$bill];
@@ -129,7 +129,7 @@ function confirmCashBillPayment(mysqli $db, int $paymentId): bool {
         $update->bind_param('i',$paymentId);
         if (!$update->execute() || $update->affected_rows!==1) throw new RuntimeException('Cash bill changed.');
         settleLinkedBillRecords($db,$paymentId);
-        if (!logAudit('cash_confirm','payment',$paymentId,'Cash received and confirmed by billing staff.',$db)) throw new RuntimeException('Could not audit cash receipt.');
+        if (!logAudit('cash_confirm','payment',$paymentId,'Cash received and confirmed by billing staff.',$db,'success')) throw new RuntimeException('Could not audit cash receipt.');
         notifyResidentOfPayment($paymentId, $db);
         $db->commit();
         return true;
@@ -138,14 +138,14 @@ function confirmCashBillPayment(mysqli $db, int $paymentId): bool {
 
 /** A checkout remains bound to its original amount; repeated submissions resume it. */
 function startResidentBillPayment(mysqli $db, int $paymentId, int $userId, string $method, array $profile): array {
-    if (!isLoggedIn() || (int)($_SESSION['user_id'] ?? 0)!==$userId) return ['success'=>false,'error'=>'Only the approved unit owner can pay this bill.'];
+    if (!isLoggedIn() || (int)($_SESSION['user_id'] ?? 0)!==$userId) return ['success'=>false,'error'=>'You are not authorized to pay this bill.'];
     if (!in_array($method,['online','bank','cash'],true)) return ['success'=>false,'error'=>'Please select a payment method.'];
     ensureBillingTables($db); ensurePaymongoColumns($db);
     $db->begin_transaction();
     try {
         $payer=$db->prepare('SELECT id FROM users WHERE id=? FOR UPDATE');
         $payer->bind_param('i',$userId); $payer->execute();
-        if (!$payer->get_result()->fetch_assoc()) { $db->rollback(); return ['success'=>false,'error'=>'Only the approved unit owner can pay this bill.']; }
+        if (!$payer->get_result()->fetch_assoc()) { $db->rollback(); return ['success'=>false,'error'=>'You are not authorized to pay this bill.']; }
         $find = $db->prepare("SELECT * FROM payments WHERE id=? AND status IN ('pending','overdue') AND amount>0 FOR UPDATE");
         $find->bind_param('i',$paymentId); $find->execute(); $bill=$find->get_result()->fetch_assoc();
         if ($bill && (int)$bill['user_id']!==$userId) {
@@ -153,7 +153,7 @@ function startResidentBillPayment(mysqli $db, int $paymentId, int $userId, strin
             $billAccount->bind_param('i',$bill['user_id']); $billAccount->execute();
             if (!$billAccount->get_result()->fetch_assoc()) $bill=null;
         }
-        if (!$bill || !residentCanPayBill($db,$userId,(int)$bill['user_id'],$paymentId)) { $db->rollback(); return ['success'=>false,'error'=>'Only the approved unit owner can pay an open bill for this unit.']; }
+        if (!$bill || !residentCanPayBill($db,$userId,(int)$bill['user_id'],$paymentId)) { $db->rollback(); return ['success'=>false,'error'=>'You are not authorized to pay this open bill.']; }
         if (!empty($bill['paymongo_checkout_id'])) {
             $db->rollback();
             if ($method==='cash') return ['success'=>false,'error'=>'This bill already has an online checkout. Complete that checkout or ask billing staff to resolve it before paying cash.'];
@@ -174,7 +174,7 @@ function startResidentBillPayment(mysqli $db, int $paymentId, int $userId, strin
         $total=array_sum(array_map(fn($item)=>(int)round((float)$item['amount']*100),$items));
         if ($total !== (int)round((float)$bill['amount']*100)) { $db->rollback(); return ['success'=>false,'error'=>'The statement total needs review. Contact billing staff.']; }
         $checkout=createPaymongoCheckoutSession($paymentId,$items,'Statement of Account - DUES-'.$paymentId,
-            ($profile['full_name'] ?? '') ?: 'Unit Owner',$profile['email'] ?? '',
+            ($profile['full_name'] ?? '') ?: 'Resident',$profile['email'] ?? '',
             buildUrl('resident/payment_return.php?payment_id='.$paymentId.'&status=success'),
             buildUrl('resident/payment_return.php?payment_id='.$paymentId.'&status=cancelled'), [], $methods);
         if (!$checkout['success'] || !paymongoCheckoutUrlIsSafe($checkout['checkout_url'])) {

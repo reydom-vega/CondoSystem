@@ -118,7 +118,7 @@ $escape=static fn($value)=>htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');
                     <?php renderAmenityGallery($name,false); ?>
                     <div class="amenity-body"><div class="amenity-title-row"><h3><?= $escape($name) ?></h3><span class="amenity-price"><?= $escape($entry['price']) ?></span></div>
                         <p><?= $escape($entry['description']) ?></p><dl class="amenity-facts"><div><dt>Operating hours</dt><dd><?= $escape($entry['hours']) ?></dd></div><div><dt>Location</dt><dd><?= $escape($entry['location']) ?></dd></div></dl>
-                        <details class="amenity-information"><summary>Rules and reservation details</summary><p><?= $escape($entry['rules']) ?></p><?php if($name==='Swimming Pool'): ?><p>Pricing is per reservation, independent of guest count. Approval creates one bill for your unit owner. Paid reservations and online checkouts require PMO review before cancellation.</p><?php endif; ?></details>
+                        <details class="amenity-information"><summary>Rules and reservation details</summary><p><?= $escape($entry['rules']) ?></p><?php if($name==='Swimming Pool'): ?><p>Pricing is per reservation, independent of guest count. Approval creates one booking bill. Tenants pay for their own reservations; other resident bookings are billed to the unit owner. Paid reservations and online checkouts require PMO review before cancellation.</p><?php endif; ?></details>
                         <button type="button" class="service-btn" data-open-booking="<?= $escape($entry['slug']) ?>">Reserve <?= $escape($name) ?></button>
                     </div>
                 </article>
@@ -155,7 +155,7 @@ $escape=static fn($value)=>htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');
                         </div>
                         <aside class="amenity-booking-review" aria-label="Review pool reservation">
                             <div class="amenity-reservation-summary" aria-live="polite"><p class="amenity-kicker">REVIEW YOUR VISIT</p><h3>Booking summary</h3><dl><div><dt>Amenity</dt><dd>Swimming Pool</dd></div><div><dt>Date</dt><dd data-summary-date>Choose a date</dd></div><div><dt>Time</dt><dd data-summary-time>Choose a time</dd></div><div><dt>Duration</dt><dd data-summary-duration>1 hour</dd></div><div><dt>Hourly rate</dt><dd>&#8369;<?= number_format(AMENITY_POOL_HOURLY_RATE) ?>/hour</dd></div><div class="amenity-summary-total"><dt>Total fee</dt><dd data-summary-fee>&#8369;<?= number_format(AMENITY_POOL_HOURLY_RATE, 2) ?></dd></div></dl>
-                            <p class="amenity-payment-note">Admin approval creates one charge on your unit owner's billing account. Pending requests do not hold a time slot.</p>
+                            <p class="amenity-payment-note">Admin approval creates one booking bill. If you are a tenant, you receive and pay this bill on your own account. Pending requests do not hold a time slot.</p>
                             <div class="amenity-form-feedback" data-booking-feedback role="status" aria-live="polite"></div><button type="submit" class="service-btn" data-reservation-submit disabled>Submit reservation</button>
                             <p class="amenity-submit-hint">Select a date and available time to continue.</p>
                             </div>

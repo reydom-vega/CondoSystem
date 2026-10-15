@@ -22,14 +22,14 @@ $connection = connectDb();
 $actorId=(int)$_SESSION['user_id'];
 $actorContext=residentContext($connection,$actorId);
 if (!$actorContext || !$actorContext['approved'] || !in_array($actorContext['account_kind'],['owner','tenant'],true)) {
-    http_response_code(403); exit('Only the approved unit owner can access checkout status. View your statements in Billing.');
+    http_response_code(403); exit('Checkout status is not available for this account. View your statements in Billing.');
 }
 ensurePaymongoColumns($connection);
 ensureBillingTables($connection);
 if ($actorContext['account_kind']==='tenant') {
     $check=$connection->prepare('SELECT user_id FROM payments WHERE id=?');
     $check->bind_param('i',$paymentId); $check->execute(); $tenantBill=$check->get_result()->fetch_assoc();
-    if (!$tenantBill || !residentCanPayBill($connection,$actorId,(int)$tenantBill['user_id'],$paymentId)) { http_response_code(403); exit('You can access checkout status only for your own parking bills.'); }
+    if (!$tenantBill || !residentCanPayBill($connection,$actorId,(int)$tenantBill['user_id'],$paymentId)) { http_response_code(403); exit('You can access checkout status only for your own parking or booking bills.'); }
 }
 $payment = null;
 if ($paymentId > 0) {

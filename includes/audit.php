@@ -33,9 +33,15 @@ function ensureAuditLogTable(mysqli $connection): bool {
 
     $roleColumn = $connection->query("SHOW COLUMNS FROM audit_logs LIKE 'admin_role'");
     if ($roleColumn && $roleColumn->num_rows === 0) {
-        return $connection->query("ALTER TABLE audit_logs ADD admin_role VARCHAR(30) DEFAULT NULL AFTER admin_name") === true;
+        if (!$connection->query("ALTER TABLE audit_logs ADD admin_role VARCHAR(30) DEFAULT NULL AFTER admin_name")) return false;
     }
-
+    // No backfill: historical actor snapshots and outcomes must not be invented.
+    foreach (['actor_name_snapshot'=>'VARCHAR(150) DEFAULT NULL','actor_identifier'=>'VARCHAR(30) DEFAULT NULL','actor_role_snapshot'=>'VARCHAR(30) DEFAULT NULL','outcome'=>'VARCHAR(20) DEFAULT NULL'] as $column=>$definition) {
+        if (!$connection->query("SHOW COLUMNS FROM audit_logs LIKE '$column'")->num_rows && !$connection->query("ALTER TABLE audit_logs ADD $column $definition")) return false;
+    }
+    foreach (['ix_audit_period'=>'created_at,id','ix_audit_actor_period'=>'admin_id,created_at','ix_audit_module_period'=>'entity_type,created_at','ix_audit_role_period'=>'actor_role_snapshot,created_at','ix_audit_outcome_period'=>'outcome,created_at'] as $name=>$columns) {
+        if (!$connection->query("SHOW INDEX FROM audit_logs WHERE Key_name='$name'")->num_rows && !$connection->query("ALTER TABLE audit_logs ADD INDEX $name ($columns)")) return false;
+    }
     return true;
 }
 
@@ -49,20 +55,25 @@ function ensureAuditLogTable(mysqli $connection): bool {
  * 'announcement', 'parking_request'. $details is a short human-readable
  * note shown in the log table.
  */
-function logAudit(string $action, string $entityType, ?int $entityId = null, string $details = '', ?mysqli $connection = null): bool {
+function logAudit(string $action, string $entityType, ?int $entityId = null, string $details = '', ?mysqli $connection = null, ?string $outcome = null, bool $automated = false): bool {
     $ownsConnection = $connection === null;
     try {
     $connection ??= connectDb();
     if ($ownsConnection) ensureAuditLogTable($connection);
 
-    $adminId = $_SESSION['user_id'] ?? null;
-    $adminName = $_SESSION['username'] ?? 'System';
-    $adminRole = $_SESSION['role'] ?? null;
+    $adminId = $automated ? null : ($_SESSION['user_id'] ?? null);
+    $adminName = $automated ? 'System' : ($_SESSION['username'] ?? 'System');
+    $adminRole = $automated ? 'system' : ($_SESSION['role'] ?? null);
     $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-
-    $stmt = $connection->prepare('INSERT INTO audit_logs (admin_id, admin_name, admin_role, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    if ($outcome !== null && !in_array($outcome,['success','failed','refused'],true)) throw new InvalidArgumentException('Invalid audit outcome.');
+    $name=$adminName; $identifier=$adminId ? 'USER-'.$adminId : 'System'; $role=$adminRole ?: 'system';
+    if ($adminId) {
+        $actor=$connection->prepare('SELECT full_name,staff_id,role,account_type FROM users WHERE id=?');$actor->bind_param('i',$adminId);$actor->execute();$user=$actor->get_result()->fetch_assoc();
+        if ($user) {$name=$user['full_name'] ?: $adminName;$identifier=$user['staff_id'] ?: 'USER-'.$adminId;$role=$user['role']==='resident' && $user['account_type']==='Tenant' ? 'tenant' : $user['role'];}
+    }
+    $stmt = $connection->prepare('INSERT INTO audit_logs (admin_id, admin_name, admin_role, action, entity_type, entity_id, details, ip_address,actor_name_snapshot,actor_identifier,actor_role_snapshot,outcome) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     if (!$stmt) return false;
-    $stmt->bind_param('issssiss', $adminId, $adminName, $adminRole, $action, $entityType, $entityId, $details, $ip);
+    $stmt->bind_param('issssissssss', $adminId, $adminName, $adminRole, $action, $entityType, $entityId, $details, $ip,$name,$identifier,$role,$outcome);
     return $stmt->execute();
     } catch (Throwable $error) {
         if (!$ownsConnection) throw $error;
@@ -75,10 +86,8 @@ function logAudit(string $action, string $entityType, ?int $entityId = null, str
 }
 
 /**
- * Most recent audit log entries. Filtering by action/entity/superadmin/date is
- * done in PHP by the caller (see superadmin/auditlog.php), matching how the
- * rest of the admin pages (bookingrequest.php, unitpayments.php) filter
- * an already-fetched result set rather than building dynamic SQL.
+ * Legacy internal helper retained for compatibility. The global Audit Log uses
+ * includes/audit_report.php for authorized SQL filtering and safe projections.
  */
 function getAuditLogs(int $limit = 500): array {
     $connection = connectDb();

@@ -74,6 +74,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('styles.css'), ENT_QUOTES, 'UTF-8') ?>">
     <script src="js/page-transition.js?v=2" defer></script>
 <?php renderPortalUiHead(); ?>
+    <style>
+        /* Login-only alignment; preserve the existing card and image footprint. */
+        .portal-ui.portal-account-page .login-screen { --login-input-height:44px; }
+        .portal-ui.portal-account-page .login-screen .form-panel { min-block-size:542px; }
+        .portal-ui.portal-account-page .login-screen .brand {
+            align-items:center;
+            margin:0 0 16px;
+        }
+        .portal-ui.portal-account-page .login-screen .brand .celandine-brand { align-items:center; }
+        .portal-ui.portal-account-page .login-screen .login-back-button {
+            align-self:flex-start;
+            margin:0 0 16px;
+        }
+        .portal-ui.portal-account-page .login-screen h1 { margin:0 0 16px; }
+        .portal-ui.portal-account-page .login-screen .input-wrap { margin:0 0 16px; }
+        .portal-ui.portal-account-page .login-screen .input-wrap > .field-label { margin:0 0 7px; }
+        .portal-ui.portal-account-page .login-screen .input-wrap > input {
+            display:block;
+            width:100%;
+            height:var(--login-input-height);
+        }
+        .portal-ui.portal-account-page .login-screen .toggle-password {
+            top:auto;
+            bottom:0;
+            height:var(--login-input-height);
+            transform:none;
+        }
+        .portal-ui.portal-account-page .login-screen .form-options {
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:12px;
+            margin:0 0 18px;
+        }
+        .portal-ui.portal-account-page .login-screen .form-options .checkbox {
+            display:inline-flex;
+            align-items:center;
+            gap:8px;
+            margin:0;
+        }
+        .portal-ui.portal-account-page .login-screen .checkbox input {
+            flex:0 0 18px;
+            width:18px;
+            height:18px;
+            margin:0;
+        }
+        .portal-ui.portal-account-page .login-screen .form-options > a {
+            margin-left:auto;
+            text-align:right;
+        }
+        .portal-ui.portal-account-page .login-screen #loginForm > button[type=submit] {
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            width:100%;
+            margin:0;
+            text-align:center;
+        }
+        .portal-ui.portal-account-page .login-screen .footer-link { margin:16px 0 0; text-align:center; }
+        .portal-ui.portal-account-page .login-screen .image-caption { align-self:stretch; text-align:left; }
+        .portal-ui.portal-account-page .login-screen .image-caption h2 { margin:0 0 4px; }
+        .portal-ui.portal-account-page .login-screen .image-caption p { margin:0; }
+        @media (max-width:640px) {
+            .portal-ui.portal-account-page .login-screen { --login-input-height:46px; }
+            .portal-ui.portal-account-page .login-screen .form-panel { min-block-size:530px; }
+            .portal-ui.portal-account-page .login-screen .form-options { gap:8px; }
+        }
+    </style>
 </head>
 <body class="portal-ui portal-account-page">
     <div class="page-transition" aria-hidden="true"></div>
@@ -87,8 +155,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <span>Back to Homepage</span>
             </a>
             <h1>Welcome</h1>
-            <p class="subtitle">Enter your credentials to access your portal</p>
-
             <?php $flash = getFlash(); if ($flash): ?>
                 <div class="alert <?php echo htmlspecialchars($flash['type'] === 'error' ? 'error' : 'success'); ?>">
                     <?php echo htmlspecialchars($flash['message']); ?>
@@ -110,8 +176,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="text" id="identifier" name="identifier" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Username or email" value="<?php echo htmlspecialchars($identifier ?? ''); ?>" required>
                 </div>
 
-                <label class="field-label" for="password">Password</label>
                 <div class="input-wrap password-container">
+                    <label class="field-label" for="password">Password</label>
                     <input type="password" id="password" name="password" autocomplete="current-password" placeholder="Password" required>
                     <button type="button" class="toggle-password" data-target="password" aria-label="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22"></path></svg></button>
                 </div>

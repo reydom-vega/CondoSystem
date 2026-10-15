@@ -95,6 +95,8 @@ html[data-theme=light] .portal-ui :is(.service-btn,.btn-primary,.reply-send,butt
 html[data-theme=light] .portal-ui.portal-account-page .button-link,
 html[data-theme=light] .portal-ui .pass-actions button,
 html[data-theme=light] .portal-ui .maintenance-nav-button:not(.secondary) { color:#fff; }
+/* The logout return action has a pale surface rather than a filled accent. */
+html[data-theme=light] .portal-ui.logout-confirmation .button-link-secondary { color:var(--theme-ink); }
 html[data-theme=light] .portal-ui :is(.maintenance-admin-button.approve,.maintenance-action-btn.confirm) { color:var(--theme-success); }
 html[data-theme=light] .portal-ui .maintenance-admin-button.reject { color:var(--theme-danger); }
 html[data-theme=light] :is(.confirm-ok,.staff-confirm-submit,.vacancy-confirm-submit,.dialog-confirm-approve,.dialog-confirm-reject,.system-confirm-accept,.resubmit-submit) { background:var(--accent-primary); color:#fff; }

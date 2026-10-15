@@ -48,7 +48,10 @@
     // Measure first so long descriptions and all authorized items are retained.
     const canvas = document.createElement('canvas'); canvas.width=1200;
     const context = canvas.getContext('2d'), margin=60, width=1080;
-    const blocks=[]; let y=260;
+    context.font='21px Arial';
+    const addressLines=lines(context,documentData.property.address,width);
+    const headerOffset=addressLines.length*30;
+    const blocks=[]; let y=260+headerOffset;
     context.font='26px Arial';
     for (const [label,value] of documentData.fields) {
       const wrapped=lines(context,value,width-32), height=60+wrapped.length*34;
@@ -69,9 +72,11 @@
     const qrY=y+44; canvas.height=qrY+qr.height+100+noticeLines.length*32+margin;
     context.fillStyle='#fff'; context.fillRect(0,0,canvas.width,canvas.height);
     context.drawImage(brand,margin,50,600,600*brand.naturalHeight/brand.naturalWidth);
-    context.fillStyle='#172033'; context.font='bold 38px Arial'; context.fillText(documentData.title,margin,190);
-    context.font='24px Arial'; context.fillStyle='#526078'; context.fillText(documentData.reference,margin,232);
-    context.fillStyle='#187344'; context.textAlign='right'; context.fillText('APPROVED',canvas.width-margin,232); context.textAlign='left';
+    context.fillStyle='#526078'; context.font='21px Arial';
+    addressLines.forEach((line,index)=>context.fillText(line,margin,160+index*30));
+    context.fillStyle='#172033'; context.font='bold 38px Arial'; context.fillText(documentData.title,margin,190+headerOffset);
+    context.font='24px Arial'; context.fillStyle='#526078'; context.fillText(documentData.reference,margin,232+headerOffset);
+    context.fillStyle='#187344'; context.textAlign='right'; context.fillText('APPROVED',canvas.width-margin,232+headerOffset); context.textAlign='left';
     for (const block of blocks) {
       if (block.kind==='field') {
         context.fillStyle='#f6f8fb'; context.fillRect(margin,block.y,width,block.height);
@@ -86,7 +91,7 @@
       }
       context.strokeStyle='#d9e0e9'; context.beginPath(); context.moveTo(margin,block.y+(block.height || 76)); context.lineTo(margin+width,block.y+(block.height || 76)); context.stroke();
     }
-    context.imageSmoothingEnabled=false; context.drawImage(qr,(canvas.width-qr.width)/2,qrY);
+    context.imageSmoothingEnabled=false; context.drawImage(qr,Math.round((canvas.width-qr.width)/2),qrY);
     context.textAlign='center'; context.fillStyle='#172033'; context.font='24px Arial'; context.fillText('Scan to verify the current permit status',canvas.width/2,qrY+qr.height+36);
     context.textAlign='left'; context.fillStyle='#526078'; context.font='23px Arial'; noticeLines.forEach((line,index)=>context.fillText(line,margin,qrY+qr.height+86+index*32));
     return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob ? resolve(blob) : reject(new Error('Unable to create the JPG. Please try PDF instead.')), 'image/jpeg', .96));

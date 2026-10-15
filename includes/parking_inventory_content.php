@@ -40,10 +40,12 @@
                         <label class="field-label" for="inventory_search">Search parking inventory</label>
                         <input type="search" id="inventory_search" name="search" value="<?php echo htmlspecialchars($searchTerm); ?>" placeholder="Slot number, plate number, or unit number">
                     </div>
-                    <button type="submit" class="btn-primary">Search</button>
-                    <?php if ($searchTerm !== ''): ?>
-                        <a class="registered-vehicles-link" href="parkinginventory.php">Clear</a>
-                    <?php endif; ?>
+                    <div class="parking-search-actions">
+                        <button type="submit" class="btn-primary">Search</button>
+                        <?php if ($searchTerm !== ''): ?>
+                            <a class="service-btn service-btn-secondary" href="parking.php?tab=slots">Clear</a>
+                        <?php endif; ?>
+                    </div>
                 </form>
 
                 <div class="unit-table-wrap">

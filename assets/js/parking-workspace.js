@@ -4,6 +4,7 @@
   if (!app) return;
   const tabs = [...app.querySelectorAll('[data-parking-tab]')];
   const panels = [...app.querySelectorAll('[data-parking-panel]')];
+  const listSearches = [];
   const initialTab = tabs.find(tab => tab.getAttribute('aria-selected') === 'true')?.dataset.parkingTab;
   const allowed = key => tabs.some(tab => tab.dataset.parkingTab === key);
   const panelForHash = () => {
@@ -40,6 +41,7 @@
     });
   });
   const restore = () => {
+    listSearches.forEach(search => search.restore());
     const requested = panelForHash() || new URL(location.href).searchParams.get('tab') || initialTab;
     activate(allowed(requested) ? requested : initialTab, false, false);
     if (panelForHash()) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView({block:'start'});
@@ -61,6 +63,45 @@
     event.preventDefault(); activate(key, true);
     if (route === 'parking_configuration.php') app.querySelector('.parking-config-details')?.setAttribute('open','');
     if (url.hash) { history.replaceState(history.state, '', location.pathname+location.search+url.hash); restore(); document.getElementById(decodeURIComponent(url.hash.slice(1)))?.scrollIntoView({block:'start'}); }
+  });
+  // Each staff list has its own query and searches identifying fields only.
+  // Slot dropdown options are deliberately excluded from the searchable text.
+  app.querySelectorAll('[data-parking-list-search]').forEach(form => {
+    const key = form.dataset.parkingListSearch;
+    const input = form.querySelector('input[type=search]');
+    const list = document.getElementById(`parking-search-list-${key}`);
+    if (!input || !list) return;
+    const normalize = value => value.normalize('NFKC').toLocaleLowerCase();
+    const rows = [...list.querySelectorAll('[data-parking-search-item]')].map(row => ({row, text:normalize(row.dataset.parkingSearchText || '')}));
+    const count = app.querySelector(`[data-parking-search-count="${key}"]`);
+    const empty = app.querySelector(`[data-parking-search-empty="${key}"]`);
+    const apply = (save = false) => {
+      const terms = normalize(input.value.trim()).split(/\s+/).filter(Boolean);
+      let visible = 0;
+      rows.forEach(({row,text}) => { row.hidden = !terms.every(term => text.includes(term)); if (!row.hidden) visible++; });
+      const noun = key === 'vehicles' ? 'vehicle' : 'sticker request';
+      count.textContent = `${visible} of ${rows.length} ${noun}${rows.length === 1 ? '' : 's'}`;
+      empty.hidden = visible !== 0 || rows.length === 0;
+      if (save) {
+        const url = new URL(location.href);
+        if (input.value.trim()) url.searchParams.set(input.name, input.value.trim());
+        else url.searchParams.delete(input.name);
+        history.replaceState(history.state, '', url);
+      }
+    };
+    const restoreSearch = () => {
+      input.value = new URL(location.href).searchParams.get(input.name) || '';
+      // A plate link from Sticker Requests must always reveal its vehicle.
+      let target;
+      try { target = document.getElementById(decodeURIComponent(location.hash.slice(1))); } catch {}
+      if (target && list.contains(target)) input.value = '';
+      apply();
+    };
+    form.addEventListener('submit', event => { event.preventDefault(); apply(true); });
+    input.addEventListener('input', () => apply(true));
+    form.querySelector('[data-parking-search-clear]').addEventListener('click', () => { input.value = ''; apply(true); input.focus(); });
+    listSearches.push({restore:restoreSearch});
+    restoreSearch();
   });
   const filters = app.querySelector('[data-parking-record-filters]');
   if (filters) {

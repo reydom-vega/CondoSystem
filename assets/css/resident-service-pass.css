@@ -6,6 +6,7 @@ body.portal-ui.visitor-pass-page { padding:32px 16px; }
   background:var(--surface-card); box-shadow:var(--shadow-overlay);
 }
 .visitor-pass :is(p,h1,h2,dl,dd) { margin:0; }
+.visitor-pass [data-visitor-pass-download-feedback]:not(:empty) { margin-top:12px; color:var(--text-secondary); font-size:13px; }
 .visitor-pass svg { display:block; width:20px; height:20px; flex-shrink:0; }
 .visitor-pass-header { display:flex; align-items:center; gap:16px; }
 .visitor-pass-header > div { min-width:0; }
@@ -80,20 +81,24 @@ body.portal-ui.visitor-pass-page { padding:32px 16px; }
     break-inside:avoid; page-break-inside:avoid; transform:none !important; opacity:1 !important;
   }
   .visitor-pass :is(h1,h2,p,dt,dd,strong,small,time,.visitor-pass-reference,.system-icon,.visitor-pass-row-icon,.visitor-pass-brand-icon) { color:#111827 !important; }
-  .visitor-pass .visitor-pass-header h1 { font-size:24px; }
+  .visitor-pass .visitor-pass-header h1 { font-size:22px; }
+  .visitor-pass-header>.celandine-brand { margin-bottom:0; }
+  .visitor-pass-header>.celandine-property-address { margin:4px 0 8px; }
   .visitor-pass-brand-icon,.visitor-pass-row-icon { background:#f3f4f6; border-color:var(--theme-line,#cbd5e1); }
-  .visitor-pass-status { margin:14px 0; min-height:36px; padding:8px; color:#111827; border:2px solid var(--theme-line,#111827); background:#fff; }
+  .visitor-pass-status { margin:10px 0; min-height:30px; padding:6px; color:#111827; border:2px solid var(--theme-line,#111827); background:#fff; }
   .visitor-pass .visitor-pass-section h2,.visitor-pass .visitor-pass-qr-section h2 { margin-bottom:4px; }
-  .visitor-pass-row { padding:6px 0; border-color:var(--theme-line,#d1d5db); break-inside:avoid; transform:none !important; opacity:1 !important; }
-  .visitor-pass-row-icon { top:6px; }
+  .visitor-pass-row { padding:4px 0; border-color:var(--theme-line,#d1d5db); break-inside:avoid; transform:none !important; opacity:1 !important; }
+  .visitor-pass-row-icon { top:4px; width:30px; height:30px; }
   .visitor-pass dt { font-size:11px; }
   .visitor-pass dd { margin-top:0; font-size:13px; line-height:1.35; }
   .visitor-pass dd small { display:inline; margin-left:6px; font-size:10px; }
   .visitor-pass-schedule { margin-top:12px; }
   .visitor-pass-qr-section { padding:12px 0; break-inside:avoid; opacity:1 !important; transform:none !important; }
   .portal-ui .visitor-pass #serviceQr { margin-top:8px; padding:16px; border-radius:0; }
-  .visitor-pass #serviceQr :is(canvas,img) { width:auto; max-width:220px; }
+  .visitor-pass #serviceQr :is(canvas,img) { width:auto; max-width:180px; }
   .visitor-pass-instructions { padding:10px 12px; background:#fff; border-color:var(--theme-line,#cbd5e1); break-inside:avoid; }
   .visitor-pass .visitor-pass-instructions p { font-size:11px; }
+  .visitor-pass .celandine-document-footer { margin-top:8px; padding-top:6px; }
+  .visitor-pass .visitor-pass-qr-section { padding:8px 0; }
   .visitor-pass-actions,.visitor-pass-checkin { display:none !important; }
 }

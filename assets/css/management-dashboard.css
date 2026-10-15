@@ -1,0 +1,74 @@
+.management-home { display:grid; gap:22px; min-width:0; }
+.management-home .management-toolbar { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; }
+.management-home .management-toolbar h2 { margin:0 0 6px; font-size:21px; }
+.management-home .management-toolbar p { margin:0; font-size:13px; line-height:1.6; color:var(--text-secondary); }
+.management-home .management-refresh { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; width:auto; margin:0; padding:10px 16px; }
+.management-home .management-shortcuts { display:flex; flex-wrap:wrap; gap:10px; }
+.management-home .management-shortcuts a { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:10px 14px; border:1px solid var(--border-color); border-radius:8px; background:var(--surface-card); color:var(--text-primary); font-size:13px; text-decoration:none; }
+.management-home :is(.management-shortcuts a,.management-metric):hover { border-color:var(--accent-primary); background:var(--surface-elevated); }
+.management-home .management-content { display:grid; gap:22px; min-width:0; }
+.management-home .management-metrics { margin:0; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; }
+.management-home .management-metric { min-width:0; color:var(--text-primary); text-decoration:none; }
+.management-home .management-metric-heading { display:flex; align-items:center; gap:10px; font-size:13px; margin-bottom:14px; }
+.management-home .management-metric-heading .admin-stat-icon { width:34px; height:34px; flex:0 0 34px; margin:0; }
+.management-home .management-metric>strong { font-size:clamp(24px,2.3vw,32px); line-height:1.25; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+.management-home .management-metric>small { display:block; margin-top:8px; color:var(--text-secondary); font-size:12px; line-height:1.6; }
+.management-home .management-columns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; align-items:start; }
+.management-home .management-stack { display:grid; align-content:start; gap:22px; min-width:0; }
+.management-home .management-panel { min-width:0; padding:22px; background:var(--surface-card); border:1px solid var(--border-color); border-radius:14px; box-shadow:var(--shadow-card); }
+.management-home .management-panel-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-bottom:18px; }
+.management-home .management-panel h2 { margin:0 0 6px; font-size:18px; line-height:1.4; }
+.management-home .management-panel-heading p { margin:0; font-size:12px; line-height:1.6; color:var(--text-secondary); }
+.management-home .management-panel-heading>a { flex-shrink:0; font-size:12px; }
+.management-home a { color:var(--accent-link); text-underline-offset:3px; }
+.management-home .management-note { margin:10px 0 16px; color:var(--text-secondary); font-size:12px; line-height:1.7; }
+.management-home .management-queue-list { display:grid; }
+.management-home .management-queue { display:flex; align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid var(--border-color); text-decoration:none; color:var(--text-primary); }
+.management-home .management-queue:last-child { border-bottom:0; }
+.management-home .management-queue:hover .management-row-text>strong { color:var(--accent-link); }
+.management-home .management-row-icon { display:inline-flex; align-items:center; justify-content:center; flex:0 0 34px; height:34px; border-radius:8px; background:var(--surface-elevated); color:var(--accent-link); }
+.management-home .management-row-text { flex:1; min-width:0; }
+.management-home .management-row-text>strong { display:block; font-size:13px; line-height:1.5; }
+.management-home .management-row-text>small { display:block; margin-top:4px; font-size:11px; color:var(--text-secondary); }
+.management-home .management-row-arrow { flex:0 0 auto; color:var(--text-secondary); }
+.management-home .management-count { display:inline-flex; flex:0 0 auto; align-items:center; justify-content:center; min-width:30px; padding:4px 8px; border:1px solid var(--border-color); border-radius:7px; color:var(--text-primary); font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; }
+.management-home .management-count-pending { color:var(--accent-link); background:var(--surface-elevated); border-color:var(--accent-primary); }
+.management-home .management-clear-queues { margin-top:14px; }
+.management-home .management-clear-queues summary { min-height:36px; cursor:pointer; color:var(--text-secondary); font-size:12px; line-height:1.7; }
+.management-home .management-occupancy-heading { display:flex; align-items:center; gap:12px; margin:22px 0 12px; }
+.management-home .management-occupancy-heading>strong { color:var(--accent-link); font-size:28px; line-height:1.3; }
+.management-home .management-occupancy-heading>span { color:var(--text-secondary); font-size:12px; line-height:1.6; }
+.management-home .management-occupancy-track { height:8px; background:var(--surface-elevated); border-radius:8px; overflow:hidden; }
+.management-home .management-occupancy-track>span { display:block; height:100%; background:var(--accent-primary); }
+.management-home .management-property-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin:24px 0; }
+.management-home :is(.management-property-grid,.management-finance-grid) dt { color:var(--text-secondary); font-size:12px; line-height:1.5; }
+.management-home :is(.management-property-grid,.management-finance-grid) dd { color:var(--text-primary); margin:8px 0 0; font-size:24px; font-weight:650; line-height:1.3; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.management-home .management-property-links { display:flex; flex-wrap:wrap; gap:12px; font-size:12px; margin-top:16px; }
+.management-home .management-list { list-style:none; padding:0; margin:0; }
+.management-home .management-list>li { padding:16px 0; border-bottom:1px solid var(--border-color); }
+.management-home .management-list>li:first-child { padding-top:0; }
+.management-home .management-list>li:last-child { border-bottom:0; padding-bottom:0; }
+.management-home .management-resident-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+.management-home .management-resident-list>li { padding:0; border-bottom:0; }
+.management-home .management-list-heading { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; }
+.management-home .management-list-heading>a { color:var(--text-primary); font-size:13px; font-weight:600; overflow-wrap:anywhere; }
+.management-home .management-list-heading>a:hover { color:var(--accent-link); }
+.management-home .management-list p { margin:7px 0 4px; font-size:12px; line-height:1.6; color:var(--text-secondary); }
+.management-home .management-list small { color:var(--text-secondary); font-size:11px; line-height:1.7; overflow-wrap:anywhere; }
+.management-home .management-tag { flex:0 0 auto; padding:3px 7px; border:1px solid var(--border-color); border-radius:6px; color:var(--text-secondary); font-size:11px; }
+.management-home .management-tag-urgent { color:var(--status-danger); border-color:var(--status-danger); }
+.management-home .management-finance-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; margin:0; }
+.management-home .management-finance-grid>div+div { border-left:1px solid var(--border-color); padding-left:20px; }
+.management-home .management-finance-grid small { display:block; margin-top:8px; color:var(--text-secondary); font-size:11px; line-height:1.6; }
+.management-home .management-delivery-notice { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin:0; padding:16px; border:1px solid var(--accent-primary); border-radius:10px; color:var(--text-primary); font-size:13px; line-height:1.6; }
+.management-home .management-delivery-notice>.management-delivery-text { flex:1; }
+.management-home .management-empty { margin:0; padding:20px 0; color:var(--text-secondary); font-size:13px; line-height:1.7; }
+.management-home .management-updated { margin:0; color:var(--text-secondary); font-size:11px; line-height:1.7; }
+.management-home .management-feedback { margin:0; color:var(--text-secondary); font-size:12px; line-height:1.6; }
+.management-home .management-feedback:empty { display:none; }
+.management-home .management-feedback[data-error=true] { color:var(--status-danger); }
+.management-home :is(a,button,summary):focus-visible { outline:2px solid var(--accent-primary); outline-offset:4px; }
+.management-home .system-icon,.management-home svg { width:20px; height:20px; flex:0 0 20px; }
+@media(max-width:1180px) { .management-home .management-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } .management-home .management-columns { grid-template-columns:1fr; } .management-home .management-resident-list { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:640px) { .management-home .management-panel { padding:18px; } .management-home .management-panel-heading { flex-wrap:wrap; } .management-home .management-shortcuts a { flex:1 1 140px; } .management-home .management-finance-grid { grid-template-columns:1fr; gap:16px; } .management-home .management-finance-grid>div+div { border-left:0; border-top:1px solid var(--border-color); padding:16px 0 0; } }
+@media(max-width:380px) { .management-home .management-metrics { grid-template-columns:1fr; } .management-home .management-property-grid { gap:14px; } .management-home .management-queue { gap:8px; } .management-home .management-resident-list { grid-template-columns:1fr; } }

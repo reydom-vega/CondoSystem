@@ -45,6 +45,7 @@ ob_start();
 <head>
     <meta charset="UTF-8">
     <style>
+        @page { margin: 28px 28px 46px; }
         body { margin: 0; color: #192333; font: 12px/1.5 "DejaVu Sans", sans-serif; }
         .receipt { padding: 32px; }
         .brand { width: 100%; padding-bottom: 16px; border-bottom: 2px solid #e6a440; }
@@ -87,7 +88,7 @@ ob_start();
             <td><?= brandDocumentHtml() ?><div class="muted">Official payment receipt</div></td>
             <td style="text-align:right;color:#187344;font-weight:bold">PAID</td>
         </tr></table>
-        <h1>Payment Receipt</h1>
+        <h1><?= !empty($receipt['visitor_parking']) ? 'Visitor Parking Payment Receipt' : 'Payment Receipt' ?></h1>
         <div class="muted">Receipt <?php echo htmlspecialchars($receiptReference); ?></div>
         <table class="meta">
             <tr><td><span class="label">Resident</span><span class="value"><?php echo htmlspecialchars($receipt['full_name']); ?></span></td><td><span class="label">Unit</span><span class="value"><?php echo htmlspecialchars($receipt['unit_number'] ?: 'Not assigned'); ?></span></td></tr>
@@ -117,5 +118,6 @@ $dompdf = new \Dompdf\Dompdf($options);
 $dompdf->loadHtml($html, 'UTF-8');
 $dompdf->setPaper('A4', 'portrait');
 $dompdf->render();
+brandPdfFooter($dompdf, $receiptReference);
 $dompdf->stream('receipt-' . $receiptReference . '.pdf', ['Attachment' => true]);
 exit;

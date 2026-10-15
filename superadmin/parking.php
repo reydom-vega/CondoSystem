@@ -205,13 +205,20 @@ foreach ($parkingSlots as $slot) {
             </section>
 
             </div></section>
-            <?php if ($canSeeStickerClaims): ?><section <?= parkingWorkspacePanelAttributes('stickers', $parkingActiveTab) ?>><section class="unit-management-panel parking-panel sticker-requests-panel">
+            <?php if ($canSeeStickerClaims): ?><section <?= parkingWorkspacePanelAttributes('stickers', $parkingActiveTab) ?>><section class="unit-management-panel parking-panel sticker-requests-panel" id="parking-search-list-stickers">
                 <h3 class="section-title">Resident Parking Sticker Requests</h3>
+                <?php renderParkingListSearch('stickers', 'Search sticker requests', 'Resident, username, unit, plate, sticker number or slot'); ?>
                 <?php if (empty($stickerClaims)): ?>
                     <p class="bookings-empty">No sticker requests yet.</p>
                 <?php else: ?>
                     <?php foreach ($stickerClaims as $claim): ?>
-                        <div class="parking-request-row">
+                        <?php
+                            $claimSearchParts = [$claim['full_name'], $claim['username'], $claim['unit_number'] ?? '', 'Sticker #'.$claim['id'], $claim['claim_status'], $claim['payment_status']];
+                            foreach ($claim['vehicles'] as $searchVehicle) {
+                                $claimSearchParts[] = implode(' ', [$searchVehicle['plate_number'], $searchVehicle['sticker_number'] ?? '', $searchVehicle['slot_code'] ?? 'Not assigned', $searchVehicle['make'], $searchVehicle['model']]);
+                            }
+                        ?>
+                        <div class="parking-request-row" data-parking-search-item="stickers" data-parking-search-text="<?= htmlspecialchars(implode(' ', $claimSearchParts), ENT_QUOTES, 'UTF-8') ?>">
                             <div class="parking-request-head">
                                 <div>
                                     <strong><?php echo htmlspecialchars($claim['full_name']); ?></strong>

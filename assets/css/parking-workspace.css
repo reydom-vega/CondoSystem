@@ -24,6 +24,8 @@
 .parking-workspace .vehicle-card { overflow-wrap:anywhere; }
 .parking-workspace .parking-record-count { color:var(--theme-copy,#aebdd2); margin:12px 0; }
 .parking-workspace .parking-inventory-actions { margin:0 0 20px; }
+.parking-workspace .parking-search-form .field { margin:0; }
+.parking-workspace .parking-search-actions { display:flex; align-items:center; flex:0 0 auto; gap:10px; }
 @media(max-width:700px) {
   .portal-ui .parking-tabs { width:100%; }
   .portal-ui .parking-tabs [role=tab] { flex:1 1 140px; padding:11px 12px; text-align:center; }
@@ -31,5 +33,7 @@
   .portal-ui .resident-parking-workspace .parking-tabs [role=tab] { flex:1 1 0; min-width:0; padding:9px 5px; gap:5px; font-size:12px; }
   .parking-workspace .parking-request-decide { flex-wrap:wrap; }
   .parking-workspace .parking-record-filters .service-btn { width:100%; }
+  .parking-workspace .parking-search-actions { width:100%; }
+  .parking-workspace .parking-search-actions > :is(button,a) { flex:1 1 0; }
 }
 @media print { .parking-tabs { display:none !important; } }

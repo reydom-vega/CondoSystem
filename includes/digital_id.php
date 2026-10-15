@@ -53,8 +53,14 @@ function digitalIdAccount(mysqli $db, int $id, bool $lock = false): ?array {
 function digitalIdAccountFailure(?array $user): ?string {
     if (!$user) return 'not_found';
     if ((int)$user['is_active'] !== 1) return 'suspended';
-    if ((int)$user['is_verified'] !== 1 || $user['status'] !== 'approved' || digitalIdRoleLabel($user) === null) return 'unauthorized';
-    if ($user['role'] === 'resident' && !($user['_context']['approved'] ?? false)) return 'unauthorized';
+    if ((int)$user['is_verified'] !== 1 || digitalIdRoleLabel($user) === null) return 'unauthorized';
+    if ($user['role'] === 'resident') {
+        if ($user['status'] !== 'approved' || !($user['_context']['approved'] ?? false)) return 'unauthorized';
+    } elseif (!in_array($user['status'], ['approved', 'pending'], true)) {
+        return 'unauthorized';
+    }
+    // Management-created staff can retain the default resident approval status.
+    // Their verified, active staff role qualifies; explicit rejection still blocks an ID.
     return null;
 }
 
@@ -160,7 +166,7 @@ function digitalIdVerify(mysqli $db, string $token, bool $withIdentity = false):
         $result += ['profile'=>digitalIdProfile($user),'privileges'=>digitalIdPrivileges($db,$user),
             'reference_id'=>(int)$user['id'], 'subject_name'=>$user['full_name'],
             'unit_number'=>$user['role'] === 'resident' ? $user['unit_number'] : '',
-            'account_role'=>digitalIdRoleLabel($user), 'account_status'=>'Active and approved',
+            'account_role'=>digitalIdRoleLabel($user), 'account_status'=>$user['role'] === 'resident' ? 'Active and approved' : 'Active and verified',
             'pass_number'=>$user['role'] === 'resident' ? ($user['resident_id'] ?? '') : ($user['staff_id'] ?? '')];
     }
     return $result;

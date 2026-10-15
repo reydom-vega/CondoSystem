@@ -57,6 +57,23 @@ try {
         idActor($db,5); $verified=digitalIdVerify($db,$token,true);
         idCheck($verified['valid'] && $verified['profile']['role']===$role && $verified['subject_name']===$issued['profile']['name'],'authorized identity '.$role);
     }
+    foreach ([4=>'Admin',5=>'Security Personnel',6=>'Super Admin',7=>'Treasurer',8=>'Maintenance'] as $actor=>$role) {
+        $db->query("UPDATE users SET status='pending' WHERE id=".$actor);
+        idActor($db,$actor); $issued=digitalIdIssue($db); $token=idToken($issued);
+        idCheck($issued['profile']['role']===$role && $issued['profile']['staff_id']==='STAFF-'.str_pad((string)$actor,5,'0',STR_PAD_LEFT),'management-created staff ID '.$role);
+        idActor($db,5); $verified=digitalIdVerify($db,$token,true);
+        idCheck($verified['valid'] && $verified['profile']['role']===$role && $verified['account_status']==='Active and verified','default staff status verifies '.$role);
+        $db->query('UPDATE users SET is_active=0 WHERE id='.$actor);
+        idActor($db,$actor); idDenied(fn()=>digitalIdIssue($db),'disabled default-status staff cannot issue '.$role);
+        idCheck(digitalIdVerify($db,$token)['verification_result']==='suspended','disabled default-status staff screenshot rejected '.$role);
+        $db->query('UPDATE users SET is_active=1,is_verified=0 WHERE id='.$actor);
+        idDenied(fn()=>digitalIdIssue($db),'unverified default-status staff cannot issue '.$role);
+        idCheck(digitalIdVerify($db,$token)['verification_result']==='unauthorized','unverified default-status staff screenshot rejected '.$role);
+        $db->query("UPDATE users SET is_verified=1,status='rejected' WHERE id=".$actor);
+        idDenied(fn()=>digitalIdIssue($db),'rejected staff cannot issue '.$role);
+        idCheck(digitalIdVerify($db,$token)['verification_result']==='unauthorized','rejected staff screenshot denied '.$role);
+        $db->query("UPDATE users SET status='approved' WHERE id=".$actor);
+    }
     idActor($db,1); $first=digitalIdIssue($db); $second=digitalIdIssue($db);
     idCheck(idToken($first)!==idToken($second) && digitalIdVerify($db,idToken($first))['verification_result']==='revoked','renewal revokes old screenshot');
     digitalIdRevoke($db); idCheck(digitalIdVerify($db,idToken($second))['verification_result']==='revoked','explicit revocation rejects active screenshot');

@@ -61,3 +61,25 @@ function renderParkingWorkspaceTabs(array $tabs, string $active, array $counts =
 function parkingWorkspacePanelAttributes(string $key, string $active): string {
     return 'id="parking-panel-'.$key.'" role="tabpanel" aria-labelledby="parking-tab-'.$key.'" data-parking-panel="'.$key.'"'.($active===$key?'':' hidden');
 }
+
+/** Search only records already visible to the authenticated staff member. */
+function renderParkingListSearch(string $key, string $label, string $placeholder): void {
+    $name = $key.'_search';
+    $value = is_string($_GET[$name] ?? null) ? $_GET[$name] : '';
+    $escape = static fn(string $text): string => htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    ?>
+    <form method="get" action="parking.php" class="parking-search-form" data-parking-list-search="<?= $escape($key) ?>">
+        <input type="hidden" name="tab" value="<?= $escape($key) ?>">
+        <div class="field">
+            <label class="field-label" for="<?= $escape($name) ?>"><?= $escape($label) ?></label>
+            <input type="search" id="<?= $escape($name) ?>" name="<?= $escape($name) ?>" value="<?= $escape($value) ?>" placeholder="<?= $escape($placeholder) ?>" aria-controls="parking-search-list-<?= $escape($key) ?>">
+        </div>
+        <div class="parking-search-actions">
+            <button type="submit" class="btn-primary">Search</button>
+            <button type="button" class="service-btn service-btn-secondary" data-parking-search-clear>Clear</button>
+        </div>
+    </form>
+    <p class="parking-record-count" data-parking-search-count="<?= $escape($key) ?>" role="status" aria-live="polite" aria-atomic="true"></p>
+    <p class="bookings-empty" data-parking-search-empty="<?= $escape($key) ?>" hidden>No matching <?= $key === 'vehicles' ? 'vehicles' : 'sticker requests' ?>. Try another name, unit, plate, sticker number or slot.</p>
+    <?php
+}

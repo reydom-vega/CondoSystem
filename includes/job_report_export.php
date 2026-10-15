@@ -33,10 +33,11 @@ function jrExportHtml(array $data,?array $filed=null): string {
 }
 function jrPdf(array $data,?array $filed=null): string {
     $options=new Dompdf\Options();$options->set('isRemoteEnabled',false);$options->set('isPhpEnabled',false);$options->set('defaultFont','DejaVu Sans');$options->setChroot(dirname(__DIR__));
-    $pdf=new Dompdf\Dompdf($options);$pdf->loadHtml(jrExportHtml($data,$filed),'UTF-8');$pdf->setPaper('A4');$pdf->render();$pdf->getCanvas()->page_text(38,815,'The Celandine | Confidential                        Page {PAGE_NUM} of {PAGE_COUNT}','DejaVu Sans',8,[.35,.4,.48]);return $pdf->output();
+    $pdf=new Dompdf\Dompdf($options);$pdf->loadHtml(jrExportHtml($data,$filed),'UTF-8');$pdf->setPaper('A4');$pdf->render();brandPdfFooter($pdf, 'Confidential staff report');return $pdf->output();
 }
 /** Fixed-size white paper PNG pages; no browser screenshots or public temp files. */
 function jrPngPages(array $data,?array $filed=null): Generator {
+    $exportGenerated = brandGeneratedAt();
     if(!extension_loaded('gd'))throw new RuntimeException('PNG export requires the existing PHP GD extension.');
     $font=dirname(__DIR__).'/vendor/dompdf/dompdf/lib/fonts/DejaVuSans.ttf';$bold=dirname(__DIR__).'/vendor/dompdf/dompdf/lib/fonts/DejaVuSans-Bold.ttf';
     if(!is_file($font)||!is_file($bold))throw new RuntimeException('The document font is unavailable.');
@@ -58,14 +59,14 @@ function jrPngPages(array $data,?array $filed=null): Generator {
         $h=(int)ceil($line[1]*1.65);$required=$h;
         // Keep a section/date/record heading with its following content.
         if($line[2])for($next=$index+1;$next<count($lines);$next++){$required+=(int)ceil($lines[$next][1]*1.65);if(!$lines[$next][2])break;}
-        if($chunk&&$height+min(1460,$required)>1460){$chunks[]=$chunk;$chunk=[];$height=0;}
+        if($chunk&&$height+min(1440,$required)>1440){$chunks[]=$chunk;$chunk=[];$height=0;}
         $chunk[]=$line;$height+=$h;
     }
     if($chunk)$chunks[]=$chunk;
     foreach($chunks as$index=>$chunk){$im=imagecreatetruecolor(1240,1754);$colors=['ink'=>imagecolorallocate($im,24,34,54),'muted'=>imagecolorallocate($im,86,101,122),'orange'=>imagecolorallocate($im,180,83,9)];imagefill($im,0,0,imagecolorallocate($im,255,255,255));
-        $logo=imagecreatefrompng(dirname(__DIR__).'/assets/branding/email-brand-light.png');$logoHeight=(int)(380*imagesy($logo)/imagesx($logo));imagecopyresampled($im,$logo,80,45,0,0,380,$logoHeight,imagesx($logo),imagesy($logo));imagedestroy($logo);imageline($im,80,125,1160,125,$colors['orange']);
-        $y=165;foreach($chunk as[$text,$size,$heavy,$color]){imagettftext($im,$size,0,80,$y,$colors[$color],$heavy?$bold:$font,$text);$y+=(int)ceil($size*1.65);}
-        imagettftext($im,13,0,80,1700,$colors['muted'],$font,'The Celandine | Confidential staff report');imagettftext($im,13,0,1000,1700,$colors['muted'],$font,'Page '.($index+1).' / '.count($chunks));ob_start();imagepng($im);$bytes=ob_get_clean();imagedestroy($im);yield ['number'=>$index+1,'total'=>count($chunks),'bytes'=>$bytes];
+        brandImageHeader($im);
+        $y=185;foreach($chunk as[$text,$size,$heavy,$color]){imagettftext($im,$size,0,80,$y,$colors[$color],$heavy?$bold:$font,$text);$y+=(int)ceil($size*1.65);}
+        brandImageFooter($im,$index+1,count($chunks),'Confidential',$exportGenerated);ob_start();imagepng($im);$bytes=ob_get_clean();imagedestroy($im);yield ['number'=>$index+1,'total'=>count($chunks),'bytes'=>$bytes];
     }
 }
 function jrExportDownload(array $data,string $format,?array $filed=null): void {

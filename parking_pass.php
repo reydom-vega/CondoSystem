@@ -58,7 +58,7 @@ $passUrl = parkingPassUrl($requestId);
 <body class="portal-ui portal-account-page">
     <main class="pass-shell">
         <section class="pass-card">
-            <div class="pass-heading"><div><?= brandHtml('compact') ?><h1 class="dash-title">Visitor Parking Pass</h1></div><span class="pass-status"><?php echo $statusLabel; ?></span></div>
+            <div class="pass-heading"><div><?= brandHtml('compact') ?><?= brandPropertyAddressHtml() ?><h1 class="dash-title">Visitor Parking Pass</h1></div><span class="pass-status"><?php echo $statusLabel; ?></span></div>
             <?php if ($approvalNotice === null): ?>
             <div id="qrCode" class="pass-qr" data-qr-value="<?= htmlspecialchars($passUrl, ENT_QUOTES, 'UTF-8') ?>" data-qr-size="360" aria-label="Visitor parking QR code"></div>
             <p id="passQrFallback" class="pass-note" role="status">QR code unavailable. Reload this page before downloading the pass.</p>
@@ -76,9 +76,10 @@ $passUrl = parkingPassUrl($requestId);
             </div>
             <p class="pass-note">Security can scan this QR code to verify the visitor, vehicle, assigned slot, and validity dates. This pass is valid only for an approved visitor parking request.</p>
             <div class="pass-actions">
-                <?php if ($approvalNotice === null): ?><button type="button" id="downloadPass" data-download-name="visitor-parking-pass-<?= $requestId ?>.png" disabled>Download QR Pass</button><?php endif; ?>
+                <?php if ($approvalNotice === null): ?><button type="button" id="downloadPass" data-property="<?= htmlspecialchars(json_encode(getPropertyInformation()), ENT_QUOTES, 'UTF-8') ?>" data-brand-image="<?= htmlspecialchars(buildUrl('assets/branding/email-brand-light.png'), ENT_QUOTES, 'UTF-8') ?>" data-download-name="visitor-parking-pass-<?= $requestId ?>.png" disabled>Download QR Pass</button><?php endif; ?>
                 <?php if ($isGateViewer): ?><a href="<?php echo isSuperAdmin() ? 'superadmin/scanner.php' : 'security/scanner.php'; ?>" class="btn-neutral">Back to Scanner</a><?php else: ?><a href="resident/parking.php" class="btn-neutral">Back to Parking</a><?php endif; ?>
             </div>
+            <?= brandDocumentFooterHtml() ?>
         </section>
     </main>
 </body>

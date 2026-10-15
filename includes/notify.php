@@ -9,7 +9,7 @@ function emailLayout(string $eyebrow, string $heading, string $bodyHtml): string
         . '<div style="max-width:560px;margin:auto;background:#111827;border:1px solid #374151;border-radius:12px;padding:32px;">'
         . brandEmailHtml()
         . '<div style="color:#f59e0b;font-size:12px;font-weight:bold;">' . $eyebrow . '</div><h1 style="font-size:22px;">' . $heading . '</h1>'
-        . $bodyHtml . '<p style="color:#9ca3af;font-size:11px;margin-top:28px;">The Celandine &middot; Automated resident portal message.</p></div></body></html>';
+        . $bodyHtml . brandEmailFooterHtml() . '<p style="color:#9ca3af;font-size:11px;margin-top:28px;">Automated resident portal message.</p></div></body></html>';
 }
 
 /** Financial notices go to the unit owner or the tenant billed for their own parking or amenity reservation. */

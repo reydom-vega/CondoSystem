@@ -6,7 +6,7 @@ function renderJobReportAssets(bool $personal=false): void {
 }
 function renderJobReportWorkspace(bool $management=false): void {
     $e=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8');$today=new DateTimeImmutable('today',new DateTimeZone('Asia/Manila'));
-    $config=['endpoint'=>buildUrl('api/job_reports.php'),'export'=>buildUrl('job_report_export.php'),'csrf'=>workflowCsrfToken(),'scope'=>$management?'management':'personal','today'=>$today->format('Y-m-d'),'month'=>$today->format('Y-m'),'notes'=>JR_NOTES,'roles'=>array_intersect_key(getUserRoles(),array_flip(JR_ROLES)),'open_id'=>(int)($_GET['job_report']??0)];
+    $config=['property'=>getPropertyInformation(),'endpoint'=>buildUrl('api/job_reports.php'),'export'=>buildUrl('job_report_export.php'),'csrf'=>workflowCsrfToken(),'scope'=>$management?'management':'personal','today'=>$today->format('Y-m-d'),'month'=>$today->format('Y-m'),'notes'=>JR_NOTES,'roles'=>array_intersect_key(getUserRoles(),array_flip(JR_ROLES)),'open_id'=>(int)($_GET['job_report']??0)];
     $activeTab=isset($_GET['tab'])&&is_string($_GET['tab'])&&in_array($_GET['tab'],['report','filed'],true)?$_GET['tab']:($config['open_id']?'filed':'report');
     ?>
     <div class="jr-workspace" data-job-reports<?= $management?'':' data-workspace-tabs' ?>>
@@ -33,7 +33,7 @@ function renderJobReportWorkspace(bool $management=false): void {
     <label>Type<select name="type"><option value="">Daily & monthly</option><option value="daily">Daily</option><option value="monthly">Monthly</option></select></label><label>Status<select name="status"><option value="">All statuses</option><?php foreach(JR_STATUSES as$key=>$label): ?><option value="<?= $e($key) ?>"><?= $e($label) ?></option><?php endforeach; ?></select></label><label>Reporting day<input type="date" name="day" max="<?= $today->format('Y-m-d') ?>"></label><label>Reporting month<input type="month" name="month" max="<?= $today->format('Y-m') ?>"></label><label>Submission date<input type="date" name="submitted_date" max="<?= $today->format('Y-m-d') ?>"></label><label>Sort<select name="sort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label><button type="submit">Search</button><button type="button" class="jr-secondary" data-jr-clear-files>Clear</button></form>
     <?php if($management): ?><div class="jr-stats" data-jr-review-summary></div><?php endif; ?>
     <div data-jr-files></div></section>
-    <dialog class="jr-dialog" data-jr-dialog aria-label="Job report preview and review"><div class="jr-dialog-head"><h2 data-jr-dialog-title>Job Report</h2><button type="button" class="jr-close" data-jr-close aria-label="Close report"><?= systemIcon('close','system-action-icon') ?></button></div><p class="jr-message" data-jr-dialog-message role="status" hidden></p><div data-jr-document></div><div class="jr-actions" data-jr-dialog-actions></div></dialog>
+    <dialog class="jr-dialog" data-jr-dialog aria-label="Job report preview and review"><div class="jr-dialog-head"><h2 data-jr-dialog-title>Job Report</h2><button type="button" class="jr-close" data-jr-close aria-label="Close report"><?= systemIcon('close','system-action-icon') ?></button></div><p class="jr-message" data-jr-dialog-message role="status" hidden></p><template data-jr-brand><?= brandHtml('compact') ?><?= brandPropertyAddressHtml() ?></template><div data-jr-document></div><div class="jr-actions" data-jr-dialog-actions></div></dialog>
     </div>
     <?php
 }

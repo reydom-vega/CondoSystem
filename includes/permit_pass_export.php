@@ -35,6 +35,7 @@ function permitPassDownloadData(mysqli $db, array $row): array {
         'qr_url'=>residentServicePassUrl($row),
         'notice'=>'Valid only during the authorized schedule. Security must verify the current status and physically check all items. This download does not confirm movement.',
         'brand_image'=>buildUrl('assets/branding/email-brand-light.png'),
+        'property'=>getPropertyInformation(),
     ];
 }
 
@@ -46,7 +47,7 @@ function permitPassPdf(array $document, string $qrImage): string {
     $size = $bytes !== false ? @getimagesizefromstring($bytes) : false;
     if (!$size || $size[2] !== IMAGETYPE_JPEG || $size[0] < 80 || $size[0] > 512 || $size[0] !== $size[1]) throw new InvalidArgumentException('Invalid pass QR image.');
     $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
-    $html = '<!doctype html><html><head><meta charset="utf-8"><style>@page{margin:32px}body{font:11px DejaVu Sans,sans-serif;color:#172033}h1{font-size:23px;margin:22px 0 8px}.reference{color:#657186;margin-bottom:20px}.approved{color:#187344;font-weight:bold}.fields,.items{width:100%;border-collapse:collapse;table-layout:fixed;margin:18px 0}.fields td,.items td,.items th{border:1px solid #d9e0e9;padding:9px;vertical-align:top;word-wrap:break-word}.fields td:first-child{width:28%;color:#526078;background:#f6f8fb}.items th{text-align:left;background:#f6f8fb}tr{page-break-inside:avoid}thead{display:table-header-group}.verification{text-align:center;page-break-inside:avoid;margin-top:24px}.verification img{width:180px;height:180px}.notice{font-size:10px;line-height:1.6;color:#526078}'.brandDocumentStyles().'</style></head><body>'.brandDocumentHtml().'<h1>'.$e($document['title']).'</h1><div class="reference">'.$e($document['reference']).' | <span class="approved">APPROVED</span></div><table class="fields">';
+    $html = '<!doctype html><html><head><meta charset="utf-8"><style>@page{margin:32px 32px 48px}body{font:11px DejaVu Sans,sans-serif;color:#172033}h1{font-size:23px;margin:22px 0 8px}.reference{color:#657186;margin-bottom:20px}.approved{color:#187344;font-weight:bold}.fields,.items{width:100%;border-collapse:collapse;table-layout:fixed;margin:18px 0}.fields td,.items td,.items th{border:1px solid #d9e0e9;padding:9px;vertical-align:top;word-wrap:break-word}.fields td:first-child{width:28%;color:#526078;background:#f6f8fb}.items th{text-align:left;background:#f6f8fb}tr{page-break-inside:avoid}thead{display:table-header-group}.verification{text-align:center;page-break-inside:avoid;margin-top:24px}.verification img{width:180px;height:180px}.notice{font-size:10px;line-height:1.6;color:#526078}'.brandDocumentStyles().'</style></head><body>'.brandDocumentHtml().'<h1>'.$e($document['title']).'</h1><div class="reference">'.$e($document['reference']).' | <span class="approved">APPROVED</span></div><table class="fields">';
     foreach ($document['fields'] as [$label,$value]) $html .= '<tr><td>'.$e($label).'</td><td>'.nl2br($e($value)).'</td></tr>';
     $html .= '</table>';
     if ($document['items']) {
@@ -57,5 +58,6 @@ function permitPassPdf(array $document, string $qrImage): string {
     $html .= '<div class="verification"><img src="'.$qrImage.'" alt="Verification QR code"><p>Scan to verify the current permit status</p><p class="notice">'.$e($document['notice']).'</p></div></body></html>';
     $options = new \Dompdf\Options(); $options->set('isRemoteEnabled', false); $options->set('isJavascriptEnabled', false);
     $pdf = new \Dompdf\Dompdf($options); $pdf->loadHtml($html, 'UTF-8'); $pdf->setPaper('A4','portrait'); $pdf->render();
+    brandPdfFooter($pdf, 'Approved permit');
     return $pdf->output();
 }

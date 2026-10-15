@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 . '<p style="color:var(--theme-copy,#cbd5e1);line-height:1.6;">Hello ' . $safeUsername . ', click the button below to create a new password for your account.</p>'
                 . '<div style="text-align:center;"><a href="' . $safeResetLink . '" style="display:inline-block;background:#d97706;color:var(--theme-ink,#ffffff);text-decoration:none;border-radius:8px;padding:13px 22px;font-weight:bold;margin:16px 0;">Reset Password</a></div>'
                 . '<p style="color:var(--theme-copy,#9ca3af);font-size:12px;line-height:1.5;">This link expires in 1 hour. If you did not request a password reset, you can ignore this email.</p>'
-                . '</div></body></html>';
+                . brandEmailFooterHtml() . '</div></body></html>';
             $sent = sendMail($email, $subject, $message);
 
             if (!$sent) {

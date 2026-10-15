@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         . '<div style="background:var(--theme-hover,#1f293d);border:1px solid var(--theme-line,#4b5563);border-radius:8px;color:var(--theme-brand,#fbbf24);font-size:30px;font-weight:bold;letter-spacing:8px;text-align:center;padding:18px;margin:24px 0;">' . $safeCode . '</div>'
                         . '<div style="text-align:center;"><a href="' . $safeVerificationLink . '" style="display:inline-block;background:#d97706;color:var(--theme-ink,#ffffff);text-decoration:none;border-radius:8px;padding:13px 22px;font-weight:bold;">Enter Verification Code</a></div>'
                         . '<p style="color:var(--theme-copy,#9ca3af);font-size:12px;line-height:1.5;margin-top:24px;">If you did not request this code, you can ignore this email.</p>'
-                        . '</div></body></html>';
+                        . brandEmailFooterHtml() . '</div></body></html>';
                     $sent = sendMail($email, $subject, $message);
 
                     if ($sent) {

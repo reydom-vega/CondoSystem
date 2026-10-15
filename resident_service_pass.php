@@ -116,12 +116,14 @@ if ($isVisitorPass) {
     <?php renderPortalUiHead(); ?>
     <link rel="stylesheet" href="assets/css/resident-service-pass.css?v=<?= filemtime(__DIR__.'/assets/css/resident-service-pass.css') ?>">
     <script defer src="assets/js/resident-service-pass.js?v=<?= filemtime(__DIR__.'/assets/js/resident-service-pass.js') ?>"></script>
+    <?php if ($isVisitorPass): ?><script defer src="assets/js/visitor-pass-download.js?v=<?= filemtime(__DIR__.'/assets/js/visitor-pass-download.js') ?>"></script><?php endif; ?>
     <?php if ($pass['request_kind'] === 'permit'): ?><script defer src="<?= htmlspecialchars(portalUiAssetUrl('assets/js/permit-pass-download.js'), ENT_QUOTES, 'UTF-8') ?>"></script><?php endif; ?>
 </head>
 <body class="portal-ui dashboard-page visitor-pass-page">
 <main class="service-pass service-panel visitor-pass" aria-labelledby="passTitle">
     <header class="visitor-pass-header">
         <?= brandHtml('compact') ?>
+        <?= brandPropertyAddressHtml() ?>
         <div>
             <h1 id="passTitle"><?= passEscape($passTitle) ?></h1>
             <span class="visitor-pass-reference">Reference #<?= $id ?></span>
@@ -158,8 +160,8 @@ if ($isVisitorPass) {
     <section class="visitor-pass-qr-section" aria-labelledby="passQrTitle">
         <h2 id="passQrTitle">Security verification</h2>
         <?php if ($showQr): ?>
-        <div id="serviceQr" data-qr-value="<?= passEscape(residentServicePassUrl($pass)) ?>" role="img" aria-label="<?= $isVisitorPass ? 'Visitor' : 'Permit' ?> access QR code" aria-describedby="passSecurityInstruction"></div>
-        <p id="passQrFallback" class="visitor-pass-qr-fallback" role="status">QR code unavailable. Reload this page before presenting or printing the pass.</p>
+        <div id="serviceQr" data-qr-value="<?= passEscape(residentServicePassUrl($pass)) ?>" data-qr-correction="<?= $isVisitorPass ? 'Q' : 'M' ?>" role="img" aria-label="<?= $isVisitorPass ? 'Visitor' : 'Permit' ?> access QR code" aria-describedby="passSecurityInstruction"></div>
+        <p id="passQrFallback" class="visitor-pass-qr-fallback" role="status">QR code unavailable. Reload this page before presenting or downloading the pass.</p>
         <?php else: ?>
         <div class="visitor-pass-qr-unavailable"><?= systemIcon('lock') ?><p>QR code unavailable for this request status.</p></div>
         <?php endif; ?>
@@ -174,9 +176,15 @@ if ($isVisitorPass) {
     <?php if($isVisitorPass && visitorParkingFeesReady($db)){ $vpLink=$db->query('SELECT id FROM parking_requests WHERE visitor_registration_id='.(int)$id." AND status='approved' ORDER BY id DESC LIMIT 1")->fetch_assoc();if($vpLink){$vpOnlyRequest=(int)$vpLink['id'];include __DIR__.'/includes/visitor_parking_widget.php';unset($vpOnlyRequest);}} ?>
     <?php if ($pass['request_kind'] === 'permit') include __DIR__.'/includes/permit_pass_download_controls.php'; ?>
     <div class="service-actions visitor-pass-actions">
+        <?php if ($isVisitorPass): ?>
+        <?php if ($showQr): ?><button type="button" class="service-btn" data-visitor-pass-download data-brand-image="<?= passEscape(buildUrl('assets/branding/email-brand-light.png')) ?>" data-property="<?= passEscape(json_encode(getPropertyInformation(), JSON_THROW_ON_ERROR)) ?>" data-download-name="visitor-access-pass-<?= $id ?>.png" disabled><?= systemIcon('download', 'system-action-icon') ?>Download Image</button><?php endif; ?>
+        <?php else: ?>
         <button type="button" class="service-btn" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/><path d="M18 12h.01"/></svg>Print Pass</button>
+        <?php endif; ?>
         <a class="service-btn service-btn-secondary" href="<?= isSuperAdmin() ? 'superadmin/scanner.php' : (isSecurity() ? 'security/scanner.php' : (canReviewPermits() ? 'superadmin/service_requests.php' : ('resident/' . ($pass['request_kind'] === 'visitor' ? 'visitors.php' : 'permits.php')))) ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7M5 12h14"/></svg>Back</a>
     </div>
+    <?php if ($isVisitorPass): ?><p data-visitor-pass-download-feedback role="status" aria-live="polite"></p><?php endif; ?>
+    <?= brandDocumentFooterHtml() ?>
 </main>
 </body>
 </html>

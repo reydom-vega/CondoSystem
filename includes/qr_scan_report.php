@@ -31,6 +31,6 @@ function qrReportPdf(array $report,array $filters,array $scanner): string {
     $generated=(new DateTimeImmutable('now',new DateTimeZone('Asia/Manila')))->format('Y-m-d H:i:s');
     $options=new Dompdf\Options(); $options->set('isRemoteEnabled',false); $options->set('isJavascriptEnabled',false); $options->set('isPhpEnabled',false);
     $pdf=new Dompdf\Dompdf($options); $pdf->setPaper('A4','landscape'); $pdf->loadHtml(qrReportHtml($report,$filters,$scanner,$reference,$generated),'UTF-8'); $pdf->render();
-    $pdf->getCanvas()->page_text(28,570,$reference.' | Generated '.$generated.' Asia/Manila | Page {PAGE_NUM} of {PAGE_COUNT}',$pdf->getFontMetrics()->getFont('Helvetica'),7,[.25,.3,.35]);
+    brandPdfFooter($pdf, $reference, $generated.' Asia/Manila');
     return $pdf->output();
 }

@@ -8,13 +8,13 @@
   if (qr?.dataset.qrValue && typeof window.QRCode === 'function') {
     try {
       const size = Number(qr.dataset.qrSize) || 256;
-      const generated = new window.QRCode(document.createElement('div'), {text:qr.dataset.qrValue, width:size, height:size, colorDark:'#000000', colorLight:'#ffffff', correctLevel:window.QRCode.CorrectLevel.M});
+      const generated = new window.QRCode(document.createElement('div'), {text:qr.dataset.qrValue, width:size, height:size, colorDark:'#000000', colorLight:'#ffffff', correctLevel:qr.dataset.qrCorrection === 'Q' ? window.QRCode.CorrectLevel.Q : window.QRCode.CorrectLevel.M});
       const matrix = generated._oQRCode, modules = matrix.getModuleCount();
       const draw = () => {
         const parent = qr.parentElement, parentStyle = getComputedStyle(parent), style = getComputedStyle(qr);
         const horizontal = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
         const available = parent.clientWidth - parseFloat(parentStyle.paddingLeft) - parseFloat(parentStyle.paddingRight) - horizontal;
-        const limit = matchMedia('print').matches ? Math.min(size,220) : size;
+        const limit = matchMedia('print').matches ? Math.min(size,180) : size;
         const pixels = modules * Math.max(1, Math.floor(Math.min(limit,available) / modules));
         if (qr.querySelector('canvas')?.width === pixels) return;
         // Whole pixels per module keep the pass readable at mobile widths.
@@ -33,16 +33,36 @@
       if (fallback) fallback.hidden = true;
       if (download) {
         download.disabled = false;
-        download.addEventListener('click', () => {
+        download.addEventListener('click', async () => {
           const canvas = qr.querySelector('canvas');
           if (!canvas) return;
-          const border = 24, image = document.createElement('canvas');
-          image.width = canvas.width + border * 2; image.height = canvas.height + border * 2;
-          const context = image.getContext('2d');
-          context.fillStyle = '#ffffff'; context.fillRect(0, 0, image.width, image.height);
-          context.drawImage(canvas, border, border);
-          const link = document.createElement('a');
-          link.download = download.dataset.downloadName; link.href = image.toDataURL('image/png'); link.click();
+          download.disabled = true;
+          try {
+            const property = JSON.parse(download.dataset.property);
+            const logo = await new Promise((resolve,reject) => {
+              const asset = new Image(); asset.onload = () => resolve(asset); asset.onerror = reject; asset.src = download.dataset.brandImage;
+            });
+            const border = 24, image = document.createElement('canvas');
+            // Add the property identity outside the QR quiet zone; QR content stays unchanged.
+            image.width = Math.max(640, canvas.width + border * 2); image.height = canvas.height + 250;
+            const context = image.getContext('2d');
+            context.fillStyle = '#ffffff'; context.fillRect(0, 0, image.width, image.height);
+            context.drawImage(logo,border,24,340,340*logo.naturalHeight/logo.naturalWidth);
+            context.fillStyle = '#58657a'; context.font = '16px Arial';
+            let line = '', addressY = 112;
+            for (const word of property.address.split(/\s+/)) {
+              const next = line ? line+' '+word : word;
+              if (context.measureText(next).width > image.width-border*2 && line) { context.fillText(line,border,addressY); addressY+=24; line=word; } else line=next;
+            }
+            context.fillText(line,border,addressY);
+            context.drawImage(canvas, Math.round((image.width-canvas.width)/2), 160);
+            context.textAlign = 'center'; context.fillStyle = '#172033'; context.font = 'bold 18px Arial';
+            context.fillText('Visitor Parking Pass',image.width/2,image.height-36);
+            const link = document.createElement('a');
+            link.download = download.dataset.downloadName; link.href = image.toDataURL('image/png'); link.click();
+          } catch {
+            window.alert('Unable to prepare the pass image. Please refresh and try again.');
+          } finally { download.disabled = false; }
         });
       }
     } catch {

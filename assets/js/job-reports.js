@@ -11,6 +11,10 @@
     let period = {type:'daily',period:config.today}, revision = 0, previousId = 0, preview = null, current = null, latest = null, dirty = false, busy = false, overviewSeq = 0, listSeq = 0, opener;
     const values = form => Object.fromEntries(new FormData(form));
     const notes = () => values(notesForm);
+    function syncFilingConfirmation() {
+      const submit = actions.querySelector('[data-jr-file]');
+      if (submit) submit.disabled = busy || !actions.querySelector('.jr-confirm input')?.checked;
+    }
     function message(text, error = false, inside = dialog.open) { const el = $(inside ? '[data-jr-dialog-message]' : '[data-jr-message]'); el.textContent = text; el.hidden = !text; el.classList.toggle('jr-error', error); }
     async function request(action, params = {}) {
       const body = new URLSearchParams({action,scope:config.scope,csrf_token:config.csrf});
@@ -24,7 +28,7 @@
       if (busy) { message('A report request is still in progress. Please wait.'); return; } busy = true; root.setAttribute('aria-busy','true'); if (button) button.disabled = true;
       const controls = [...root.querySelectorAll('button:not([data-jr-close])')].map(el => [el,el.disabled]); controls.forEach(([el]) => {el.disabled=true;});
       const loading = window.CelandineLoading?.begin({button,message:'Preparing your job report...',timeout:120000});
-      try { await task(); } catch (error) { message(error.message, true); } finally { loading?.end(); controls.forEach(([el,disabled])=>{el.disabled=disabled;}); if (button) button.disabled = false; busy = false; root.setAttribute('aria-busy','false'); }
+      try { await task(); } catch (error) { message(error.message, true); } finally { loading?.end(); controls.forEach(([el,disabled])=>{el.disabled=disabled;}); if (button) button.disabled = false; busy = false; syncFilingConfirmation(); root.setAttribute('aria-busy','false'); }
     }
     function stats(target, data, labels) {
       target.replaceChildren(...Object.entries(labels).map(([key,label]) => { const card = node('div', undefined, 'jr-stat');card.append(node('strong', data[key] ?? 0),node('span', label));return card; }));
@@ -63,7 +67,7 @@
     }
     function open(title) {opener=document.activeElement;$('[data-jr-dialog-title]').textContent=title;$('[data-jr-dialog-message]').hidden=true;if(!dialog.open)dialog.showModal();}
     function renderDocument(data, filed, paging) {
-      documentArea.replaceChildren();const info=node('div',undefined,'jr-document-info');info.append(node('strong',data.staff.name),node('div',`${data.staff.staff_id} · ${config.roles[data.staff.role]||data.staff.role}`),node('div',`${data.period.type==='daily'?'Daily':'Monthly'} · ${data.period.label} · Asia/Manila`));
+      documentArea.replaceChildren($('[data-jr-brand]').content.cloneNode(true));const info=node('div',undefined,'jr-document-info');info.append(node('strong',data.staff.name),node('div',`${data.staff.staff_id} · ${config.roles[data.staff.role]||data.staff.role}`),node('div',`${data.period.type==='daily'?'Daily':'Monthly'} · ${data.period.label} · Asia/Manila`));
       if(filed)info.append(node('div',`${filed.reference} · Version ${filed.version} · ${states[filed.status]}`));
       const generated=filed?.filed_at||preview?.generated_at;if(generated)info.append(node('div',`Generated / filed: ${local(generated)}`));documentArea.append(info);
       const totals=node('div',undefined,'jr-stats');stats(totals,data.summary,{total:'Total Activities',completed:'Completed Actions',updated:'Updated Records'});documentArea.append(totals,node('p',data.definitions,'jr-muted')); (data.metrics||[]).forEach(m=>documentArea.append(node('p',`${m.label}: ${m.value}`)));documentArea.append(node('h3','System-Recorded Activity'));
@@ -71,7 +75,7 @@
       documentArea.append(node('h3','Staff-Reported Work Notes'),node('p','Staff-written notes are separate from verified system records.','jr-muted'));
       Object.entries(config.notes).forEach(([key,label])=>documentArea.append(node('h4',label),node('p',data.notes[key]||'No notes provided.','jr-note-content')));
       if(filed){documentArea.append(node('h3','Submission & Review History'));filed.reviews.forEach(r=>{const entry=node('div',undefined,'jr-review-entry');entry.append(node('strong',`${states[r.action]||r.action} · ${r.actor_name}`),node('p',local(r.created_at),'jr-muted'));if(r.feedback)entry.append(node('p',r.feedback,'jr-note-content'));documentArea.append(entry);});}
-      documentArea.append(node('p','The Celandine · Confidential staff activity report','jr-muted'));
+      documentArea.append(node('p',`${config.property.name} · Confidential staff activity report`,'jr-muted'));
     }
     function exportButton(format, filed) {
       const b=button(format==='pdf'?'Download PDF':'Download PNG',()=>run(b,async()=>{
@@ -90,7 +94,8 @@
       const submit=button(previousId?'File Corrected Version':'File Report',()=>run(submit,async()=>{
         if(!check.checked)throw Error('Confirm the report’s accuracy before filing.');
         const key=submit.dataset.requestKey||(submit.dataset.requestKey=cryptoKey());const saved=await request('file',{...period,notes:notes(),preview_hash:preview.preview_hash,previous_id:previousId,confirmed:'1',request_key:key});dirty=false;await detail(saved.id);await list();await overview();message(`Report filed successfully. Reference: ${saved.reference}`,false,true);
-      }));actions.append(submit);
+      }));submit.dataset.jrFile='';actions.append(submit);
+      check.addEventListener('change',syncFilingConfirmation);syncFilingConfirmation();
     }
     async function detail(id,page = 1) {
       current=await request('detail',{id,page});preview=null;open('Filed Job Report');renderDocument(current.data,current,{total:current.total,page:current.page,pages:current.pages,next:p=>detail(id,p)});actions.replaceChildren(exportButton('pdf',current),exportButton('png',current));

@@ -66,7 +66,16 @@ if(!/^http:\/\/127\.0\.0\.1:\d+\/CondoSystem3\/$/.test(base||''))throw Error('Pa
   await go(4);await until("document.querySelector('[data-jr-notes] [name=accomplished]').value.includes('Inspected facilities')");checks++;
   await click('[data-jr-preview]');await until("document.querySelector('[data-jr-dialog]').open&&document.querySelector('.jr-confirm input')");
   await check("document.querySelector('[data-jr-document]').textContent.includes('Staff-Reported Work Notes')&&document.querySelector('[data-jr-document]').textContent.includes('System-Recorded Activity')",'preview source labels');
-  await ev("document.querySelector('.jr-confirm input').checked=true;[...document.querySelectorAll('[data-jr-dialog-actions] button')].find(b=>b.textContent==='File Report').click()");await until("document.querySelector('[data-jr-dialog-message]').textContent.includes('filed successfully')");
+  await check("!document.querySelector('.jr-confirm input').checked&&document.querySelector('[data-jr-file]').disabled",'filing starts disabled until accuracy is confirmed');
+  await ev("document.querySelector('[data-jr-file]').click()");
+  if((await post('list')).data.data.rows.length!==0)throw Error('Unchecked report was filed');checks++;
+  await ev("document.querySelector('.jr-confirm input').click()");
+  await check("!document.querySelector('[data-jr-file]').disabled",'checking review box enables filing');
+  await ev("document.querySelector('.jr-confirm input').click()");
+  await check("document.querySelector('[data-jr-file]').disabled",'unchecking review box disables filing again');
+  await click('[data-jr-dialog-actions] button');
+  await check("document.querySelector('[data-jr-file]').disabled",'export completion keeps unconfirmed filing disabled');
+  await ev("document.querySelector('.jr-confirm input').click();document.querySelector('[data-jr-file]').click()");await until("document.querySelector('[data-jr-dialog-message]').textContent.includes('filed successfully')");
   const list=(await post('list')).data.data,report=list.rows[0];if(!report||report.status!=='submitted')throw Error('UI file submission');checks++;
   const detail=(await post('detail',{id:report.id})).data.data;const hash=detail.snapshot_hash;
   await ev("document.querySelector('[data-jr-close]').click()");
@@ -89,7 +98,8 @@ if(!/^http:\/\/127\.0\.0\.1:\d+\/CondoSystem3\/$/.test(base||''))throw Error('Pa
   await ev("[...document.querySelectorAll('[data-jr-dialog-actions] button')].find(b=>b.textContent==='Prepare corrected version').click()");await until("!document.querySelector('[data-jr-dialog]').open&&!document.querySelector('[data-jr-correction]').hidden");
   await check("!document.querySelector('#job-report-panel-report').hidden&&document.querySelector('#job-report-panel-filed').hidden",'preparing correction returns to the visible report form');
   await fill('[data-jr-notes] [name=pending]','Follow up with the service team on the next work day.');await click('[data-jr-preview]');await until("document.querySelector('[data-jr-dialog-actions]').textContent.includes('File Corrected Version')");
-  await ev("document.querySelector('.jr-confirm input').checked=true;[...document.querySelectorAll('[data-jr-dialog-actions] button')].find(b=>b.textContent==='File Corrected Version').click()");await until("document.querySelector('[data-jr-dialog-message]').textContent.includes('filed successfully')");
+  await check("!document.querySelector('.jr-confirm input').checked&&document.querySelector('[data-jr-file]').disabled",'corrected version also requires a fresh review confirmation');
+  await ev("document.querySelector('.jr-confirm input').click();document.querySelector('[data-jr-file]').click()");await until("document.querySelector('[data-jr-dialog-message]').textContent.includes('filed successfully')");
   const versions=(await post('list')).data.data.rows;if(versions.length!==2||Number(versions[0].version)!==2)throw Error('Correction version UI');checks++;
   if((await post('detail',{id:report.id})).data.data.snapshot_hash!==hash)throw Error('Original report changed');checks++;
   const second=versions[0];

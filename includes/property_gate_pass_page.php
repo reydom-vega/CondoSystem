@@ -13,11 +13,11 @@ $gateRow=gateRequest($db,(int)$pass['id']); $gateStatus=gateEffectiveStatus($gat
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><?= gateEscape(gateNumber((int)$gateRow['id'])) ?> · The Celandine</title><link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('resident.css'), ENT_QUOTES, 'UTF-8') ?>"><link rel="stylesheet" href="services.css?v=<?= filemtime(__DIR__.'/../services.css') ?>"><?php renderPortalUiHead(); ?>
 <script defer src="<?= gateEscape(portalUiAssetUrl('assets/js/resident-service-pass.js')) ?>"></script><script defer src="<?= gateEscape(portalUiAssetUrl('assets/js/permit-pass-download.js')) ?>"></script>
-</head><body class="portal-ui dashboard-page"><main class="service-panel property-gate-print"><header class="gate-pass-brand"><?= brandHtml('compact') ?><p>Property Gate Pass</p></header>
+</head><body class="portal-ui dashboard-page"><main class="service-panel property-gate-print"><header class="gate-pass-brand"><?= brandHtml('compact') ?><?= brandPropertyAddressHtml() ?><p>Property Gate Pass</p></header>
 <?php if($gateError): ?><p class="alert error" role="alert"><?= gateEscape($gateError) ?></p><?php endif; ?>
 <?php if(!gateValid($gateRow)): ?><p class="alert error gate-pass-movement-warning" role="status">Invalid for movement now: <?= gateEscape(str_replace('_',' ',$gateStatus)) ?> or outside the authorized schedule.</p><?php else: ?><p class="alert success">Valid within the authorized schedule. Security must check all items before confirming completion.</p><?php endif; ?>
 <?php include __DIR__.'/permit_details.php'; ?>
 <?php if($gateStatus==='approved'): ?><div id="serviceQr" data-qr-value="<?= gateEscape(gatePassUrl($gateRow)) ?>" aria-label="Property gate pass verification QR code" style="background:#fff;padding:24px;max-width:100%;box-sizing:border-box;filter:none"></div><p>Scan to verify the current status. Opening or scanning this pass does not complete the movement.</p><?php endif; ?>
 <?php include __DIR__.'/permit_pass_download_controls.php'; ?>
 <div class="service-actions gate-pass-controls"><button type="button" onclick="window.print()">Print / Save as PDF</button><a class="service-btn service-btn-secondary" href="<?= gateEscape(buildUrl(isSecurity()?'security/scanner.php':(canReviewPermits()?'superadmin/service_requests.php?kind=permit':'resident/permits.php'))) ?>">Back</a></div>
-</main><script src="js/permit-requests.js"></script></body></html>
+<?= brandDocumentFooterHtml() ?></main><script src="js/permit-requests.js"></script></body></html>

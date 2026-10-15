@@ -1,74 +1,25 @@
 <?php
-/**
- * API endpoint for fetching dashboard updates (admin view)
- * Returns JSON of key metrics and status updates
- */
-
-require_once '../config.php';
-
+require_once __DIR__.'/../config.php';
+require_once __DIR__.'/../includes/management_dashboard.php';
+require_once __DIR__.'/../includes/management_dashboard_content.php';
 header('Content-Type: application/json; charset=utf-8');
-header('Cache-Control: private, no-store');
-
+header('Cache-Control: private, no-store, max-age=0');
+header('X-Content-Type-Options: nosniff');
 requireCapability('management.dashboard', true);
-
-$connection = connectDb();
-
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') { http_response_code(405); header('Allow: GET'); echo json_encode(['error'=>'Use GET.']); exit; }
 try {
-    // Get unread resident messages count
-    $unreadMessages = 0;
-    $result = $connection->query("SELECT COUNT(*) as count FROM messages WHERE sender_role = 'resident' AND is_read = 0");
-    if ($result) {
-        $row = $result->fetch_assoc();
-        $unreadMessages = $row['count'] ?? 0;
-    }
-
-    // Get pending maintenance requests
-    ensureMaintenanceTable($connection);
-    $pendingMaintenance = 0;
-    $result = $connection->query("SELECT COUNT(*) as count FROM maintenance_requests WHERE status IN ('pending', 'approved', 'in_progress', 'reopened')");
-    if ($result) {
-        $row = $result->fetch_assoc();
-        $pendingMaintenance = $row['count'] ?? 0;
-    }
-
-    // Get pending booking requests
-    ensureBookingsTable($connection);
+    $data = managementDashboardData(connectDb(), (int)$_SESSION['user_id']);
+    ob_start(); renderManagementDashboardContent($data); $html = ob_get_clean();
     $pendingBookings = 0;
-    $result = $connection->query("SELECT COUNT(*) as count FROM bookings WHERE status = 'pending'");
-    if ($result) {
-        $row = $result->fetch_assoc();
-        $pendingBookings = $row['count'] ?? 0;
-    }
-
-    // Get total residents
-    $totalResidents = 0;
-    $result = $connection->query("SELECT COUNT(*) as count FROM users WHERE role = 'resident'");
-    if ($result) {
-        $row = $result->fetch_assoc();
-        $totalResidents = $row['count'] ?? 0;
-    }
-
-    // Get violations count
-    $violationsCount = 0;
-    $result = $connection->query("SELECT COUNT(*) as count FROM violations WHERE status = 'unresolved'");
-    if ($result) {
-        $row = $result->fetch_assoc();
-        $violationsCount = $row['count'] ?? 0;
-    }
-
-    http_response_code(200);
-    echo json_encode([
-        'success' => true,
-        'unread_messages' => (int)$unreadMessages,
-        'pending_maintenance' => (int)$pendingMaintenance,
-        'pending_bookings' => (int)$pendingBookings,
-        'total_residents' => (int)$totalResidents,
-        'unresolved_violations' => (int)$violationsCount,
-        'timestamp' => time()
-    ]);
-} catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Database error']);
+    foreach ($data['queues'] as $queue) if ($queue['key'] === 'bookings') $pendingBookings = $queue['count'];
+    // Keep the original numeric keys for existing consumers, with corrected definitions.
+    echo json_encode(['success'=>true,'data'=>$data,'html'=>$html,
+        'unread_messages'=>$data['messages']['messages'],'pending_maintenance'=>$data['maintenance']['active'],
+        'pending_bookings'=>$pendingBookings,'total_residents'=>$data['residents']['total'],
+        'unresolved_violations'=>$data['unresolved_violations'],'timestamp'=>time()], JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
+} catch (DomainException $error) {
+    http_response_code(403); echo json_encode(['error'=>'Access denied.']);
+} catch (Throwable $error) {
+    http_response_code(503); error_log('Management dashboard refresh: '.get_class($error));
+    echo json_encode(['error'=>'Dashboard data is temporarily unavailable. Please try again.']);
 }
-
-$connection->close();

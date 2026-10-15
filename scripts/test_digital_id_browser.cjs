@@ -39,7 +39,9 @@ if(!/^http:\/\/127\.0\.0\.1:\d+\/CondoSystem3\/$/.test(base||''))throw Error('Pa
      return response;
     }finally{counters.active--;}
    };`});
-  const roles=[[1,'resident/dashboard.php','Unit Owner'],[2,'resident/dashboard.php','Tenant'],[4,'admin/admin_dashboard.php','Admin'],[5,'security/security_dashboard.php','Security Personnel'],[6,'superadmin/admin_dashboard.php','Super Admin'],[7,'treasurer/treasurer_dashboard.php','Treasurer'],[8,'maintenance/maintenance_dashboard.php','Maintenance']];
+  const staffOnly=process.argv.includes('--staff-only');
+  if(staffOnly&&!process.argv.includes('--profile-only'))throw Error('--staff-only requires --profile-only.');
+  const roles=[[1,'resident/dashboard.php','Unit Owner'],[2,'resident/dashboard.php','Tenant'],[4,'admin/admin_dashboard.php','Admin'],[5,'security/security_dashboard.php','Security Personnel'],[6,'superadmin/admin_dashboard.php','Super Admin'],[7,'treasurer/treasurer_dashboard.php','Treasurer'],[8,'maintenance/maintenance_dashboard.php','Maintenance']].filter(([actor])=>!staffOnly||[4,5,7,8].includes(actor));
   if (process.argv.includes('--profile-only')) {
    for (const mobile of [false,true]) {
     await send('Emulation.setDeviceMetricsOverride',{width:mobile?390:1366,height:mobile?844:1000,deviceScaleFactor:1,mobile});
@@ -71,6 +73,7 @@ if(!/^http:\/\/127\.0\.0\.1:\d+\/CondoSystem3\/$/.test(base||''))throw Error('Pa
      await check("document.documentElement.dataset.theme==='light'&&document.querySelector('[data-profile-theme]').getAttribute('aria-checked')==='true'&&window.idRequests.issue===0",'Saved theme restored without issuing a QR');
     }
    }
+   if(!staffOnly) {
    // Inspect every actual role/page, including shared management headers.
    const manifest=await(await fetch(base+'__manifest')).json();
    for (const entry of manifest) {
@@ -96,9 +99,10 @@ if(!/^http:\/\/127\.0\.0\.1:\d+\/CondoSystem3\/$/.test(base||''))throw Error('Pa
    await check("!!document.querySelector('form[method=post] input[name=csrf_token]')",'Existing secure logout confirmation retained');
    await ev("document.querySelector('form[method=post]').requestSubmit()");await until("location.pathname.endsWith('/login.php')&&document.readyState==='complete'");
    await check("(await fetch('api/digital_id.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'issue'})})).status===401",'Logout ends authenticated QR access');
+   }
    if (errors.length) throw Error(errors.join('\n'));
    if (badResources.length) throw Error('Missing resources: '+badResources.join(', '));
-   console.log(JSON.stringify({checks,screenshots:directory,profileDropdown:true}));
+   console.log(JSON.stringify({checks,screenshots:directory,profileDropdown:true,staffOnly}));
    return;
   }
   const renderedCodes=[];

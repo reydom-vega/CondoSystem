@@ -24,6 +24,8 @@ html[data-theme=light] .celandine-brand, html[data-theme=light] .portal-loading-
 .visitor-pass-header>.celandine-brand { margin-bottom:16px; }
 .digital-id-verification>.celandine-brand { margin-bottom:24px; }
 .account-brand { margin-bottom:24px; }
+.celandine-property-address { margin:8px 0 12px; max-width:100%; font:12px/1.6 Arial,sans-serif; color:var(--text-secondary,var(--theme-copy,#b4c3d8)); white-space:normal; overflow-wrap:break-word; }
+.celandine-document-footer { margin-top:20px; padding-top:10px; border-top:1px solid var(--border-color,var(--theme-line,#374151)); font:11px/1.6 Arial,sans-serif; color:var(--text-secondary,var(--theme-copy,#b4c3d8)); }
 @media(max-width:1023px) {
  .portal-ui .sidebar-brand { padding-right:44px; }
  .portal-ui .sidebar-brand .celandine-brand { --brand-height:28px; --brand-type:15px; --brand-gap:6px; }
@@ -40,6 +42,26 @@ html[data-theme=light] .celandine-brand, html[data-theme=light] .portal-loading-
  .digital-id-heading .celandine-brand { --brand-height:27px; --brand-type:15.5px; --brand-gap:6px; }
 }
 @media print {
+ html:has(.visitor-pass-page),html:has(.property-gate-print),html:has(.pass-shell) { background:#fff !important; color-scheme:light !important; }
+ body.portal-ui.visitor-pass-page,body.portal-ui:has(.property-gate-print),body.portal-ui:has(.pass-shell) { color-scheme:light !important; }
+ body.portal-ui:has(.property-gate-print),body.portal-ui:has(.pass-shell) { background:#fff !important; color:#182236 !important; padding:0; min-height:0; }
+ body.portal-ui:has(.property-gate-print)::before,body.portal-ui:has(.property-gate-print)::after,body.portal-ui:has(.pass-shell)::before,body.portal-ui:has(.pass-shell)::after { display:none; }
+ .pass-shell { width:100%; }
+ .pass-card { background:#fff !important; color:#182236 !important; border-color:#dde3eb !important; box-shadow:none !important; }
+ .pass-card :is(h1,p,strong,small,.pass-status) { color:#182236 !important; }
+ .pass-card .pass-field { background:#f6f8fb !important; }
+ .pass-card .pass-status { background:#fff !important; border:1px solid #dde3eb; }
+ .pass-card .pass-actions { display:none !important; }
+ .portal-ui .property-gate-print.service-panel { padding:0; margin:0; border:0; background:#fff !important; box-shadow:none; }
+ .property-gate-print .gate-pass-brand { margin-bottom:12px; padding-bottom:10px; }
+ .property-gate-print.service-panel > p { margin:6px 0; font-size:11px; line-height:1.5; }
+ .property-gate-print .permit-identity { margin:10px 0; padding:10px; gap:10px; }
+ .property-gate-print .permit-table-wrap { margin:12px 0; }
+ .property-gate-print .permit-table :is(th,td) { padding:8px; font-size:11px; }
+ .property-gate-print :is(.alert,.service-status) { background:#f6f8fb !important; color:#182236 !important; border-color:#dde3eb !important; }
+ .property-gate-print :is(.permit-identity,th,td) { border-color:#dde3eb !important; }
+ .celandine-property-address,.celandine-document-footer { color:#58657a !important; font-size:9px; }
+ .celandine-document-footer { border-color:#dde3eb; }
  .celandine-brand { color:#b45309; }
  .celandine-brand img[data-theme-logo] { content:url('../../celandineorange.svg'); }
 }

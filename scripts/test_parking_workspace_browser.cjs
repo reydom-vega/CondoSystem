@@ -50,6 +50,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
       await check("getComputedStyle(document.querySelector('[data-parking-tab=requests]')).backgroundColor==='rgb(48, 48, 68)' && getComputedStyle(document.querySelector('[data-parking-tab=requests]')).color==='rgb(255, 225, 172)'",`resident/tenant ${actor}: tabs match the amenity design`);
       await shot('resident-'+actor+'-requests-desktop');
       await go(actor,'resident/vehicles.php');
+      await check("!document.querySelector('[data-parking-list-search]')",`resident/tenant ${actor}: staff search controls stay staff-only`);
       await check("!document.querySelector('#parking-panel-vehicles').hidden && document.querySelector('.sidebar-link[href=\"parking.php\"]').getAttribute('aria-current')==='page'",`resident/tenant ${actor}: old vehicle URL and active menu`);
     }
     await go(1,'resident/parking.php?tab=requests');
@@ -96,6 +97,49 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     await check("!document.querySelector('#parking-panel-requests .sticker-order-summary') && !document.querySelector('#parking-panel-requests .booking-item')",'tenant Requests does not expose another resident records');
     await go(4,'superadmin/parking.php?tab=stickers');
     await check("document.querySelector('#parking-panel-stickers').textContent.includes('TAB1234') && !document.querySelector('[name=action][value=issue_sticker]')",'unpaid sticker is visible to Admin and cannot be issued');
+    for (const actor of [4,6]) {
+      await go(actor,'superadmin/parking.php?tab=vehicles');
+      await ev('window.parkingSearchMarker=789');
+      const search = async (key, value) => ev(`(()=>{const input=document.querySelector('[name=${key}_search]');input.value=${JSON.stringify(value)};input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      for (const query of ['tAb1234','owner one','0101 toyota','vios silver','approved']) {
+        await search('vehicles',query);
+        await check("[...document.querySelectorAll('[data-parking-search-item=vehicles]')].filter(row=>!row.hidden).length===1",`staff ${actor}: vehicle search matches ${query}`);
+      }
+      await search('vehicles','no-such-vehicle');
+      await check("document.querySelector('[data-parking-search-count=vehicles]').textContent==='0 of 1 vehicle' && !document.querySelector('[data-parking-search-empty=vehicles]').hidden",`staff ${actor}: vehicle search gives clear empty feedback`);
+      await click('stickers');
+      await check("document.querySelector('[name=stickers_search]').value==='' && !document.querySelector('[data-parking-search-item=stickers]').hidden",`staff ${actor}: sticker and vehicle searches are independent`);
+      for (const query of ['owner','owner one','0101 tab1234','pending']) {
+        await search('stickers',query);
+        await check("[...document.querySelectorAll('[data-parking-search-item=stickers]')].filter(row=>!row.hidden).length===1",`staff ${actor}: sticker search matches ${query}`);
+      }
+      const unusedSlot=await ev("document.querySelector('#parking-panel-slots .unit-table tbody tr td strong').textContent");
+      await search('stickers',unusedSlot);
+      await check("!document.querySelector('[data-parking-search-empty=stickers]').hidden && document.querySelector('[data-parking-search-item=stickers]').hidden",`staff ${actor}: available slot choices do not produce false matches`);
+      await ev("document.querySelector('[data-parking-list-search=stickers] [data-parking-search-clear]').click()");
+      await check("!document.querySelector('[data-parking-search-item=stickers]').hidden && document.querySelector('[data-parking-search-empty=stickers]').hidden && document.activeElement.name==='stickers_search' && !new URL(location.href).searchParams.has('stickers_search') && document.querySelector('[name=vehicles_search]').value==='no-such-vehicle'",`staff ${actor}: Clear restores only its list and focuses search`);
+      await click('vehicles');
+      await ev("document.querySelector('[data-parking-list-search=vehicles] [data-parking-search-clear]').click()");
+      await check("!document.querySelector('[data-parking-search-item=vehicles]').hidden && window.parkingSearchMarker===789",`staff ${actor}: live search and Clear preserve the page and controls`);
+      await search('vehicles','0101 toyota');await search('stickers','tab1234');
+      await ev("document.querySelector('[data-parking-list-search=vehicles]').requestSubmit()");
+      await check("window.parkingSearchMarker===789 && new URL(location.href).searchParams.get('vehicles_search')==='0101 toyota'",`staff ${actor}: Search submits without navigation`);
+      await go(actor,'superadmin/parking.php?tab=stickers&vehicles_search=0101%20toyota&stickers_search=tab1234');
+      await check("document.querySelector('[name=vehicles_search]').value==='0101 toyota' && document.querySelector('[name=stickers_search]').value==='tab1234' && !document.querySelector('[data-parking-search-item=vehicles]').hidden && !document.querySelector('[data-parking-search-item=stickers]').hidden",`staff ${actor}: both searches restore after navigation`);
+      for (const theme of ['dark','light']) for (const width of [1366,390,320]) {
+        await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:false});
+        await ev(`window.CelandineTheme.set(${JSON.stringify(theme)})`);
+        for (const key of ['vehicles','stickers']) {
+          await click(key);
+          await check(`(()=>{const form=document.querySelector('[data-parking-list-search=${key}]'),b=form.querySelector('button[type=submit]').getBoundingClientRect(),a=form.querySelector('[data-parking-search-clear]').getBoundingClientRect();return document.documentElement.scrollWidth<=innerWidth+1 && Math.abs(b.y-a.y)<1 && Math.abs(b.height-a.height)<1 && a.height>=44;})()`,`staff ${actor}: ${key} search buttons align in ${theme} at ${width}px`);
+        }
+        if(width===1366)await shot(`staff-${actor}-sticker-search-${theme}`);
+      }
+      await send('Emulation.setDeviceMetricsOverride',{width:1366,height:900,deviceScaleFactor:1,mobile:false});
+      await ev("window.CelandineTheme.set('dark')");
+      await go(actor,'superadmin/parking.php?tab=vehicles&vehicles_search=no-match#vehicle-1');
+      await check("!document.querySelector('#vehicle-1').hidden && !document.querySelector('#parking-panel-vehicles').hidden",`staff ${actor}: vehicle bookmark overrides a conflicting search`);
+    }
     for (const actor of [1,2,4,6]) {
       await go(actor,(actor<3?'resident':'superadmin')+'/parking.php');
       for(const width of [768,390,320]) {

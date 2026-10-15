@@ -42,6 +42,8 @@ try {
       (7,'treasurer','Treasurer Staff','treasurer@example.invalid','09123456789','$hash',NULL,'treasurer',1,'approved',NULL,NULL),
       (8,'maintenance','Maintenance Staff','maintenance@example.invalid','09123456789','$hash',NULL,'maintenance',1,'approved',NULL,NULL)");
     if(in_array('--security-only',$argv,true))$db->query("UPDATE users SET status='pending' WHERE role='security'");
+    if(in_array('--staff-digital-id',$argv,true))$db->query("UPDATE users SET status='pending' WHERE role<>'resident'");
+    if(in_array('--treasurer-only',$argv,true))$db->query("UPDATE users SET status='pending' WHERE role='treasurer'");
     $db->query("INSERT INTO announcements(admin_id,title,content,category,priority) VALUES(6,'Community schedule','Please contact the management office for assistance.','General','high')");
     $db->query("INSERT INTO maintenance_requests(user_id,issue_type,description,location,urgency) VALUES(1,'Plumbing','Please check the kitchen tap.','Kitchen','normal')");
     $db->query("INSERT INTO messages(user_id,sender_role,body) VALUES(1,'resident','May I ask about the community schedule?'),(1,'admin','The management office can help you with the current schedule.')");
@@ -59,6 +61,13 @@ try {
     // Current bills, tenant-owned parking and completed history for billing UI checks.
     $paidBill=createBill(1,[['category'=>'Water','description'=>'Completed fixture statement','amount'=>425]],null,null,date('Y-m-d'));
     $db->query("UPDATE payments SET status='paid',payment_method='cash',payment_channel='cash',paid_at=NOW() WHERE id=".(int)$paidBill);
+    if(in_array('--treasurer-only',$argv,true))$db->query("INSERT INTO payments(user_id,amount,payment_method,status,due_date,paid_at,payment_channel) VALUES
+      (1,15125.50,'cash','paid',DATE_SUB(CURDATE(),INTERVAL 2 MONTH),DATE_SUB(NOW(),INTERVAL 2 MONTH),'cash'),
+      (2,22340.75,'online','paid',DATE_SUB(CURDATE(),INTERVAL 1 MONTH),DATE_SUB(NOW(),INTERVAL 1 MONTH),'maya'),
+      (1,12500.00,'online','paid',DATE_SUB(CURDATE(),INTERVAL 1 DAY),DATE_SUB(NOW(),INTERVAL 1 DAY),'gcash'),
+      (1,3890.75,'unbilled','pending',DATE_SUB(CURDATE(),INTERVAL 35 DAY),NULL,NULL),
+      (2,1250.50,'unbilled','overdue',DATE_SUB(CURDATE(),INTERVAL 4 DAY),NULL,NULL),
+      (1,2750.00,'unbilled','pending',DATE_ADD(CURDATE(),INTERVAL 3 DAY),NULL,NULL)");
     createBill(2,[['category'=>'Parking','description'=>'Tenant personal parking fixture','amount'=>175]],null,null,date('Y-m-d',strtotime('+7 days')));
     uiActor($db,1);
     $tomorrow=date('Y-m-d',strtotime('+1 day'));
@@ -66,7 +75,7 @@ try {
     $visitor=fixtureCreateResidentServiceRequest($db,1,'visitor',['visitor_name'=>'Family Guest','visitor_count'=>'3','details'=>'Family visit','start_date'=>date('Y-m-d')]);
     $gate=savePropertyGateRequest($db,['permit_type'=>'Property Gate Pass','direction'=>'entry','purpose'=>'New Appliance / Furniture','details'=>'Kitchen equipment','start_date'=>date('Y-m-d'),'start_time'=>'00:00','end_time'=>'23:59','transporter'=>'Fixture Delivery','vehicle_plate'=>'ABC123','items'=>[['item_name'=>'Refrigerator','category'=>'Appliance','quantity'=>'1','description'=>'Silver']]]);
     uiActor($db,6); decideResidentServiceRequest($db,$visitor,'approved',''); gateTransition($db,$gate,'approved');
-    if(in_array('--visitor-parking-only',$argv,true)){
+    if(in_array('--visitor-parking-only',$argv,true)||in_array('--property-documents-only',$argv,true)){
         $approvalFixtureStorage=sys_get_temp_dir().'/condo-approval-ui-'.bin2hex(random_bytes(12));putenv('CONDO_VISITOR_ID_STORAGE='.$approvalFixtureStorage);visitorIdStorageDirectory(true);
         $db->query("INSERT INTO parking_slots(slot_code,slot_type) VALUES('VP-UI-OWNER','visitor'),('VP-UI-TENANT','visitor'),('VP-UI-RECEIPT','visitor')");
         $slots=$db->query("SELECT id FROM parking_slots WHERE slot_code LIKE 'VP-UI-%' ORDER BY id")->fetch_all(MYSQLI_ASSOC);
@@ -116,10 +125,27 @@ try {
     $db->query("INSERT INTO parking_slots(slot_code,slot_type) VALUES('UI-V01','visitor')"); $slot=(int)$db->insert_id;
     $db->query("INSERT INTO parking_requests(user_id,vehicle_plate,start_date,end_date,status,slot_id) VALUES(1,'ABC123',CURDATE(),CURDATE(),'approved',$slot)"); $parking=(int)$db->insert_id;
     $add('parking_pass.php?request_id='.$parking.'&signature='.parkingPassSignature($parking),1,'Parking pass');
+    if(in_array('--management-only',$argv,true)){
+        $db->query("INSERT INTO maintenance_requests(user_id,issue_type,description,location,urgency,status,created_at) VALUES(1,'Electrical','Fixture urgent work','Lobby','urgent','in_progress',DATE_SUB(NOW(),INTERVAL 2 DAY)),(2,'Plumbing','Fixture completed work','Kitchen','urgent','completed',DATE_SUB(NOW(),INTERVAL 5 DAY))");
+        $db->query("INSERT INTO bookings(user_id,amenity,booking_date,booking_time,end_time,status,unit_number) VALUES(1,'Function Hall',CURDATE(),'09:00','18:00','approved','0101'),(2,'Swimming Pool',DATE_ADD(CURDATE(),INTERVAL 1 DAY),'14:00','16:00','confirmed','0101')");
+        uiActor($db,1);fixtureCreateResidentServiceRequest($db,1,'visitor',['visitor_name'=>'Pending Guest','visitor_count'=>'1','details'=>'Management fixture','start_date'=>date('Y-m-d')]);
+        savePropertyGateRequest($db,['permit_type'=>'Property Gate Pass','direction'=>'entry','purpose'=>'New Appliance / Furniture','details'=>'Fixture appliance','start_date'=>date('Y-m-d'),'start_time'=>'00:00','end_time'=>'23:59','items'=>[['item_name'=>'Chair','category'=>'Furniture','quantity'=>'1','description'=>'Fixture']]]);
+        $db->query("INSERT INTO messages(user_id,sender_role,body) VALUES(1,'resident','Private dashboard fixture message A'),(1,'resident','Private dashboard fixture message B'),(2,'resident','Private dashboard fixture message C')");
+        $db->query("INSERT INTO vehicles(user_id,make,model,color,year,plate_number,normalized_plate,or_cr_path,or_cr_mime,status) VALUES(1,'Toyota','Vios','Silver',2022,'UI-DASH','UIDASH','private-fixture.pdf','application/pdf','pending')");
+        $db->query("INSERT INTO parking_requests(user_id,vehicle_plate,start_date,end_date,status) VALUES(1,'UI-PENDING',CURDATE(),CURDATE(),'pending')");
+        $db->query("INSERT INTO parking_extensions(parking_request_id,requested_by,expected_start_utc,requested_until,reason,status,request_key,created_at) VALUES($parking,1,UTC_TIMESTAMP(6),DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 2 DAY),'Fixture extension','pending',REPEAT('b',64),UTC_TIMESTAMP(6))");
+        $db->query("INSERT INTO violations(user_id,violation_type,description,penalty_type,status,issued_by,review_status) VALUES(1,'Parking observation','Private violation narrative','warning','warning_issued',5,'pending')");
+        $db->query("INSERT INTO payments(user_id,amount,payment_method,status,due_date,paid_at,created_at) VALUES(1,150.25,'unbilled','pending',DATE_SUB(CURDATE(),INTERVAL 3 DAY),NULL,NOW()),(1,1999.99,'cash','paid',CURDATE(),NOW(),DATE_SUB(NOW(),INTERVAL 2 MONTH)),(2,999.99,'cash','paid',CURDATE(),DATE_SUB(NOW(),INTERVAL 2 MONTH),NOW())");
+        $db->query("INSERT INTO visitor_logs(visitor_name,visitor_count,unit_number,logged_by,status,time_in) VALUES('Guest group',3,'0101',5,'checked_in',NOW())");
+        $db->query("INSERT INTO notification_outbox(deduplication_key,event_kind,channel,recipient,subject,body,status) VALUES(REPEAT('c',64),'fixture','email','test@example.invalid','Private notification subject','Private notification body','failed')");
+        $db->query("UPDATE users SET staff_id=CONCAT('STAFF-',LPAD(id,5,'0')) WHERE role<>'resident'");
+        uiActor($db,4);$input=['type'=>'daily','period'=>date('Y-m-d',strtotime('-1 day')),'notes'=>jrNotes(['remarks'=>'Private filed notes']),'request_key'=>bin2hex(random_bytes(24)),'confirmed'=>'1'];$input['preview_hash']=jrPreview($db,$input)['preview_hash'];jrFile($db,$input);
+    }
     // An actual forbidden role route verifies the shared 403 screen.
     $add('superadmin/staff.php',5,'Access denied');
     $add('report_tracking.php',0,'Anonymous tracking');
     if(in_array('--security-only',$argv,true))$manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>$entry['actor']===5&&$entry['label']!=='Access denied'));
+    if(in_array('--treasurer-only',$argv,true))$manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>$entry['actor']===7&&$entry['label']!=='Access denied'));
     if(in_array('--analytics-only',$argv,true))$manifest=[['path'=>'superadmin/analytics.php','actor'=>6,'label'=>'System Analytics']];
     if(in_array('--audit-only',$argv,true))$manifest=[['path'=>'superadmin/auditlog.php','actor'=>6,'label'=>'Super Admin audit workspace']];
     if(in_array('--jobs-only',$argv,true))$manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>in_array(explode('?',$entry['path'])[0],['job_report.php','superadmin/staff.php'],true)&&$entry['label']!=='Access denied'));
@@ -129,6 +155,12 @@ try {
         $manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>in_array(explode('?',$entry['path'])[0],['resident/parking.php','resident/visitors.php','resident/payments.php','superadmin/service_requests.php','superadmin/parking.php','superadmin/unitpayments.php','security/scanner.php','superadmin/scanner.php','resident_service_pass.php'],true)));
         if(isset($paidParkingBill))$manifest[]=['path'=>'resident/payment_receipt.php?id='.$paidParkingBill,'actor'=>1,'label'=>'Paid visitor parking PDF'];
     }
+    if(in_array('--property-documents-only',$argv,true)){
+        $manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>in_array(explode('?',$entry['path'])[0],['resident/permits.php','resident/visitors.php','resident_service_pass.php','parking_pass.php','job_report.php','superadmin/staff.php'],true)&&$entry['label']!=='Access denied'));
+        $manifest[]=['path'=>'resident/payment_receipt.php?id='.$paidBill,'actor'=>1,'label'=>'Paid billing receipt PDF'];
+        $manifest[]=['path'=>'resident/payment_receipt.php?id='.$paidParkingBill,'actor'=>1,'label'=>'Paid visitor parking receipt PDF'];
+    }
+    if(in_array('--management-only',$argv,true))$manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>in_array($entry['path'],['admin/admin_dashboard.php','superadmin/admin_dashboard.php'],true)));
     putenv('CONDO_UI_MANIFEST='.json_encode($manifest,JSON_THROW_ON_ERROR));
     $log=tempnam(sys_get_temp_dir(),'condo-ui-http-');
     $http=proc_open([PHP_BINARY,'-S','127.0.0.1:'.$port,__DIR__.'/ui_fixture_router.php'],[0=>['pipe','r'],1=>['file',$log,'a'],2=>['file',$log,'a']],$pipes,dirname(__DIR__));

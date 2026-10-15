@@ -90,10 +90,35 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   await check("!!document.querySelector('#serviceQr') && document.querySelector('.visitor-pass-details').textContent.includes('Verified') && !document.body.textContent.includes('ID reference ending') && !document.querySelector('img[src*=visitor_id_document]')",'Approved pass shows verification without ID documents or numbers');
   await check("!!document.querySelector('#serviceQr canvas,#serviceQr img') && document.querySelector('#passQrFallback').hidden",'Visitor QR renders when the external QR CDN is unavailable');
   await check("!document.querySelector('#serviceQr').hasAttribute('title') && document.querySelectorAll('script[src*=\"qrcode.min.js\"]').length===1",'One local QR library without an access-token tooltip');
-  const qrImage=await ev("document.querySelector('#serviceQr canvas').toDataURL()");
+  const qrImage=await ev("(()=>{const qr=document.querySelector('#serviceQr canvas'),image=document.createElement('canvas');image.width=image.height=qr.width+48;const ctx=image.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,image.width,image.height);ctx.drawImage(qr,24,24);return image.toDataURL();})()");
+  await check("!!document.querySelector('[data-visitor-pass-download]') && !document.querySelector('[onclick*=print]') && !document.querySelector('[data-visitor-pass-download]').disabled",'Visitor pass offers image download instead of Print Pass');
+  await ev("window.visitorImages=[];window.visitorDownloadClick=HTMLAnchorElement.prototype.click;HTMLAnchorElement.prototype.click=function(){if(this.download.startsWith('visitor-access-pass-')){visitorImages.push({name:this.download,url:this.href});return;}return visitorDownloadClick.call(this);};window.visitorPrints=0;window.print=()=>visitorPrints++");
+  for (const theme of ['dark','light']) for (const width of [1366,390,320]) {
+    await send('Emulation.setDeviceMetricsOverride',{width,height:1050,deviceScaleFactor:1,mobile:false});
+    await ev(`CelandineTheme.set(${JSON.stringify(theme)})`);
+    const before=await ev('visitorImages.length');
+    await ev("document.querySelector('[data-visitor-pass-download]').click();document.querySelector('[data-visitor-pass-download]').click()");
+    await until(`visitorImages.length===${before+1} && !document.querySelector('[data-visitor-pass-download]').disabled`);
+    await check("document.documentElement.scrollWidth<=innerWidth+1 && visitorPrints===0 && document.querySelector('[data-visitor-pass-download-feedback]').textContent==='Pass image downloaded.'",'PNG download without print or overlap in '+theme+' at '+width+'px');
+    await check("(async()=>{const response=await fetch(visitorImages.at(-1).url),blob=await response.blob(),image=await createImageBitmap(blob);return blob.type==='image/png' && image.width===1000 && image.height>image.width;})()",'Complete high-resolution PNG in '+theme+' at '+width+'px');
+  }
+  const visitorImage=await ev("(async()=>{const blob=await(await fetch(visitorImages[0].url)).blob();return new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.readAsDataURL(blob);});})()");
+  fs.writeFileSync(path.join(directory,'visitor-access-pass.png'),Buffer.from(visitorImage.split(',')[1],'base64'));
+  await ev("window.visitorLogo=document.querySelector('[data-visitor-pass-download]').dataset.brandImage;document.querySelector('[data-visitor-pass-download]').dataset.brandImage='data:image/png;base64,invalid';document.querySelector('[data-visitor-pass-download]').click()");
+  await until("!document.querySelector('[data-visitor-pass-download]').disabled && document.querySelector('[data-visitor-pass-download-feedback]').textContent.includes('logo could not load')");
+  await check("visitorImages.length===6",'Failed logo download reports the error and restores the button without saving a broken image');
+  await ev("document.querySelector('[data-visitor-pass-download]').dataset.brandImage=visitorLogo;document.querySelector('[data-visitor-pass-download]').click()");
+  await until("visitorImages.length===7 && !document.querySelector('[data-visitor-pass-download]').disabled");
+  await ev("HTMLAnchorElement.prototype.click=visitorDownloadClick");
+  await send('Emulation.setDeviceMetricsOverride',{width:1366,height:1050,deviceScaleFactor:1,mobile:false});
   await go(5,'security/scanner.php');
   await until("typeof Html5Qrcode==='function'");
   await check("(async()=>await new Html5Qrcode('reader').scanFile(new File([await(await fetch("+JSON.stringify(qrImage)+")).blob()],'visitor-pass.png',{type:'image/png'}),false)==="+JSON.stringify(passUrl)+")()",'Generated visitor QR decodes to the approved pass in the existing scanner');
+  await check("(async()=>await new Html5Qrcode('reader').scanFile(new File([await(await fetch("+JSON.stringify(visitorImage)+")).blob()],'visitor-access-pass.png',{type:'image/png'}),false)==="+JSON.stringify(passUrl)+")()",'Downloaded full pass PNG decodes to the unchanged verified visitor URL');
+  if (process.argv.includes('--visitor-pass-only')) {
+    if(report.errors.length)throw Error(report.errors.join('\n'));
+    console.log('Passed '+report.checks.length+' visitor pass image and identity browser checks. Screenshots: '+directory);return;
+  }
   await ev("document.querySelector('#manualScan').value="+JSON.stringify(passUrl)+";document.querySelector('#manualScanForm').requestSubmit()");
   await until("document.querySelector('#scanResultCard').dataset.state==='valid'");
   await check("document.querySelector('#scanResultFields').textContent.includes(window.visitorFixtureName) && document.querySelector('#scanResultFields').textContent.includes('Identity verificationVerified') && document.querySelector('#scanResultFields').textContent.includes('Browser verified visit')",'Scanner renders visitor name, purpose and identity status');

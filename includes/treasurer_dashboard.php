@@ -64,9 +64,9 @@ function treasurerDashboardData(mysqli $db, int $actorId, ?string $month = null,
             $aging[$row['bucket']]['cents'] = (int)$row['cents']; $aging[$row['bucket']]['count'] = (int)$row['invoice_count'];
         }
         $recent = $query("SELECT p.id,ROUND(p.amount*100) cents,p.paid_at,p.payment_channel,p.payment_method,
-            u.full_name,u.username,u.unit_number FROM payments p JOIN users u ON u.id=p.user_id
+            u.full_name,u.username,COALESCE(p.unit_number_snapshot,u.unit_number) AS unit_number FROM payments p JOIN users u ON u.id=p.user_id
             WHERE p.status='paid' ORDER BY p.paid_at IS NULL,p.paid_at DESC,p.id DESC LIMIT 6")->fetch_all(MYSQLI_ASSOC);
-        $followUps = $query("SELECT p.id,ROUND(p.amount*100) cents,p.due_date,u.full_name,u.username,u.unit_number
+        $followUps = $query("SELECT p.id,ROUND(p.amount*100) cents,p.due_date,u.full_name,u.username,COALESCE(p.unit_number_snapshot,u.unit_number) AS unit_number
             FROM payments p JOIN users u ON u.id=p.user_id WHERE p.status IN ('pending','overdue') AND p.amount>0 AND p.due_date<?
             ORDER BY p.due_date,p.amount DESC,p.id LIMIT 6", [$soon])->fetch_all(MYSQLI_ASSOC);
         $db->commit();

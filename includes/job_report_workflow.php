@@ -29,7 +29,7 @@ function jrPreview(mysqli $db,array $input): array {
     return ['snapshot'=>$snapshot,'preview_hash'=>$hash,'total'=>$total,'page'=>$page,'pages'=>max(1,(int)ceil($total/50)),'generated_at'=>gmdate('Y-m-d H:i:s')];
 }
 function jrNotify(mysqli $db,array $report,bool $submission): void {
-    $recipients=$submission?jrQuery($db,"SELECT id,email FROM users WHERE role='superadmin' AND is_active=1 AND is_verified=1")->get_result()->fetch_all(MYSQLI_ASSOC):jrQuery($db,'SELECT id,email FROM users WHERE id=? AND is_active=1 AND is_verified=1',[(int)$report['user_id']])->get_result()->fetch_all(MYSQLI_ASSOC);
+    $recipients=$submission?jrQuery($db,"SELECT id,email FROM users WHERE role='superadmin' AND is_active=1 AND archived_at IS NULL AND is_verified=1")->get_result()->fetch_all(MYSQLI_ASSOC):jrQuery($db,'SELECT id,email FROM users WHERE id=? AND is_active=1 AND archived_at IS NULL AND is_verified=1',[(int)$report['user_id']])->get_result()->fetch_all(MYSQLI_ASSOC);
     foreach($recipients as $recipient){
         if(!filter_var($recipient['email'],FILTER_VALIDATE_EMAIL))continue;
         $kind=$submission?'job_report_submitted':'job_report_review';$id=(int)$report['id'];$target=$submission?'superadmin/staff.php?tab=reports&job_report='.$id:'job_report.php?job_report='.$id;

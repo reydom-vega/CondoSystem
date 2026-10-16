@@ -133,11 +133,13 @@ function createBill(int $userId, array $items, ?string $periodStart, ?string $pe
         $tenantParking=$context['account_kind']==='tenant' && !array_filter($charges,static fn(array $charge):bool=>!in_array($charge['category'],['Parking','Parking Sticker'],true));
         $billingScope=$tenantParking ? 'personal_parking' : 'unit';
         $userId=$tenantParking ? (int)$context['id'] : (int)$context['billing_user_id'];
-        $resident=$connection->prepare("SELECT id FROM users WHERE id=? AND role='resident' AND is_verified=1 AND is_active=1 AND status='approved' FOR UPDATE");
+        $resident=$connection->prepare("SELECT id FROM users WHERE id=? AND role='resident' AND is_verified=1 AND is_active=1 AND archived_at IS NULL AND status='approved' FOR UPDATE");
         $resident->bind_param('i',$userId); $resident->execute();
         if (!$resident->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
         $owner=residentContext($connection,$userId);
         if (!$owner || !$owner['approved'] || (!$tenantParking && $owner['account_kind']!=='owner')) { $connection->rollback(); return false; }
+        $ownershipReview=billingOwnershipReview($connection);
+        if (!$tenantParking && isset($ownershipReview[$userId]) && !$ownershipReview[$userId]['automatic_only']) { $connection->rollback(); return false; }
         if ($periodStart!==null) {
             $existing=$connection->prepare("SELECT id FROM payments WHERE user_id=? AND billing_period_start=? AND billing_scope='unit' AND status<>'rolled_forward' LIMIT 1 FOR UPDATE");
             $existing->bind_param('is',$userId,$periodStart); $existing->execute();
@@ -148,6 +150,7 @@ function createBill(int $userId, array $items, ?string $periodStart, ?string $pe
         $insert->bind_param('idsssss',$userId,$total,$paymentMethod,$dueDate,$periodStart,$periodEnd,$billingScope);
         if (!$insert->execute()) throw new RuntimeException('Could not create bill.');
         $paymentId=(int)$connection->insert_id;
+        lifecycleQuery($connection,'UPDATE payments SET unit_number_snapshot=? WHERE id=?',[$owner['unit_number'],$paymentId]);
         foreach ($charges as $charge) {
             $line=$connection->prepare('INSERT INTO bill_items (payment_id,category,description,amount) VALUES (?,?,?,?)');
             $line->bind_param('issd',$paymentId,$charge['category'],$charge['description'],$charge['amount']);
@@ -282,6 +285,30 @@ function getResidentBillingSummary(mysqli $connection, int $actorId): array {
     return ['count'=>(int)$row['count'],'amount'=>(float)$row['amount']];
 }
 
+/** Existing billing supports one unit per statement; ambiguous responsibility needs review. */
+function billingOwnershipReview(mysqli $db): array {
+    $owners=[];$units=[];$review=[];
+    foreach($db->query("SELECT id,full_name,unit_number,account_type FROM users u WHERE role='resident' AND status='approved' AND ".activeAccountSql()) as $row) {
+        if(residentAccountKind($row['account_type'])!=='owner')continue;
+        $unit=normalizeUnitNumber($row['unit_number']);$id=(int)$row['id'];$owners[$id]=$row;
+        if($unit!=='')$units[$unit][$id]=true;
+    }
+    $holdings=[];
+    foreach($db->query("SELECT user_id,unit_number FROM account_unit_relationships WHERE relationship_kind='owner' AND ended_at IS NULL") as $row) {
+        $id=(int)$row['user_id'];if(!isset($owners[$id]))continue;
+        $holdings[$id][$row['unit_number']]=true;$units[$row['unit_number']][$id]=true;
+    }
+    foreach($owners as $id=>$owner) {
+        $unit=normalizeUnitNumber($owner['unit_number']);
+        if($unit==='')$reason='No current unit responsibility is recorded.';
+        elseif(count($units[$unit]??[])>1)$reason='Several accounts claim ownership of this unit.';
+        elseif(count($holdings[$id]??[])>1)$reason='Multiple owned units require itemized billing review.';
+        else continue;
+        $review[$id]=['id'=>$id,'full_name'=>$owner['full_name'],'unit_number'=>$unit,'reason'=>$reason,'automatic_only'=>count($holdings[$id]??[])>1 && $unit!=='' && count($units[$unit]??[])===1];
+    }
+    return $review;
+}
+
 /** One statement per approved unit owner per billing period, including paid-history deduplication. */
 function generateStandardMonthlyBills(array $chargeTemplate, string $periodStart, string $periodEnd, string $dueDate): array {
     if (!canManageBilling() || !workflowDate($periodStart) || !workflowDate($periodEnd)
@@ -297,16 +324,17 @@ function generateStandardMonthlyBills(array $chargeTemplate, string $periodStart
         if ((float)$amount>0) $items[]=['category'=>$category,'description'=>'','amount'=>(float)$amount];
     }
     if (!$items) return ['created'=>0,'skipped'=>0,'bill_ids'=>[],'error'=>'Enter at least one charge greater than zero.'];
-    $residents=$connection->query("SELECT id FROM users WHERE role='resident' AND is_verified=1 AND is_active=1 AND status='approved'")->fetch_all(MYSQLI_ASSOC);
-    $created=0; $skipped=0; $ids=[];
+    $residents=$connection->query("SELECT id FROM users WHERE role='resident' AND is_verified=1 AND is_active=1 AND archived_at IS NULL AND status='approved'")->fetch_all(MYSQLI_ASSOC);
+    $created=0; $skipped=0; $ids=[];$review=billingOwnershipReview($connection);
     foreach ($residents as $resident) {
         $context=residentContext($connection,(int)$resident['id']);
         if (!$context || !$context['approved'] || $context['account_kind']!=='owner') continue;
+        if(isset($review[(int)$resident['id']])){$skipped++;continue;}
         // Locking the resident in createBill serializes competing generation requests.
         // Paid history also counts: rerunning a month must never bill residents twice.
         $id=createBill((int)$resident['id'],$items,$periodStart,$periodEnd,$dueDate);
         if ($id===false) $skipped++; else { $created++; $ids[]=$id; }
     }
     logAudit('generate_bills','payment',null,"Generated {$created} bill(s) for {$periodStart} to {$periodEnd}; skipped {$skipped}.");
-    return ['created'=>$created,'skipped'=>$skipped,'bill_ids'=>$ids,'error'=>null];
+    return ['created'=>$created,'skipped'=>$skipped,'bill_ids'=>$ids,'review_required'=>array_values($review),'error'=>null];
 }

@@ -108,7 +108,7 @@ function issueViolation(int $userId, string $violationType, string $description,
 
     $connection->begin_transaction();
     try {
-        $owner=$connection->prepare("SELECT id FROM users WHERE id=? AND role='resident' AND is_active=1 AND status='approved' FOR UPDATE");
+        $owner=$connection->prepare("SELECT id FROM users WHERE id=? AND role='resident' AND is_active=1 AND archived_at IS NULL AND status='approved' FOR UPDATE");
         $owner->bind_param('i',$userId); $owner->execute();
         if (!$owner->get_result()->fetch_assoc()) { $connection->rollback(); return false; }
         $resident=residentContext($connection,$userId);

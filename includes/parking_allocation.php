@@ -46,7 +46,7 @@ function occupyParkingSlotForVehicle(mysqli $db, array $vehicle, array $slot): v
 
 /** Sticker issuance calls this inside its transaction, never a nested transaction. */
 function allocateStickerVehicleSlot(mysqli $db, int $vehicleId): int {
-    $find = $db->prepare("SELECT v.*, u.unit_number FROM vehicles v JOIN users u ON u.id = v.user_id WHERE v.id = ? AND v.status = 'approved' FOR UPDATE");
+    $find = $db->prepare("SELECT v.*, u.unit_number FROM vehicles v JOIN users u ON u.id = v.user_id WHERE v.id = ? AND v.status = 'approved' AND v.authorization_revoked_at IS NULL AND u.is_active=1 AND u.archived_at IS NULL FOR UPDATE");
     $find->bind_param('i', $vehicleId); $find->execute();
     $vehicle = $find->get_result()->fetch_assoc();
     if (!$vehicle || !(residentContext($db, (int)$vehicle['user_id'])['approved'] ?? false)) throw new RuntimeException('The vehicle resident is no longer approved.');
@@ -131,7 +131,7 @@ function reassignParkingRequestSlot(int $requestId, int $slotId): bool {
             $release->bind_param('i', $oldId);
             if (!$release->execute()) throw new RuntimeException('Could not release the old resident slot.');
             $plate = normalizePlateNumber($request['vehicle_plate']);
-            $registered = $db->prepare("SELECT v.*, u.unit_number FROM vehicles v JOIN users u ON u.id = v.user_id WHERE v.user_id = ? AND v.normalized_plate = ? AND v.status = 'approved' FOR UPDATE");
+            $registered = $db->prepare("SELECT v.*, u.unit_number FROM vehicles v JOIN users u ON u.id = v.user_id WHERE v.user_id = ? AND v.normalized_plate = ? AND v.status = 'approved' AND v.authorization_revoked_at IS NULL AND u.is_active=1 AND u.archived_at IS NULL FOR UPDATE");
             $registered->bind_param('is', $request['user_id'], $plate); $registered->execute(); $vehicle = $registered->get_result()->fetch_assoc();
             if ($vehicle) {
                 if (!empty($vehicle['parking_slot_id']) && (int)$vehicle['parking_slot_id'] !== $oldId) throw new RuntimeException('The vehicle assignment changed.');

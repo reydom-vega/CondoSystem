@@ -51,12 +51,12 @@ function vehicleViolationRecord(mysqli $db, string $source, int $id, bool $lock 
         $sql = "SELECT v.id, v.user_id AS account_id, v.plate_number AS plate, v.make, v.model, v.color, v.year,
             v.status AS registration_status, u.full_name AS account_name, u.unit_number, u.account_type,
             ps.id AS parking_slot_id, ps.slot_code, ps.level, ps.status AS slot_status,
-            sv.sticker_number, o.claim_status AS sticker_status, p.status AS sticker_payment_status
+            sv.sticker_number, o.claim_status AS sticker_status, p.status AS sticker_payment_status, sv.revoked_at AS sticker_revoked_at
             FROM vehicles v JOIN users u ON u.id=v.user_id
             LEFT JOIN parking_slots ps ON ps.id=v.parking_slot_id
             LEFT JOIN parking_sticker_vehicles sv ON sv.vehicle_id=v.id
             LEFT JOIN parking_sticker_orders o ON o.id=sv.order_id
-            LEFT JOIN payments p ON p.id=o.bill_payment_id WHERE v.id=?";
+            LEFT JOIN payments p ON p.id=o.bill_payment_id WHERE v.id=? AND v.authorization_revoked_at IS NULL AND u.is_active=1 AND u.archived_at IS NULL";
     } elseif ($source === 'visitor') {
         $sql = "SELECT pr.id, pr.user_id AS account_id, pr.vehicle_plate AS plate, pr.vehicle_description,
             pr.visitor_registration_id, pr.status AS parking_status, pr.start_date, pr.end_date,
@@ -96,7 +96,7 @@ function searchViolationVehicles(mysqli $db, string $mode, string $query): array
     // Prefix suggestions use the normalized-plate and unique slot-code indexes.
     $pattern = addcslashes($needle, '%_\\') . '%';
     $queries = $mode === 'plate' ? [
-        'registered'=>"SELECT id FROM vehicles WHERE normalized_plate LIKE ? ORDER BY (status='approved') DESC, id DESC LIMIT 21",
+        'registered'=>"SELECT id FROM vehicles WHERE authorization_revoked_at IS NULL AND normalized_plate LIKE ? AND EXISTS(SELECT 1 FROM users u WHERE u.id=vehicles.user_id AND u.is_active=1 AND u.archived_at IS NULL) ORDER BY (status='approved') DESC, id DESC LIMIT 21",
         'visitor'=>"SELECT id FROM parking_requests WHERE lookup_plate LIKE ? AND request_type='visitor' ORDER BY (status='approved' AND start_date<=CURRENT_DATE() AND COALESCE(end_date,start_date)>=CURRENT_DATE()) DESC, id DESC LIMIT 21",
         'parking'=>"SELECT id FROM parking_slots WHERE lookup_plate LIKE ? ORDER BY id LIMIT 21",
     ] : [

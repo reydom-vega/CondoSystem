@@ -49,8 +49,8 @@ try {
     $before=$calls; outboxCheck(processNotificationOutbox($db,10,$sender)['cancelled']===1 && $calls===$before,'paid bill reminder cancelled before provider call');
     $changed=fixtureJob($db,'changed-email'); $db->query("UPDATE users SET email='new@example.invalid' WHERE id=1");
     outboxCheck(processNotificationOutbox($db,10,$sender)['cancelled']===1 && $calls===$before,'old address notification cancelled');
-    $db->query("UPDATE users SET email='one@example.invalid',is_active=0 WHERE id=1"); fixtureJob($db,'inactive');
-    outboxCheck(processNotificationOutbox($db,10,$sender)['cancelled']===1 && $calls===$before,'inactive resident notice cancelled');
+    $db->query("UPDATE users SET email='one@example.invalid',is_active=0 WHERE id=1"); $inactiveJob=fixtureJob($db,'inactive');
+    outboxCheck(processNotificationOutbox($db,10,$sender)['claimed']===0 && $calls===$before && $db->query('SELECT status FROM notification_outbox WHERE id='.$inactiveJob)->fetch_assoc()['status']==='cancelled','inactive resident notice suppressed before queue delivery');
     $db->query('UPDATE users SET is_active=1 WHERE id=1');
     fixtureJob($db,'obsolete-approval','account_approved',0);
     $db->query("UPDATE users SET status='pending' WHERE id=1");

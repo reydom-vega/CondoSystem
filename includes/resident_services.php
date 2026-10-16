@@ -7,6 +7,7 @@ function ensureResidentServicesTables(mysqli $db): bool {
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,
         request_kind ENUM('visitor','permit') NOT NULL,
+        unit_number_snapshot VARCHAR(30) DEFAULT NULL,
         permit_type VARCHAR(30) DEFAULT NULL,
         visitor_name VARCHAR(120) DEFAULT NULL,
         visitor_contact VARCHAR(30) DEFAULT NULL,
@@ -63,7 +64,7 @@ function insertResidentServiceRequest(mysqli $db, int $userId, string $kind, arr
     if ($kind === 'permit' && !in_array($type, RESIDENT_PERMIT_TYPES, true)) {
         throw new InvalidArgumentException('Choose a supported permit type.');
     }
-    $owner = $db->prepare("SELECT id FROM users WHERE id = ? AND role = 'resident' AND status = 'approved' AND is_verified = 1 AND is_active = 1 AND unit_number IS NOT NULL AND unit_number <> ''");
+    $owner = $db->prepare("SELECT id FROM users WHERE id = ? AND role = 'resident' AND status = 'approved' AND is_verified = 1 AND is_active = 1 AND archived_at IS NULL AND unit_number IS NOT NULL AND unit_number <> '' FOR UPDATE");
     $owner->bind_param('i', $userId);
     $owner->execute();
     if (!$owner->get_result()->fetch_assoc()) throw new InvalidArgumentException('An approved resident account with an assigned unit is required.');
@@ -71,15 +72,15 @@ function insertResidentServiceRequest(mysqli $db, int $userId, string $kind, arr
     $idType = $identity['type'] ?? null; $last4 = $identity['last4'] ?? null;
     $document = $identity['name'] ?? null; $mime = $identity['mime'] ?? null;
     $uploadedAt = $kind === 'visitor' ? gmdate('Y-m-d H:i:s') : null;
-    $stmt = $db->prepare('INSERT INTO resident_service_requests (user_id, request_kind, permit_type, visitor_name, visitor_contact, visitor_count, details, start_date, end_date, access_token,id_type,id_number_last4,id_document_name,id_document_mime,id_uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-    $stmt->bind_param('issssisssssssss', $userId, $kind, $type, $name, $contact, $visitorCount, $details, $start, $end, $token, $idType, $last4, $document, $mime, $uploadedAt);
-    if (!$stmt->execute()) throw new RuntimeException('Could not save the request.');
+    $stmt = $db->prepare('INSERT INTO resident_service_requests (user_id, request_kind, permit_type, visitor_name, visitor_contact, visitor_count, details, start_date, end_date, access_token,id_type,id_number_last4,id_document_name,id_document_mime,id_uploaded_at,unit_number_snapshot) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,unit_number FROM users WHERE id=? AND is_active=1 AND archived_at IS NULL AND status="approved" AND is_verified=1');
+    $stmt->bind_param('issssisssssssssi', $userId, $kind, $type, $name, $contact, $visitorCount, $details, $start, $end, $token, $idType, $last4, $document, $mime, $uploadedAt, $userId);
+    if (!$stmt->execute() || $stmt->affected_rows!==1) throw new RuntimeException('Could not save the request. The account may no longer be active.');
     return (int)$db->insert_id;
 }
 
 function getResidentServiceRequests(mysqli $db, string $kind, ?int $userId = null): array {
     $itemCount = $kind === 'permit' ? ', (SELECT COUNT(*) FROM permit_items pi WHERE pi.request_id = r.id) AS item_count' : '';
-    $sql = 'SELECT r.*, u.full_name, u.unit_number' . $itemCount . ' FROM resident_service_requests r JOIN users u ON u.id = r.user_id WHERE r.request_kind = ?';
+    $sql = 'SELECT r.*, u.full_name, COALESCE(r.unit_number_snapshot,u.unit_number) AS unit_number' . $itemCount . ' FROM resident_service_requests r JOIN users u ON u.id = r.user_id WHERE r.request_kind = ?';
     if ($userId !== null) $sql .= ' AND r.user_id = ?';
     $stmt = $db->prepare($sql . ' ORDER BY r.created_at DESC, r.id DESC LIMIT 200');
     if ($userId !== null) $stmt->bind_param('si', $kind, $userId); else $stmt->bind_param('s', $kind);
@@ -98,7 +99,7 @@ function decideResidentServiceRequest(mysqli $db, int $id, string $status, strin
     if ($kind === 'denied') return false;
     if ($manageTransaction && !ensureParkingTables($db)) return false;
     $actor = (int)$_SESSION['user_id'];
-    $sql = "UPDATE resident_service_requests SET status = ?, admin_notes = ?, decided_by = ?, decided_at = NOW() WHERE id = ? AND status = 'pending' AND end_date >= CURDATE()";
+    $sql = "UPDATE resident_service_requests SET status = ?, admin_notes = ?, decided_by = ?, decided_at = NOW() WHERE id = ? AND status = 'pending' AND end_date >= CURDATE() AND EXISTS(SELECT 1 FROM users u WHERE u.id=resident_service_requests.user_id AND u.is_active=1 AND u.archived_at IS NULL)";
     if ($kind !== null) $sql .= " AND request_kind = 'visitor'";
     if($manageTransaction)$db->begin_transaction();
     try {
@@ -120,14 +121,18 @@ function residentServicePassUrl(array $request): string {
     return buildUrl('resident_service_pass.php?id=' . (int)$request['id'] . '&token=' . $request['access_token']);
 }
 
-function getResidentServicePass(mysqli $db, int $id, string $token): ?array {
+function getResidentServicePass(mysqli $db, int $id, string $token, bool $allowExit = false): ?array {
     if (!preg_match('/^[a-f0-9]{64}$/D', $token)) return null;
-    $stmt = $db->prepare("SELECT r.*, u.full_name, u.unit_number FROM resident_service_requests r JOIN users u ON u.id = r.user_id WHERE r.id = ? AND u.role = 'resident' AND u.status = 'approved' AND u.is_active = 1 AND u.is_verified = 1 AND u.unit_number IS NOT NULL AND u.unit_number <> ''");
+    $exit=$allowExit&&canAccess('security.gate')?" OR (r.request_kind='visitor' AND r.status='checked_in' AND EXISTS(SELECT 1 FROM visitor_logs v WHERE v.id=r.visitor_log_id AND v.status='checked_in' AND v.time_out IS NULL))":'';
+    $stmt = $db->prepare("SELECT r.*, u.full_name, COALESCE(r.unit_number_snapshot,u.unit_number) AS unit_number FROM resident_service_requests r JOIN users u ON u.id = r.user_id WHERE r.id = ? AND u.role = 'resident' AND ((u.status = 'approved' AND u.is_active = 1 AND u.archived_at IS NULL AND u.is_verified = 1 AND u.unit_number IS NOT NULL AND u.unit_number <> '')$exit)");
     $stmt->bind_param('i', $id);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     if ($row && !empty($row['gate_data'])) return gateVerifyToken($db, $id, $token);
-    return $row && (residentContext($db,(int)$row['user_id'])['approved'] ?? false) && hash_equals($row['access_token'], $token) ? $row : null;
+    if(!$row||!hash_equals($row['access_token'],$token))return null;
+    if(accountOccupiesUnit($db,(int)$row['user_id'],$row['unit_number']) && accountHasUnitEntitlement($db,(int)$row['user_id'],$row['unit_number']) && residentUserHasPermission($db,(int)$row['user_id'],$row['request_kind']==='visitor'?'resident.visitors.register':'resident.permits.request'))return $row;
+    if($exit!==''&&$row['request_kind']==='visitor'&&$row['status']==='checked_in'){$row['exit_only']=true;return $row;}
+    return null;
 }
 
 function checkInRegisteredVisitor(mysqli $db, int $id, string $token, bool $vehicleConfirmed=false): bool {

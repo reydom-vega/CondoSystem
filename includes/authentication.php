@@ -26,14 +26,14 @@ function authenticateCredentials(mysqli $db, string $identifier, string $passwor
     if (!allowAuthenticationRequest($db, 'login')) return null;
     $db->begin_transaction();
     try {
-        $stmt = $db->prepare('SELECT id, username, email, unit_number, password_hash, failed_login_attempts, locked_until, is_verified, is_active, session_version, role FROM users WHERE username = ? OR email = ? LIMIT 1 FOR UPDATE');
+        $stmt = $db->prepare('SELECT id, username, email, unit_number, password_hash, failed_login_attempts, locked_until, is_verified, is_active, archived_at, session_version, role FROM users WHERE username = ? OR email = ? LIMIT 1 FOR UPDATE');
         $stmt->bind_param('ss', $identifier, $identifier);
         $stmt->execute();
         $user = $stmt->get_result()->fetch_assoc();
         $validPassword = password_verify($password, $user['password_hash'] ?? '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi');
         if (!$user) { $db->rollback(); return null; }
         $locked = !empty($user['locked_until']) && strtotime($user['locked_until']) > time();
-        if ($locked || (int)$user['is_active'] !== 1 || (int)$user['is_verified'] !== 1) { $db->rollback(); return null; }
+        if ($locked || (int)$user['is_active'] !== 1 || (int)$user['is_verified'] !== 1 || $user['archived_at']!==null) { $db->rollback(); return null; }
         if (!$validPassword) {
             $attempts = !empty($user['locked_until']) ? 1 : (int)$user['failed_login_attempts'] + 1;
             $until = $attempts >= 5 ? date('Y-m-d H:i:s', time() + 15 * 60) : null;
@@ -65,7 +65,7 @@ function passwordResetDigest(string $token): string {
 function issuePasswordResetToken(mysqli $db, int $userId): string {
     $token = bin2hex(random_bytes(32));
     $digest = passwordResetDigest($token);
-    $stmt = $db->prepare('UPDATE users SET reset_token = ?, reset_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ? AND is_active = 1');
+    $stmt = $db->prepare('UPDATE users SET reset_token = ?, reset_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ? AND is_active = 1 AND archived_at IS NULL');
     $stmt->bind_param('si', $digest, $userId);
     $stmt->execute();
     if ($stmt->affected_rows !== 1) throw new RuntimeException('This account cannot request a password reset.');
@@ -75,7 +75,7 @@ function issuePasswordResetToken(mysqli $db, int $userId): string {
 function findPasswordResetUser(mysqli $db, string $token): ?array {
     if (!preg_match('/\A[a-f0-9]{64}\z/', $token)) return null;
     $digest = passwordResetDigest($token);
-    $stmt = $db->prepare('SELECT id FROM users WHERE reset_token = ? AND reset_expires > NOW() AND is_active = 1 LIMIT 1');
+    $stmt = $db->prepare('SELECT id FROM users WHERE reset_token = ? AND reset_expires > NOW() AND is_active = 1 AND archived_at IS NULL LIMIT 1');
     $stmt->bind_param('s', $digest);
     $stmt->execute();
     return $stmt->get_result()->fetch_assoc() ?: null;
@@ -87,7 +87,7 @@ function completePasswordReset(mysqli $db, string $token, string $password): boo
     $db->begin_transaction();
     try {
         $digest = passwordResetDigest($token);
-        $stmt = $db->prepare('SELECT id FROM users WHERE reset_token = ? AND reset_expires > NOW() AND is_active = 1 LIMIT 1 FOR UPDATE');
+        $stmt = $db->prepare('SELECT id FROM users WHERE reset_token = ? AND reset_expires > NOW() AND is_active = 1 AND archived_at IS NULL LIMIT 1 FOR UPDATE');
         $stmt->bind_param('s', $digest);
         $stmt->execute();
         $user = $stmt->get_result()->fetch_assoc();

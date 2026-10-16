@@ -1,6 +1,7 @@
 <?php
 require_once '../config.php';
 require_once __DIR__.'/../includes/resident_accounts.php';
+require_once __DIR__.'/../includes/archive_ui.php';
 
 if (!isLoggedIn()) {
     redirect('../login.php');
@@ -16,15 +17,11 @@ $residents = [];
 
 $connection = connectDb();
 if ($_SERVER['REQUEST_METHOD']==='POST') {
-    requireWorkflowCsrf(); requireCapability('units.manage');
-    $targetId=(int)($_POST['resident_id'] ?? 0);
-    $target=residentContext($connection,$targetId);
-    $ended=($_POST['action'] ?? '')==='end_tenancy' && $target && in_array($target['account_kind'],['tenant','occupant'],true) && unassignResidentUnit($connection,$targetId,(string)($_POST['unit_number'] ?? ''));
-    setFlash($ended ? 'success' : 'error',$ended ? 'Occupant access ended. Their sessions and unopened requests were revoked; financial history was retained.' : 'Could not end that occupancy. Refresh the resident list and try again.');
-    redirect('residents.php');
+    requireWorkflowCsrf();requireCapability('archive.manage');
+    setFlash('error','Use End Occupancy or End Account Relationship to review the impact and confirm an archive reason.');redirect('residents.php');
 }
 $flash=getFlash();
-$result = $connection->query("SELECT id,resident_id, account_type, unit_owner_id, full_name, username, email, contact_number, unit_number, status, is_active, is_verified, last_login_at, last_seen_at, created_at FROM users WHERE role = 'resident' ORDER BY full_name ASC");
+$result = $connection->query("SELECT id,resident_id, account_type, unit_owner_id, full_name, username, email, contact_number, unit_number, status, is_active, is_verified, last_login_at, last_seen_at, created_at FROM users WHERE role = 'resident' AND is_active=1 AND archived_at IS NULL ORDER BY full_name ASC");
 if ($result) {
     while ($resident = $result->fetch_assoc()) {
         $haystack = strtolower(implode(' ', [$resident['full_name'], $resident['username'], $resident['email'], $resident['unit_number'] ?? '', $resident['contact_number']]));
@@ -44,7 +41,7 @@ if ($result) {
 
         $residents[] = [
             'id'=>(int)$resident['id'], 'account_kind'=>$context['account_kind'],
-            'relationship'=>$resident['account_type'] ?: 'Unit Owner (legacy)',
+            'relationship'=>($resident['account_type'] ?: 'Unit Owner (legacy)').($context['account_kind']==='owner'&&!$context['occupying']?' ? non-occupying owner; ownership retained':''),
             'owner_id'=>$context['account_kind']==='owner' ? null : $resident['unit_owner_id'],
             'can_end'=>$resident['status']==='approved' && in_array($context['account_kind'],['tenant','occupant'],true) && trim((string)$resident['unit_number'])!=='',
             'resident_id' => trim((string)($resident['unit_number'] ?? '')) !== '' ? $resident['unit_number'] : 'Unassigned',
@@ -101,7 +98,7 @@ $pendingCount = count($residents) - $activeCount;
             </header>
 
             <section class="unit-page-head">
-                <div><h2>Residents</h2><p>Review unit owners and linked tenants or occupants. End an occupant's access here; use Units to remove an owner and all linked occupants.</p></div>
+                <div><h2>Residents</h2><p>Review unit owners and linked tenants or occupants. Super Admin can end a selected relationship here. Mark Vacant in Units ends physical occupancy while preserving legal ownership.</p></div>
                 <div class="unit-summary"><span><?php echo $activeCount; ?> Active</span><span><?php echo $pendingCount; ?> Pending</span></div>
             </section>
 
@@ -139,7 +136,7 @@ $pendingCount = count($residents) - $activeCount;
                                             <span class="unit-status <?php echo $presence['online'] ? 'online' : 'offline'; ?>"><?php echo htmlspecialchars($presence['label']); ?></span>
                                             <small class="staff-last-login"><?php echo htmlspecialchars($presence['detail']); ?></small>
                                         </td>
-                                        <td><?php if($resident['can_end'] && canAccess('units.manage')): ?><form method="post" onsubmit="return confirm('End this occupant access? Review any legacy bills first. Sessions and unopened requests will be revoked.');"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="end_tenancy"><input type="hidden" name="resident_id" value="<?php echo $resident['id']; ?>"><input type="hidden" name="unit_number" value="<?php echo htmlspecialchars($resident['unit'],ENT_QUOTES,'UTF-8'); ?>"><button class="service-btn service-btn-danger" type="submit">End occupancy</button></form><?php else: ?>—<?php endif; ?></td>
+                                        <td><?php if(canAccess('archive.manage') && ($resident['can_end'] || ($resident['account_kind']==='owner' && $resident['status']==='Active'))): ?><button class="service-btn service-btn-danger" type="button" data-archive-mode="<?= $resident['can_end']?'end_occupancy':'archive_account' ?>" data-archive-user="<?= (int)$resident['id'] ?>" data-archive-unit="<?= htmlspecialchars($resident['unit'],ENT_QUOTES,'UTF-8') ?>"><?= $resident['can_end']?'End occupancy':'End account relationship' ?></button><?php else: ?>?<?php endif; ?></td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php endif; ?>
@@ -160,5 +157,6 @@ $pendingCount = count($residents) - $activeCount;
         profileToggle.addEventListener('click', (event) => { event.stopPropagation(); const isOpen = profileMenu.classList.toggle('open'); profileToggle.setAttribute('aria-expanded', isOpen); });
         document.addEventListener('click', (event) => { if (!profileMenu.contains(event.target)) { profileMenu.classList.remove('open'); profileToggle.setAttribute('aria-expanded', 'false'); } });
     </script>
+<?php renderArchiveConfirmation(); ?>
 </body>
 </html>

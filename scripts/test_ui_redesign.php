@@ -141,6 +141,22 @@ try {
         $db->query("UPDATE users SET staff_id=CONCAT('STAFF-',LPAD(id,5,'0')) WHERE role<>'resident'");
         uiActor($db,4);$input=['type'=>'daily','period'=>date('Y-m-d',strtotime('-1 day')),'notes'=>jrNotes(['remarks'=>'Private filed notes']),'request_key'=>bin2hex(random_bytes(24)),'confirmed'=>'1'];$input['preview_hash']=jrPreview($db,$input)['preview_hash'];jrFile($db,$input);
     }
+    if(in_array('--archive-only',$argv,true)){
+        foreach([[9,'Former Owner','Resident Owner','0102',null,'resident'],[10,'Former Tenant','Tenant','0101',1,'resident'],[11,'Former Staff',null,null,null,'maintenance']] as [$id,$name,$kind,$unit,$owner,$role]) {
+            $s=$db->prepare("INSERT INTO users(id,username,full_name,email,password_hash,role,account_type,unit_number,unit_owner_id,is_active,is_verified,status,staff_id) VALUES(?,?,?,?,?,?,?,?,?,1,1,'approved',?)");$login='former'.$id;$email=$login.'@example.invalid';$staffId=$role==='resident'?null:'STAFF-'.str_pad((string)$id,5,'0',STR_PAD_LEFT);$s->bind_param('isssssssis',$id,$login,$name,$email,$hash,$role,$kind,$unit,$owner,$staffId);$s->execute();
+        }
+        ensureAccountArchiveSchema($db);
+        $db->query("INSERT INTO payments(user_id,amount,payment_method,status,due_date,unit_number_snapshot) VALUES(9,2750.50,'unbilled','pending',CURDATE(),'0102'),(10,1500.75,'unbilled','pending',CURDATE(),'0101')");
+        $db->query("INSERT INTO vehicles(user_id,make,model,color,year,plate_number,normalized_plate,or_cr_path,or_cr_mime,status,unit_number_snapshot) VALUES(9,'Toyota','Vios','White',2025,'ARC-999','ARC999','fixture.pdf','application/pdf','approved','0102')");
+        $db->query("INSERT INTO maintenance_requests(user_id,issue_type,description,location,status,unit_number_snapshot) VALUES(9,'Plumbing','Historical archived fixture work','Kitchen','in_progress','0102')");
+        uiActor($db,11);$input=['type'=>'daily','period'=>date('Y-m-d'),'notes'=>jrNotes(['remarks'=>'Preserved former staff report']),'request_key'=>bin2hex(random_bytes(24)),'confirmed'=>'1'];$input['preview_hash']=jrPreview($db,$input)['preview_hash'];jrFile($db,$input);
+        uiActor($db,6);$archiveEvents=[];
+        foreach([[9,'archive_account','0102'],[10,'end_occupancy','0101'],[11,'archive_staff','']] as [$id,$mode,$unit]) {
+            $input=['user_id'=>$id,'mode'=>$mode,'unit_number'=>$unit,'reason_code'=>'moved_out','reason'=>'Fictional departure for Archive UI tests','confirmed'=>'1','cancel_unused'=>'1','parking_cleared'=>'1','request_key'=>bin2hex(random_bytes(32))];$input['preview_hash']=archivePreview($db,$input)['preview_hash'];$archiveEvents[]=archiveApply($db,$input)['event_id'];
+        }
+        $manifest=[];foreach(['superadmin/archive.php','superadmin/archive.php?tab=tenants','superadmin/archive.php?tab=staff','superadmin/units.php','superadmin/residents.php','superadmin/staff.php?tab=information','superadmin/generate_bills.php','superadmin/parking.php','resident/visitors.php'] as $path)$manifest[]=['path'=>$path,'actor'=>str_starts_with($path,'resident/')?1:6,'label'=>'Archive workflow'];
+        foreach($archiveEvents as $event)$manifest[]=['path'=>'superadmin/archive.php?id='.$event,'actor'=>6,'label'=>'Archive history'];
+    }
     // An actual forbidden role route verifies the shared 403 screen.
     $add('superadmin/staff.php',5,'Access denied');
     $add('report_tracking.php',0,'Anonymous tracking');
@@ -160,6 +176,7 @@ try {
         $manifest[]=['path'=>'resident/payment_receipt.php?id='.$paidBill,'actor'=>1,'label'=>'Paid billing receipt PDF'];
         $manifest[]=['path'=>'resident/payment_receipt.php?id='.$paidParkingBill,'actor'=>1,'label'=>'Paid visitor parking receipt PDF'];
     }
+    if(in_array('--archive-only',$argv,true))$manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>!in_array($entry['label'],['Access denied','Anonymous tracking'],true)));
     if(in_array('--management-only',$argv,true))$manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>in_array($entry['path'],['admin/admin_dashboard.php','superadmin/admin_dashboard.php'],true)));
     putenv('CONDO_UI_MANIFEST='.json_encode($manifest,JSON_THROW_ON_ERROR));
     $log=tempnam(sys_get_temp_dir(),'condo-ui-http-');

@@ -35,7 +35,7 @@ function digitalIdRoleLabel(array $user): ?string {
 
 function digitalIdAccount(mysqli $db, int $id, bool $lock = false): ?array {
     $photo = profilePhotoSchemaReady($db) ? 'profile_photo' : 'NULL AS profile_photo';
-    $stmt = $db->prepare('SELECT '.$photo.',id,full_name,role,account_type,unit_number,unit_owner_id,staff_id,resident_id,created_at,is_active,is_verified,status,session_version FROM users WHERE id=?' . ($lock ? ' FOR UPDATE' : ''));
+    $stmt = $db->prepare('SELECT '.$photo.',id,full_name,role,account_type,unit_number,unit_owner_id,staff_id,resident_id,created_at,is_active,is_verified,archived_at,status,session_version FROM users WHERE id=?' . ($lock ? ' FOR UPDATE' : ''));
     $stmt->bind_param('i', $id); $stmt->execute();
     $user = $stmt->get_result()->fetch_assoc();
     if ($user && $user['role'] === 'resident') {
@@ -52,7 +52,7 @@ function digitalIdAccount(mysqli $db, int $id, bool $lock = false): ?array {
 
 function digitalIdAccountFailure(?array $user): ?string {
     if (!$user) return 'not_found';
-    if ((int)$user['is_active'] !== 1) return 'suspended';
+    if ((int)$user['is_active'] !== 1 || !empty($user['archived_at'])) return 'suspended';
     if ((int)$user['is_verified'] !== 1 || digitalIdRoleLabel($user) === null) return 'unauthorized';
     if ($user['role'] === 'resident') {
         if ($user['status'] !== 'approved' || !($user['_context']['approved'] ?? false)) return 'unauthorized';

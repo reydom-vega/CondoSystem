@@ -3,7 +3,7 @@ $management=$reportPortal==='management';$tracking=$reportPortal==='tracking';$l
 $title=$management?'Reports Management':($tracking?'Track Anonymous Report':'Community Reports');
 $profile=$logged?profileCurrent():null;
 $config=['endpoint'=>buildUrl('api/community_reports.php'),'csrf'=>workflowCsrfToken(),'portal'=>$reportPortal,'categories'=>reportCategories(),'statuses'=>REPORT_STATUSES,'limits'=>reportFileLimits(),'timezone'=>date_default_timezone_get(),'tracking_url'=>buildUrl('report_tracking.php')];
-if($management)$config['reviewers']=connectDb()->query("SELECT id,full_name FROM users WHERE role IN ('admin','superadmin') AND is_active=1 AND is_verified=1 AND status='approved'")->fetch_all(MYSQLI_ASSOC);
+if($management)$config['reviewers']=connectDb()->query("SELECT id,full_name FROM users WHERE role IN ('admin','superadmin') AND is_active=1 AND archived_at IS NULL AND is_verified=1 AND status='approved'")->fetch_all(MYSQLI_ASSOC);
 $e=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8');
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><?= $e($title) ?> | The Celandine</title><link rel="stylesheet" href="<?= $e(portalUiAssetUrl($management?'styles.css':'resident.css')) ?>"><link rel="stylesheet" href="<?= $e(portalUiAssetUrl('services.css')) ?>"><?php renderPortalUiHead(); ?><link rel="stylesheet" href="<?= $e(portalUiAssetUrl('assets/css/report-workspace.css')) ?>"><script type="application/json" id="reportConfig"><?= json_encode($config,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?></script><script defer src="<?= $e(portalUiAssetUrl('assets/js/report-workspace.js')) ?>"></script></head>

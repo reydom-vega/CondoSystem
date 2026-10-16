@@ -43,13 +43,13 @@ function anOverview(mysqli $db,array $p,array $sections): array {
     $m=[];foreach(['units'=>['total','occupied','vacant'],'financial'=>['collected','outstanding'],'parking'=>['active_visitors','active_vehicles'],'maintenance'=>['open']]as$section=>$keys)if(array_key_exists($section,$sections))foreach($keys as$key){$metric=anFindMetric($sections,$section,$key);if($metric)$m[]=array_merge($metric,['key'=>$section.'_'.$key]);else$m[]=anMetric($section.'_'.$key,ucfirst($section).' '.str_replace('_',' ',$key),null,'count','Section unavailable');}
     $role=anActor($db)['role'];$queues=[];
     foreach([
-        'Resident accounts'=>['users',"role='resident' AND status='pending'",'accounts.review','superadmin/pending_accounts.php',[]],
+        'Resident accounts'=>['users',"role='resident' AND status='pending' AND is_active=1 AND archived_at IS NULL",'accounts.review','superadmin/pending_accounts.php',[]],
         'Visitor registrations'=>['resident_service_requests',"request_kind='visitor' AND status='pending'",'visitors.review','superadmin/service_requests.php',['kind'=>'visitor']],
         'Permit registrations'=>['resident_service_requests',"request_kind='permit' AND status='pending'",'permits.review','superadmin/service_requests.php',['kind'=>'permit']],
         'Amenity bookings'=>['bookings',"status='pending'",'bookings.review','superadmin/bookingrequest.php',['status'=>'pending']],
         'Parking requests'=>['parking_requests',"status='pending'",'parking.review','superadmin/parking.php',['tab'=>'visitors']],
         'Parking extensions'=>['parking_extensions',"status='pending'",'parking.extensions.review','superadmin/parking.php',['tab'=>'extensions']],
-        'Vehicle registrations'=>['vehicles',"status='pending'",'vehicles.review','superadmin/registeredvehicles.php',[]]
+        'Vehicle registrations'=>['vehicles',"status='pending' AND authorization_revoked_at IS NULL AND EXISTS(SELECT 1 FROM users u WHERE u.id=vehicles.user_id AND u.is_active=1 AND u.archived_at IS NULL)",'vehicles.review','superadmin/registeredvehicles.php',[]]
     ]as$label=>[$table,$where,$capability,$route,$query])if(roleHasCapability($role,$capability))$queues[]=['label'=>$label,'value'=>anNumber($db,"SELECT COUNT(*) FROM $table WHERE $where"),'url'=>anLink($route,$query)];
     $m[]=anMetric('pending_approvals','Pending operational decisions',array_sum(array_column($queues,'value')),'count','Current live approval queues','Pending records across authorized listed queues. Linked requests can require more than one decision.');
     $failed=count(array_filter($sections,static fn($s)=>!$s['available']));$m[]=anMetric('retrieval','Unavailable analytics sections',$failed,'count','This retrieval','A failed query is unavailable, never silently converted to zero.');

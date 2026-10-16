@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') requireWorkflowCsrf();
 $tableReady = ensureMessagesTable($connection);
 $residents = [];
 
-$residentsResult = $connection->query("SELECT id, full_name, username, unit_number FROM users WHERE role = 'resident' AND unit_number IS NOT NULL AND TRIM(unit_number) <> '' ORDER BY full_name ASC");
+$residentsResult = $connection->query("SELECT id, full_name, username, unit_number FROM users WHERE role = 'resident' AND is_active=1 AND is_verified=1 AND archived_at IS NULL AND status='approved' AND unit_number IS NOT NULL AND TRIM(unit_number) <> '' ORDER BY full_name ASC");
 if ($residentsResult) {
     $residents = $residentsResult->fetch_all(MYSQLI_ASSOC);
 }
@@ -46,12 +46,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         @unlink(__DIR__ . '/../private_uploads/message_attachments/' . $attachment['path']);
     }
     if (empty($errors)) {
-        $insert = $connection->prepare("INSERT INTO messages (user_id, sender_role, body, attachment_path, attachment_name, attachment_mime, is_read) VALUES (?, 'admin', ?, ?, ?, ?, 0)");
+        $insert = $connection->prepare("INSERT INTO messages (user_id, sender_role, body, attachment_path, attachment_name, attachment_mime, is_read) SELECT ?, 'admin', ?, ?, ?, ?, 0 FROM users WHERE id=? AND role='resident' AND is_active=1 AND archived_at IS NULL AND is_verified=1 AND status='approved'");
         $attachmentPath = $attachment['path'] ?? null;
         $attachmentName = $attachment['name'] ?? null;
         $attachmentMime = $attachment['mime'] ?? null;
-        $insert->bind_param('issss', $selectedUserId, $reply, $attachmentPath, $attachmentName, $attachmentMime);
-        if ($insert->execute()) {
+        $insert->bind_param('issssi', $selectedUserId, $reply, $attachmentPath, $attachmentName, $attachmentMime, $selectedUserId);
+        if ($insert->execute() && $insert->affected_rows===1) {
             logAudit('send','message',(int)$connection->insert_id,'Management message sent.');
             // Redirect to GET to prevent duplicate messages on refresh (Post-Redirect-Get pattern)
             header('Location: admin_messages.php?user_id=' . $selectedUserId);

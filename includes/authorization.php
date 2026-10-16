@@ -5,6 +5,7 @@
  */
 function roleHasCapability(string $role, string $capability): bool {
     static $permissions = [
+        'archive.manage'=>['superadmin'],
         'resident.portal' => ['resident'],
         'resident.billing.view' => ['resident'], 'resident.billing.pay' => ['resident'],
         'resident.announcements.view' => ['resident'], 'resident.violations.view' => ['resident'],

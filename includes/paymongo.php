@@ -39,6 +39,8 @@ function ensureParkingStickerOrdersTable(mysqli $connection): bool {
         proof_submitted_at DATETIME DEFAULT NULL,
         issued_by INT DEFAULT NULL,
         issued_at DATETIME DEFAULT NULL,
+        authorization_revoked_at DATETIME(6) DEFAULT NULL,
+        authorization_revocation_reason VARCHAR(1000) DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         paid_at DATETIME DEFAULT NULL,
         INDEX (user_id),
@@ -135,7 +137,7 @@ function getParkingStickerClaims(mysqli $connection): array {
     }
     ensurePaymongoColumns($connection);
     ensureStickerVehicleLinks($connection);
-    $result = $connection->query("SELECT o.id, o.user_id, o.quantity, o.amount, o.created_at, o.claim_status, o.proof_file, o.proof_submitted_at, o.issued_at, p.status AS payment_status, p.payment_method, p.paymongo_payment_id, p.gateway_status, p.paid_at, u.full_name, u.username, u.email, u.unit_number FROM parking_sticker_orders o INNER JOIN payments p ON p.id = o.bill_payment_id INNER JOIN users u ON u.id = o.user_id ORDER BY (p.status = 'paid' AND o.claim_status <> 'issued') DESC, FIELD(p.status, 'pending', 'overdue', 'paid'), o.created_at DESC");
+    $result = $connection->query("SELECT o.id, o.user_id, o.quantity, o.amount, o.created_at, o.claim_status, o.proof_file, o.proof_submitted_at, o.issued_at, p.status AS payment_status, p.payment_method, p.paymongo_payment_id, p.gateway_status, p.paid_at, u.full_name, u.username, u.email, u.unit_number FROM parking_sticker_orders o INNER JOIN payments p ON p.id = o.bill_payment_id INNER JOIN users u ON u.id = o.user_id WHERE u.is_active=1 AND u.archived_at IS NULL AND o.authorization_revoked_at IS NULL ORDER BY (p.status = 'paid' AND o.claim_status <> 'issued') DESC, FIELD(p.status, 'pending', 'overdue', 'paid'), o.created_at DESC");
     $claims = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
     foreach ($claims as &$claim) {
         $claim['vehicles'] = getStickerVehicles($connection,(int)$claim['id']);
@@ -154,7 +156,7 @@ function markParkingStickerIssued(int $orderId, int $adminId, array $vehicleIds 
     ensureAuditLogTable($db);
     $db->begin_transaction();
     try {
-        $find = $db->prepare("SELECT o.*, p.status AS payment_status, p.amount AS payment_amount FROM parking_sticker_orders o JOIN payments p ON p.id=o.bill_payment_id AND p.user_id=o.user_id WHERE o.id=? FOR UPDATE");
+        $find = $db->prepare("SELECT o.*, p.status AS payment_status, p.amount AS payment_amount FROM parking_sticker_orders o JOIN payments p ON p.id=o.bill_payment_id AND p.user_id=o.user_id WHERE o.id=? AND o.authorization_revoked_at IS NULL FOR UPDATE");
         $find->bind_param('i',$orderId); $find->execute(); $order=$find->get_result()->fetch_assoc();
         if (!$order || $order['payment_status']!=='paid' || $order['status']==='cancelled'
             || (int)round((float)$order['amount']*100)!==(int)round((float)$order['payment_amount']*100)) { $db->rollback(); return false; }
@@ -169,7 +171,7 @@ function markParkingStickerIssued(int $orderId, int $adminId, array $vehicleIds 
         }
         if (count($vehicles)!==(int)$order['quantity']) { $db->rollback(); return false; }
         foreach ($vehicles as $index=>$vehicle) {
-            $check=$db->prepare("SELECT id,user_id FROM vehicles WHERE id=? AND status='approved' FOR UPDATE");
+            $check=$db->prepare("SELECT id,user_id FROM vehicles WHERE id=? AND status='approved' AND authorization_revoked_at IS NULL FOR UPDATE");
             $check->bind_param('i',$vehicle['id']); $check->execute();
             $registered=$check->get_result()->fetch_assoc();
             if (!$registered || !stickerVehicleBelongsToSponsor($db,$sponsorId,(int)$registered['user_id'],true)) { $db->rollback(); return false; }

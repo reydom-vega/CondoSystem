@@ -78,6 +78,12 @@ try {
     deploymentTestCheck($noMatch['status']===1, 'update does not silently create an account');
     deploymentTestCheck((int)$server->query("SELECT COUNT(*) AS total FROM audit_logs WHERE admin_name='CLI provisioning'")->fetch_assoc()['total']===2, 'CLI provisioning audits successful changes only');
 
+    $server->query("UPDATE users SET is_active=0,archived_at=UTC_TIMESTAMP(6) WHERE username='fixture_admin'");
+    $archivedBefore=$server->query("SELECT * FROM users WHERE username='fixture_admin'")->fetch_assoc();
+    $blocked=deploymentTestCli(['create_admin.php','fixture_admin','staff@example.invalid','--password-stdin','--update'],$password . "\n");
+    deploymentTestCheck($blocked['status']===1 && str_contains($blocked['error'],'Archive restoration'),'CLI provisioning cannot bypass archived account restoration');
+    deploymentTestCheck($server->query("SELECT * FROM users WHERE username='fixture_admin'")->fetch_assoc()===$archivedBefore,'Rejected archived provisioning preserves account and credential state');
+
     $server->query('ALTER TABLE qr_scan_logs ENGINE=MyISAM');
     $server->query('DELETE FROM app_schema_versions');
     $invalid = deploymentTestCli(['scripts/migrate.php','--apply']);

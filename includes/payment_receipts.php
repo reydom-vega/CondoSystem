@@ -1,7 +1,7 @@
 <?php
 /** One paid-bill data source for email receipts and the existing protected PDF. */
 function paymentReceiptData(mysqli $db, int $paymentId): ?array {
-    $find=$db->prepare("SELECT p.*,u.full_name,u.email,u.unit_number FROM payments p JOIN users u ON u.id=p.user_id WHERE p.id=? AND p.status='paid' LIMIT 1");
+    $find=$db->prepare("SELECT p.*,u.full_name,u.email,COALESCE(p.unit_number_snapshot,u.unit_number) AS unit_number FROM payments p JOIN users u ON u.id=p.user_id WHERE p.id=? AND p.status='paid' LIMIT 1");
     $find->bind_param('i',$paymentId);$find->execute();$receipt=$find->get_result()->fetch_assoc();
     if (!$receipt) return null;
     // No schema helpers here: enqueue runs inside the settlement transaction.

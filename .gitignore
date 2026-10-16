@@ -12,6 +12,7 @@ config.local.php
 !/migrations/2026_10_14_community_reports.sql
 !/migrations/2026_10_14_visitor_parking.sql
 !/migrations/2026_10_14_job_reports.sql
+!/migrations/2026_10_16_account_archive.sql
 *.bak
 *.zip
 

@@ -59,6 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 logAudit('bulk_generate', 'payment', 0, "Generated {$result['created']} bill(s) for period {$periodStart} to {$periodEnd}, due {$dueDate}. Skipped {$result['skipped']} resident(s) with an open bill.");
                 $success = "Generated {$result['created']} monthly bill(s). Skipped {$result['skipped']} resident(s) already billed for this period or unable to receive a bill. Earlier outstanding bills remain separately payable.";
+                if (!empty($result['review_required'])) $success .= ' '.count($result['review_required']).' owner account(s) require billing review; no automatic bill was created for them.';
                 if ($notify && !empty($result['bill_ids'])) {
                     $queuedCount = 0;
                     foreach ($result['bill_ids'] as $billId) {
@@ -115,7 +116,7 @@ if ($success !== '') {
 $success = $_SESSION['billing_success'] ?? '';
 unset($_SESSION['billing_success']);
 
-$residentsResult = $connection->query("SELECT id, full_name, unit_number FROM users WHERE role = 'resident' AND is_verified = 1 AND is_active=1 AND status='approved' AND (account_type IS NULL OR TRIM(account_type)='' OR LOWER(TRIM(account_type))='resident owner') ORDER BY unit_number ASC");
+$residentsResult = $connection->query("SELECT id, full_name, unit_number FROM users WHERE role = 'resident' AND is_verified = 1 AND is_active=1 AND archived_at IS NULL AND status='approved' AND (account_type IS NULL OR TRIM(account_type)='' OR LOWER(TRIM(account_type))='resident owner') ORDER BY unit_number ASC");
 $residents = $residentsResult ? $residentsResult->fetch_all(MYSQLI_ASSOC) : [];
 
 $billingToday = new DateTimeImmutable('today');
@@ -126,6 +127,7 @@ $defaultDueDate = $nextBillingMonth->setDate(
     min((int)$billingToday->format('d'), (int)$nextBillingMonth->format('t'))
 )->format('Y-m-d');
 $bulkChargeOptions = STANDARD_CHARGE_CATEGORIES;
+$ownershipReview = billingOwnershipReview($connection);
 $historySearch = trim($_GET['history_search'] ?? '');
 $historyStatus = $_GET['history_status'] ?? 'all';
 $allowedHistoryStatuses = ['all', 'pending', 'paid', 'overdue', 'rejected', 'rolled_forward'];
@@ -134,7 +136,7 @@ if (!in_array($historyStatus, $allowedHistoryStatuses, true)) {
 }
 
 $historyStmt = $connection->prepare("SELECT p.id, p.amount, p.status, p.due_date, p.created_at, p.billing_period_start, p.billing_period_end,
-    u.full_name, u.username, u.email, u.contact_number, u.unit_number,
+    u.full_name, u.username, u.email, u.contact_number, COALESCE(p.unit_number_snapshot,u.unit_number) AS unit_number,
     (SELECT GROUP_CONCAT(bi.category ORDER BY bi.id SEPARATOR ', ')
         FROM bill_items bi WHERE bi.payment_id = p.id) AS charge_summary
     FROM payments p
@@ -381,6 +383,7 @@ $billHistory = $historyStmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 <form method="post" action="generate_bills.php?tab=all" id="bulkGenerateForm">
                     <?php echo workflowCsrfField(); ?>
                     <input type="hidden" name="action" value="bulk_generate">
+                    <?php if($ownershipReview): ?><div class="alert error"><strong>Billing review required</strong><p>Automatic generation skips these accounts. Confirm ownership responsibility and itemize any approved unit charges before billing.</p><ul><?php foreach($ownershipReview as $review): ?><li><?= htmlspecialchars($review['full_name'].' / Unit '.$review['unit_number'].': '.$review['reason'],ENT_QUOTES,'UTF-8') ?></li><?php endforeach; ?></ul></div><?php endif; ?>
                     <div class="bill-form-grid">
                         <div class="field"><label>Due Date</label><input type="date" name="due_date" value="<?php echo $defaultDueDate; ?>" required></div>
                     </div>

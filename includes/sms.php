@@ -138,6 +138,7 @@ function sendSmsViaSemaphore(string $toDigits, string $message): array {
  * callers can decide whether to fall back to email or just log it.
  */
 function sendSms(string $to, string $message): array {
+    if(!accountRecipientEligible(connectDb(),$to,'sms'))return ['success'=>false,'provider'=>smsProvider(),'error'=>'Suppressed: recipient account is archived or disabled.','reference'=>null,'raw'=>null];
     $digits = normalizePhDigits($to);
     if ($digits === '') {
         return ['success' => false, 'provider' => smsProvider(), 'error' => 'No phone number on file.', 'reference' => null, 'raw' => null];

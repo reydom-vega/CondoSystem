@@ -101,7 +101,7 @@ if ($tableReady) {
             }
         }
     }
-    $sql = "SELECT m.*, u.full_name, u.username, u.unit_number FROM maintenance_requests m INNER JOIN users u ON u.id = m.user_id WHERE (? = '' OR u.full_name LIKE ? OR u.username LIKE ? OR u.unit_number LIKE ? OR m.issue_type LIKE ? OR CAST(m.id AS CHAR) LIKE ? OR CONCAT('MR-', LPAD(m.id, 5, '0')) LIKE ?) ORDER BY m.created_at DESC";
+    $sql = "SELECT m.*, IF(u.archived_at IS NULL,u.full_name,CONCAT(u.full_name,' (archived account)')) AS full_name, u.username, COALESCE(m.unit_number_snapshot,u.unit_number) AS unit_number FROM maintenance_requests m INNER JOIN users u ON u.id = m.user_id WHERE (? = '' OR u.full_name LIKE ? OR u.username LIKE ? OR u.unit_number LIKE ? OR m.issue_type LIKE ? OR CAST(m.id AS CHAR) LIKE ? OR CONCAT('MR-', LPAD(m.id, 5, '0')) LIKE ?) ORDER BY m.created_at DESC";
     $query = $connection->prepare($sql);
     $needle = '%' . $search . '%';
     $requestIdSearch = preg_match('/\AMR-(\d+)\z/i', $search, $idMatch) ? ltrim($idMatch[1], '0') : $search;

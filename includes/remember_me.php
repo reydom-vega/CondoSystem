@@ -62,7 +62,7 @@ function issueRememberToken(int $userId): void {
     $validatorHash = hash('sha256', $validator);
     $expiresAt = (new DateTime())->modify('+' . REMEMBER_DURATION_DAYS . ' days')->format('Y-m-d H:i:s');
 
-    $stmt = $connection->prepare('INSERT INTO remember_tokens (user_id, selector, validator_hash, expires_at, session_version) SELECT id, ?, ?, ?, session_version FROM users WHERE id = ? AND is_active = 1');
+    $stmt = $connection->prepare('INSERT INTO remember_tokens (user_id, selector, validator_hash, expires_at, session_version) SELECT id, ?, ?, ?, session_version FROM users WHERE id = ? AND is_active = 1 AND archived_at IS NULL');
     if (!$stmt) {
         error_log('Remember Me: Prepare failed: ' . $connection->error);
         return;
@@ -117,7 +117,7 @@ function attemptAutoLogin(): void {
         return;
     }
 
-    $stmt = $connection->prepare('SELECT rt.id, rt.user_id, rt.validator_hash, rt.expires_at, rt.session_version AS token_session_version, u.username, u.unit_number, u.role, u.is_verified, u.is_active, u.session_version, u.locked_until FROM remember_tokens rt INNER JOIN users u ON u.id = rt.user_id WHERE rt.selector = ? LIMIT 1');
+    $stmt = $connection->prepare('SELECT rt.id, rt.user_id, rt.validator_hash, rt.expires_at, rt.session_version AS token_session_version, u.username, u.unit_number, u.role, u.is_verified, u.is_active, u.archived_at, u.session_version, u.locked_until FROM remember_tokens rt INNER JOIN users u ON u.id = rt.user_id WHERE rt.selector = ? AND u.archived_at IS NULL LIMIT 1');
     if (!$stmt) {
         error_log('Remember Me: Prepare failed in auto-login: ' . $connection->error);
         return;

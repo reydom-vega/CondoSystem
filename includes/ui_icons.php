@@ -20,6 +20,7 @@ function systemSidebarIcon(string $name): string {
         'parking' => '<path d="M5 21V3h8a6 6 0 0 1 0 12H5"/><path d="M9 7v4h4a2 2 0 1 0 0-4z"/>',
         'clipboard-list' => '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5V3h6v1.5M10 10h5M10 14h5M10 18h5M7 10h.01M7 14h.01M7 18h.01"/>',
         'audit' => '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5V3h6v1.5M9 10h6M9 14h6M9 18h3"/>',
+        'archive' => '<rect x="3" y="3" width="18" height="4" rx="1"/><path d="M5 7v14h14V7M10 11h4"/>',
         'visitors' => '<circle cx="10" cy="8" r="4"/><path d="M3 21v-2a7 7 0 0 1 12-4.9M18 18l3 3M20 16a4 4 0 1 1-8 0 4 4 0 0 1 8 0z"/>',
         'credit-card' => '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3"/>',
         'users' => '<path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M20 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',

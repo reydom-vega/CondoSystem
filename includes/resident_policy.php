@@ -45,7 +45,7 @@ function ensureResidentAccountSchema(mysqli $db): bool {
 /** Always read identity, approved relationship and matching unit from storage. */
 function residentContext(mysqli $db,int $userId): ?array {
     if ($userId<1) return null;
-    $find=$db->prepare("SELECT id,role,account_type,unit_number,unit_owner_id,status,is_active,is_verified,session_version FROM users WHERE id=?");
+    $find=$db->prepare("SELECT id,role,account_type,unit_number,unit_owner_id,status,is_active,is_verified,archived_at,session_version FROM users WHERE id=?");
     $find->bind_param('i',$userId); $find->execute(); $row=$find->get_result()->fetch_assoc();
     if (!$row || $row['role']!=='resident') return null;
     $row['id']=(int)$row['id'];
@@ -53,14 +53,16 @@ function residentContext(mysqli $db,int $userId): ?array {
     $row['unit_number']=normalizeUnitNumber($row['unit_number']);
     $row['unit_owner_id']=$row['account_kind']==='owner' ? $userId : ($row['unit_owner_id']===null ? null : (int)$row['unit_owner_id']);
     $row['billing_user_id']=null;
-    $row['approved']=(int)$row['is_active']===1 && (int)$row['is_verified']===1 && $row['status']==='approved' && $row['unit_number']!=='';
+    $row['approved']=(int)$row['is_active']===1 && (int)$row['is_verified']===1 && $row['archived_at']===null && $row['status']==='approved' && $row['unit_number']!=='' && accountHasUnitEntitlement($db,$userId,$row['unit_number']);
+    $row['occupying']=$row['approved'] && accountOccupiesUnit($db,$userId,$row['unit_number']);
     if ($row['account_kind']==='owner') {
         $row['billing_user_id']=$userId;
     } elseif(in_array($row['account_kind'],['tenant','occupant'],true)) {
         $ownerId=(int)$row['unit_owner_id'];
         if ($ownerId===$userId || $ownerId<1) { $row['approved']=false; return $row; }
         $find->bind_param('i',$ownerId); $find->execute(); $owner=$find->get_result()->fetch_assoc();
-        if (!$owner || $owner['role']!=='resident' || residentAccountKind($owner['account_type'])!=='owner' || $owner['status']!=='approved' || (int)$owner['is_active']!==1 || (int)$owner['is_verified']!==1 || normalizeUnitNumber($owner['unit_number'])!==$row['unit_number']) $row['approved']=false;
+        $ownerUnitMatches=$owner&&(normalizeUnitNumber($owner['unit_number'])===$row['unit_number']||lifecycleQuery($db,"SELECT id FROM account_unit_relationships WHERE user_id=? AND unit_number=? AND relationship_kind='owner' AND ended_at IS NULL",[$ownerId,$row['unit_number']])->get_result()->num_rows>0);
+        if (!$owner || $owner['role']!=='resident' || residentAccountKind($owner['account_type'])!=='owner' || $owner['status']!=='approved' || (int)$owner['is_active']!==1 || (int)$owner['is_verified']!==1 || $owner['archived_at']!==null || !$ownerUnitMatches) $row['approved']=false;
         else $row['billing_user_id']=$ownerId;
     } else $row['approved']=false;
     return $row;
@@ -69,8 +71,9 @@ function residentContext(mysqli $db,int $userId): ?array {
 function residentUserHasPermission(mysqli $db,int $userId,string $capability): bool {
     $context=residentContext($db,$userId);
     if (!$context) return false;
-    if ($capability==='resident.profile.edit') return (int)$context['is_active']===1 && (int)$context['is_verified']===1;
+    if ($capability==='resident.profile.edit') return (int)$context['is_active']===1 && (int)$context['is_verified']===1 && $context['archived_at']===null;
     if (!$context['approved']) return false;
+    if ($context['account_kind']==='owner' && !$context['occupying'] && !in_array($capability,['resident.portal','resident.profile.edit','resident.billing.view','resident.billing.pay','resident.announcements.view','resident.messages.use','resident.reports.use','resident.maintenance.request'],true)) return false;
     if ($capability==='resident.stickers.order' && $context['account_kind']==='tenant') return appSetting('CONDO_TENANT_PARKING','1')==='1';
     $permissions=[
         'resident.portal'=>null, 'resident.billing.view'=>null, 'resident.billing.pay'=>'owner',

@@ -65,7 +65,7 @@ try {
     mdCheck($admin['messages']['messages']===3&&$admin['messages']['conversations']===2,'Conversations are deduplicated while unread message total stays exact');
     mdCheck($admin['units']['occupied']===2&&$admin['units']['total']===count($inventory),'Occupancy uses distinct inventory units and approved active verified accounts');
     mdCheck($admin['units']['unassigned']===$admin['units']['total']-2&&$admin['units']['percent']===round(2/count($inventory)*100,1),'Inventory complement and non-integer percentage are accurate');
-    mdCheck($admin['residents']['total']===7&&$admin['residents']['approved']===4,'Resident accounts remain distinct from occupied units');
+    mdCheck($admin['residents']['total']===6&&$admin['residents']['approved']===4,'Active resident accounts exclude disabled identities and remain distinct from occupied units');
     mdCheck(count($admin['bookings'])===2&&array_column($admin['bookings'],'status')===['approved','confirmed'],'Upcoming bookings include today through sixth day, excluding pending/cancelled/history');
     mdCheck($admin['visitors']['inside']===5&&$admin['visitors']['visits']===2,'Visitor groups counted as people rather than registrations');
     mdCheck($admin['announcements']===1,'Expired and inactive announcements excluded');

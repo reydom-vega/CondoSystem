@@ -235,7 +235,7 @@ function ensureUserRoles(mysqli $connection): bool {
         return false;
     }
 
-    return true;
+    return ensureAccountArchiveSchema($connection);
 }
 
 function ensurePaymentsTable(mysqli $connection): bool {
@@ -244,6 +244,7 @@ function ensurePaymentsTable(mysqli $connection): bool {
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,
         amount DECIMAL(10, 2) NOT NULL,
+        unit_number_snapshot VARCHAR(30) DEFAULT NULL,
         payment_method VARCHAR(30) NOT NULL,
         status ENUM('pending', 'paid', 'overdue', 'rejected') NOT NULL DEFAULT 'pending',
         due_date DATE NOT NULL,
@@ -260,6 +261,7 @@ function ensureMaintenanceTable(mysqli $connection): bool {
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,
         issue_type VARCHAR(80) NOT NULL,
+        unit_number_snapshot VARCHAR(30) DEFAULT NULL,
         description TEXT NOT NULL,
         preferred_date DATE DEFAULT NULL,
         location VARCHAR(80) DEFAULT NULL,
@@ -436,6 +438,10 @@ function getNotifications(): array {
         $result = $connection->query($sql);
         return $result ? (int)($result->fetch_assoc()['total'] ?? 0) : 0;
     };
+    if($can('security.gate')) {
+        $review=$count("SELECT COUNT(*) total FROM resident_service_requests r JOIN users u ON u.id=r.user_id WHERE r.request_kind='visitor' AND r.status='checked_in' AND (u.is_active=0 OR u.archived_at IS NOT NULL OR (EXISTS(SELECT 1 FROM account_unit_relationships h WHERE h.user_id=u.id AND h.unit_number=COALESCE(r.unit_number_snapshot,u.unit_number) AND h.occupancy_ended_at IS NOT NULL) AND NOT EXISTS(SELECT 1 FROM account_unit_relationships h WHERE h.user_id=u.id AND h.unit_number=COALESCE(r.unit_number_snapshot,u.unit_number) AND h.ended_at IS NULL AND h.occupancy_ended_at IS NULL)))");
+        $add($review,'shield','Ended sponsor: visitor review','active visitor registrations require identity review and actual checkout.',$role==='security'?'security/scanner.php':'superadmin/visitorlog.php');
+    }
     if ($connection->query("SHOW TABLES LIKE 'community_reports'")->num_rows) {
         if ($can('reports.manage')) $add(reportUnreadCount($connection,$userId,true),'report','Community reports','private cases require review.','superadmin/reports.php');
         if ($role==='resident' && residentUserHasPermission($connection,$userId,'resident.reports.use')) $add(reportUnreadCount($connection,$userId,false),'report','Private report updates','your community reports have updates.','resident/reports.php');
@@ -575,12 +581,12 @@ function isLoggedIn(bool $checkExpiration = true): bool {
     }
 
     $connection = connectDb();
-    $stmt = $connection->prepare('SELECT is_active, is_verified, session_version, role, username, unit_number, account_type, unit_owner_id FROM users WHERE id = ? LIMIT 1');
+    $stmt = $connection->prepare('SELECT is_active, is_verified, archived_at, session_version, role, username, unit_number, account_type, unit_owner_id FROM users WHERE id = ? LIMIT 1');
     $userId = (int)$_SESSION['user_id'];
     $stmt->bind_param('i', $userId);
     $stmt->execute();
     $account = $stmt->get_result()->fetch_assoc();
-    if (!$account || (int)$account['is_active'] !== 1 || (int)$account['is_verified'] !== 1) {
+    if (!$account || (int)$account['is_active'] !== 1 || (int)$account['is_verified'] !== 1 || $account['archived_at'] !== null) {
         $_SESSION = [];
         session_regenerate_id(true);
         return false;
@@ -737,6 +743,7 @@ function getLastMailError(): ?string {
 }
 
 function sendMail(string $to, string $subject, string $message): bool {
+    if (!accountRecipientEligible(connectDb(),$to)) return false;
     unset($_SESSION['mail_error']);
 
     $mail = new PHPMailer(true);
@@ -1114,6 +1121,8 @@ require_once __DIR__ . '/includes/analytics_schema.php';
 require_once __DIR__ . '/includes/portal_ui.php';
 require_once __DIR__ . '/includes/authorization.php';
 require_once __DIR__ . '/includes/resident_policy.php';
+require_once __DIR__ . '/includes/account_lifecycle.php';
+require_once __DIR__ . '/includes/archive.php';
 require_once __DIR__ . '/includes/resident_navigation.php';
 require_once __DIR__ . '/includes/remember_me.php';
 require_once __DIR__ . '/includes/sms.php';

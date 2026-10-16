@@ -7,7 +7,8 @@ function ensureVehiclesTable(mysqli $db): bool {
         year SMALLINT NOT NULL, plate_number VARCHAR(20) NOT NULL, normalized_plate VARCHAR(20) NOT NULL,
         or_cr_path VARCHAR(255) NOT NULL, or_cr_mime VARCHAR(100) NOT NULL,
         vehicle_photo_path VARCHAR(255) DEFAULT NULL, photo_mime VARCHAR(100) DEFAULT NULL,
-        parking_slot_id INT DEFAULT NULL,
+        parking_slot_id INT DEFAULT NULL, unit_number_snapshot VARCHAR(30) DEFAULT NULL,
+        authorization_revoked_at DATETIME(6) DEFAULT NULL, authorization_revocation_reason VARCHAR(1000) DEFAULT NULL,
         status ENUM('pending','approved','rejected','inactive') NOT NULL DEFAULT 'pending',
         rejection_reason VARCHAR(255) DEFAULT NULL, decided_by INT DEFAULT NULL, decided_at DATETIME DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -20,7 +21,7 @@ function normalizePlateNumber(string $plate): string {
 }
 function hasVehiclePlateConflict(mysqli $db, string $plate, int $exceptId = 0): bool {
     $normalized = normalizePlateNumber($plate);
-    $stmt = $db->prepare("SELECT id FROM vehicles WHERE normalized_plate = ? AND id <> ? AND status IN ('pending','approved') LIMIT 1");
+    $stmt = $db->prepare("SELECT id FROM vehicles WHERE normalized_plate = ? AND id <> ? AND authorization_revoked_at IS NULL AND status IN ('pending','approved') LIMIT 1");
     $stmt->bind_param('si', $normalized, $exceptId); $stmt->execute();
     return $stmt->get_result()->num_rows > 0;
 }
@@ -51,36 +52,41 @@ function createVehicle(mysqli $db, int $userId, string $make, string $model, str
     $lockName = 'vehicle:' . sha1($normalized);
     $lock = $db->prepare('SELECT GET_LOCK(?,5) AS acquired'); $lock->bind_param('s',$lockName); $lock->execute();
     if ((int)$lock->get_result()->fetch_assoc()['acquired'] !== 1) throw new InvalidArgumentException('Vehicle registration is busy. Please try again.');
+    $db->begin_transaction();
     try {
-        $owner = $db->prepare("SELECT id FROM users WHERE id = ? AND role = 'resident' AND status = 'approved' AND is_active = 1");
+        $owner = $db->prepare("SELECT id FROM users WHERE id = ? AND role = 'resident' AND status = 'approved' AND is_active = 1 AND archived_at IS NULL FOR UPDATE");
         $owner->bind_param('i',$userId); $owner->execute();
-        if (!$owner->get_result()->fetch_assoc()) throw new InvalidArgumentException('An approved resident account is required.');
+        if (!$owner->get_result()->fetch_assoc() || !residentUserHasPermission($db,$userId,'resident.vehicles.register')) throw new InvalidArgumentException('An approved resident account is required.');
         if (hasVehiclePlateConflict($db,$plate)) throw new InvalidArgumentException('This plate already has a pending or approved registration.');
         $stmt = $db->prepare('INSERT INTO vehicles (user_id,make,model,color,year,plate_number,normalized_plate,or_cr_path,or_cr_mime,vehicle_photo_path,photo_mime) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
         $stmt->bind_param('isssissssss',$userId,$make,$model,$color,$year,$plate,$normalized,$orCr,$orCrMime,$photo,$photoMime);
         if (!$stmt->execute()) throw new RuntimeException('Could not register the vehicle.');
-        return (int)$db->insert_id;
-    } finally { $release=$db->prepare('SELECT RELEASE_LOCK(?)'); $release->bind_param('s',$lockName); $release->execute(); }
+        $id=(int)$db->insert_id;
+        lifecycleQuery($db,'UPDATE vehicles v JOIN users u ON u.id=v.user_id SET v.unit_number_snapshot=u.unit_number WHERE v.id=?',[$id]);
+        $db->commit();return $id;
+    } catch(Throwable $error){$db->rollback();throw $error;}
+    finally { $release=$db->prepare('SELECT RELEASE_LOCK(?)'); $release->bind_param('s',$lockName); $release->execute(); }
 }
 function decideVehicle(mysqli $db, int $id, string $decision, string $notes): bool {
     if (!canReviewPermits() || !in_array($decision,['approved','rejected'],true) || strlen($notes)>255 || ($decision === 'rejected' && trim($notes) === '')) return false;
     $actor=(int)$_SESSION['user_id'];
-    $stmt=$db->prepare("UPDATE vehicles SET status=?, rejection_reason=?, decided_by=?, decided_at=NOW() WHERE id=? AND status='pending'");
+    $stmt=$db->prepare("UPDATE vehicles SET status=?, rejection_reason=?, decided_by=?, decided_at=NOW() WHERE id=? AND status='pending' AND authorization_revoked_at IS NULL AND EXISTS(SELECT 1 FROM users u WHERE u.id=vehicles.user_id AND u.is_active=1 AND u.archived_at IS NULL)");
     $stmt->bind_param('ssii',$decision,$notes,$actor,$id);
     return $stmt->execute() && $stmt->affected_rows===1;
 }
 function getVehiclesForResident(mysqli $db, int $userId): array {
-    $stmt=$db->prepare('SELECT v.*, u.full_name, u.unit_number FROM vehicles v JOIN users u ON u.id=v.user_id WHERE v.user_id=? ORDER BY v.created_at DESC,v.id DESC');
+    $stmt=$db->prepare('SELECT v.*, u.full_name, COALESCE(v.unit_number_snapshot,u.unit_number) AS unit_number FROM vehicles v JOIN users u ON u.id=v.user_id WHERE v.user_id=? AND v.authorization_revoked_at IS NULL AND u.is_active=1 AND u.archived_at IS NULL ORDER BY v.created_at DESC,v.id DESC');
     $stmt->bind_param('i',$userId); $stmt->execute(); return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 function getAllVehicles(mysqli $db): array {
-    return $db->query('SELECT v.*, u.full_name, u.unit_number FROM vehicles v JOIN users u ON u.id=v.user_id ORDER BY v.created_at DESC,v.id DESC')->fetch_all(MYSQLI_ASSOC);
+    return $db->query('SELECT v.*, u.full_name, COALESCE(v.unit_number_snapshot,u.unit_number) AS unit_number FROM vehicles v JOIN users u ON u.id=v.user_id WHERE v.authorization_revoked_at IS NULL AND u.is_active=1 AND u.archived_at IS NULL ORDER BY v.created_at DESC,v.id DESC')->fetch_all(MYSQLI_ASSOC);
 }
 function ensureStickerVehicleLinks(mysqli $db): bool {
     if (!schemaMutationAllowed()) return true;
     return ensureVehiclesTable($db) && ensureParkingStickerOrdersTable($db) && $db->query("CREATE TABLE IF NOT EXISTS parking_sticker_vehicles (
         id INT AUTO_INCREMENT PRIMARY KEY, order_id INT NOT NULL, vehicle_id INT NOT NULL,
         sticker_number VARCHAR(40) DEFAULT NULL UNIQUE,
+        revoked_at DATETIME(6) DEFAULT NULL, revocation_reason VARCHAR(1000) DEFAULT NULL,
         UNIQUE KEY ux_sticker_vehicle(vehicle_id), INDEX(order_id),
         FOREIGN KEY(order_id) REFERENCES parking_sticker_orders(id) ON DELETE CASCADE,
         FOREIGN KEY(vehicle_id) REFERENCES vehicles(id) ON DELETE RESTRICT
@@ -109,14 +115,14 @@ function stickerVehicleBelongsToSponsor(mysqli $db, int $sponsorId, int $vehicle
     if ($sponsorId<1 || $vehicleUserId<1) return false;
     if (!$lock) return in_array($vehicleUserId,stickerSponsorUserIds($db,$sponsorId),true);
     $ids=array_values(array_unique([$sponsorId,$vehicleUserId])); sort($ids);
-    $rows=$db->query('SELECT id,role,account_type,unit_number,unit_owner_id,status,is_active,is_verified FROM users WHERE id IN (' . implode(',',$ids) . ') ORDER BY id FOR UPDATE')->fetch_all(MYSQLI_ASSOC);
+    $rows=$db->query('SELECT id,role,account_type,unit_number,unit_owner_id,status,is_active,is_verified,archived_at FROM users WHERE id IN (' . implode(',',$ids) . ') ORDER BY id FOR UPDATE')->fetch_all(MYSQLI_ASSOC);
     $accounts=[]; foreach ($rows as $row) $accounts[(int)$row['id']]=$row;
     $owner=$accounts[$sponsorId] ?? null; $vehicleOwner=$accounts[$vehicleUserId] ?? null;
-    $approved=static fn(?array $account): bool => $account && $account['role']==='resident' && $account['status']==='approved' && (int)$account['is_active']===1 && (int)$account['is_verified']===1 && normalizeUnitNumber($account['unit_number'])!=='';
+    $approved=static fn(?array $account): bool => $account && $account['role']==='resident' && $account['status']==='approved' && (int)$account['is_active']===1 && $account['archived_at']===null && (int)$account['is_verified']===1 && normalizeUnitNumber($account['unit_number'])!=='';
     if (!$approved($owner) || !$approved($vehicleOwner)) return false;
     if (residentAccountKind($owner['account_type'])==='tenant') {
         if ($sponsorId!==$vehicleUserId) return false;
-        $linked=$db->prepare('SELECT id,role,account_type,unit_number,unit_owner_id,status,is_active,is_verified FROM users WHERE id=? FOR UPDATE');
+        $linked=$db->prepare('SELECT id,role,account_type,unit_number,unit_owner_id,status,is_active,is_verified,archived_at FROM users WHERE id=? FOR UPDATE');
         $linked->bind_param('i',$owner['unit_owner_id']); $linked->execute(); $unitOwner=$linked->get_result()->fetch_assoc();
         return $approved($unitOwner) && residentAccountKind($unitOwner['account_type'])==='owner' && normalizeUnitNumber($unitOwner['unit_number'])===normalizeUnitNumber($owner['unit_number']);
     }
@@ -130,7 +136,7 @@ function stickerVehicleBelongsToSponsor(mysqli $db, int $sponsorId, int $vehicle
 function getEligibleStickerVehicles(mysqli $db, int $userId): array {
     $users=stickerSponsorUserIds($db,$userId);
     if (!$users) return [];
-    return $db->query("SELECT v.id,v.user_id,v.make,v.model,v.color,v.year,v.plate_number,v.status FROM vehicles v LEFT JOIN parking_sticker_vehicles sv ON sv.vehicle_id=v.id WHERE v.user_id IN (" . implode(',',$users) . ") AND v.status='approved' AND sv.id IS NULL ORDER BY v.plate_number")->fetch_all(MYSQLI_ASSOC);
+    return $db->query("SELECT v.id,v.user_id,v.make,v.model,v.color,v.year,v.plate_number,v.status FROM vehicles v LEFT JOIN parking_sticker_vehicles sv ON sv.vehicle_id=v.id WHERE v.user_id IN (" . implode(',',$users) . ") AND v.status='approved' AND v.authorization_revoked_at IS NULL AND sv.id IS NULL ORDER BY v.plate_number")->fetch_all(MYSQLI_ASSOC);
 }
 /** Must run within the order transaction; vehicle rows and a unique key serialize allocation. */
 function linkStickerVehicles(mysqli $db, int $orderId, int $userId, int $quantity, array $vehicleIds): bool {
@@ -144,7 +150,7 @@ function linkStickerVehicles(mysqli $db, int $orderId, int $userId, int $quantit
     // Management can bind their vehicles using the current approved unit owner.
     if ((int)$order['user_id']!==$userId && (!canReviewPermits() || $order['payment_status']!=='paid')) return false;
     foreach ($ids as $vehicleId) {
-        $vehicle=$db->prepare("SELECT id,user_id FROM vehicles WHERE id=? AND status='approved' FOR UPDATE");
+        $vehicle=$db->prepare("SELECT id,user_id FROM vehicles WHERE id=? AND status='approved' AND authorization_revoked_at IS NULL FOR UPDATE");
         $vehicle->bind_param('i',$vehicleId); $vehicle->execute(); $registered=$vehicle->get_result()->fetch_assoc();
         if (!$registered || !stickerVehicleBelongsToSponsor($db,$userId,(int)$registered['user_id'],true)) return false;
         $existing=$db->prepare('SELECT id FROM parking_sticker_vehicles WHERE vehicle_id=?');

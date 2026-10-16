@@ -7,7 +7,7 @@ if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 if (($argv[1] ?? '') === '--render') {
     if (!preg_match('/^condo_tenant_test_[a-f0-9]{12}$/D', getenv('CONDO_DB_NAME') ?: '')) exit(1);
     $page = $argv[2] ?? '';
-    $allowed = ['signup.php', 'signuppending.php', 'parking_pass.php', 'parking_sticker_proof.php', 'resident/dashboard.php', 'resident/payments.php', 'resident/parking.php', 'resident/permits.php', 'resident/visitors.php', 'resident/book_amenity.php', 'resident/vehicles.php', 'resident/maintenance.php', 'resident/messages.php', 'resident/announcements.php', 'resident/residentviolation.php', 'resident/payment_return.php', 'superadmin/residents.php', 'superadmin/units.php', 'superadmin/pending_accounts.php', 'api/dashboard.php', 'api/messages.php'];
+    $allowed = ['signup.php', 'signuppending.php', 'parking_pass.php', 'parking_sticker_proof.php', 'resident/dashboard.php', 'resident/payments.php', 'resident/parking.php', 'resident/permits.php', 'resident/visitors.php', 'resident/book_amenity.php', 'resident/vehicles.php', 'resident/maintenance.php', 'resident/messages.php', 'resident/announcements.php', 'resident/residentviolation.php', 'resident/payment_return.php', 'superadmin/admin_messages.php', 'api/admin_messages.php', 'superadmin/residents.php', 'superadmin/units.php', 'superadmin/pending_accounts.php', 'api/dashboard.php', 'api/messages.php'];
     if (!in_array($page, $allowed, true)) exit(1);
     $request = json_decode($argv[3] ?? '{}', true, 512, JSON_THROW_ON_ERROR);
     $_SERVER['PHP_SELF'] = $_SERVER['SCRIPT_NAME'] = '/CondoSystem3/' . $page;
@@ -115,6 +115,7 @@ try {
     ensureResidentServicesTables($db); ensureParkingTables($db); ensureVisitorLogsTable($db); ensureVisitorLogColumns($db);
     ensureVehiclesTable($db); ensureStickerVehicleLinks($db); ensureAmenityBookingSchema($db); ensureMaintenanceTable($db);
     ensureMessagesTable($db); ensureAnnouncementsTable($db); ensureViolationsTable($db); ensureRememberTokensTable($db);
+    ensurePhoneVerificationColumns($db); ensureQrScanHistorySchema($db); ensureVisitorParkingFeeSchema($db); ensureCommunityReportSchema($db); ensureJobReportSchema($db); ensureDigitalIdSchema($db); ensureAccountArchiveSchema($db);
 
     $owner = residentContext($db, 1); $tenant = residentContext($db, 2); $legacy = residentContext($db, 5);
     foreach ([1 => 'Unit Owner', 2 => 'Tenant', 5 => 'Unit Owner', 14 => 'Resident'] as $accountId => $badgeLabel) {
@@ -156,6 +157,13 @@ try {
         tenantActor($db,1); tenantCheck(residentHasPermission($permission), 'tenant configuration preserves owner ' . $permission);
         tenantActor($db,2); putenv('CONDO_TENANT_' . $setting . '=1');
     }
+    $messagePost=tenantRequest('resident/messages.php',2,['reply'=>'Active tenant message fixture']);
+    tenantCheck($messagePost['status']===302 && $db->query("SELECT COUNT(*) n FROM messages WHERE user_id=2 AND body='Active tenant message fixture'")->fetch_assoc()['n']==1,'Active tenant can send a message through the guarded insert');
+    $managerMessage=tenantRequest('superadmin/admin_messages.php',7,['user_id'=>2,'reply'=>'Active management reply fixture']);
+    tenantCheck($managerMessage['status']===302 && $db->query("SELECT COUNT(*) n FROM messages WHERE user_id=2 AND sender_role='admin' AND body='Active management reply fixture'")->fetch_assoc()['n']==1,'Active management can reply through the guarded recipient insert');
+    tenantRequest('resident/maintenance.php',2,['action'=>'submit_request','issue_type'=>'Plumbing','location'=>'Kitchen','description'=>'Active tenant maintenance fixture','urgency'=>'normal']);
+    $activeMaintenance=$db->query("SELECT unit_number_snapshot,status FROM maintenance_requests WHERE user_id=2 AND description='Active tenant maintenance fixture'")->fetch_assoc();
+    tenantCheck($activeMaintenance && $activeMaintenance['unit_number_snapshot']==='0101' && $activeMaintenance['status']==='pending','Active maintenance submission preserves its original unit snapshot');
     putenv('CONDO_TENANT_PERMITS=1');
     tenantCheck(residentHasPermission('resident.permits.request'), 'management may enable tenant permit requests');
     $tenantPermitPage = tenantRequest('resident/permits.php', 2);
@@ -283,12 +291,12 @@ try {
     $unitsXPath=tenantXPath($unitsPage['body']);
     $ownerUnitRow=$unitsXPath->query('//table[contains(@class,"unit-table")]/tbody/tr[td[1]/strong[normalize-space(.)="0101"]]');
     tenantCheck($unitsPage['status']===200 && $ownerUnitRow->length===1 && $unitsXPath->query('./td[4]/strong[normalize-space(.)="Unit Owner"]',$ownerUnitRow->item(0))->length===1, 'Units shows the real unit owner instead of a linked tenant or family account');
-    tenantCheck(str_contains($ownerUnitRow->item(0)->textContent,'5 linked occupant(s)') && $unitsXPath->query('.//input[@name="resident_id" and @value="1"]',$ownerUnitRow->item(0))->length===1, 'Units shows linked occupant count while vacancy action targets the owner account');
+    tenantCheck(str_contains($ownerUnitRow->item(0)->textContent,'6 active occupant(s)') && $unitsXPath->query('.//button[@data-archive-user="1" and @data-archive-mode="vacate_unit"]',$ownerUnitRow->item(0))->length===1, 'Units shows linked occupant count while vacancy action targets the owner account');
     $residentsPage=tenantRequest('superadmin/residents.php',7);
     $residentsXPath=tenantXPath($residentsPage['body']);
-    $tenantEndForms=$residentsXPath->query('//form[input[@name="action" and @value="end_tenancy"] and input[@name="resident_id" and @value="9"]]');
-    tenantCheck($residentsPage['status']===200 && $tenantEndForms->length===1 && $residentsXPath->query('.//input[@name="csrf_token"]',$tenantEndForms->item(0))->length===1, 'Resident management exposes a CSRF-protected End occupancy button for tenant accounts');
-    tenantCheck($residentsXPath->query('//form[input[@name="action" and @value="end_tenancy"] and input[@name="resident_id" and @value="1"]]')->length===0, 'Resident management has no End occupancy button for unit owners');
+    $tenantEndForms=$residentsXPath->query('//button[@data-archive-mode="end_occupancy" and @data-archive-user="9"]');
+    tenantCheck($residentsPage['status']===200 && $tenantEndForms->length===1 && $residentsXPath->query('//dialog[@data-archive-dialog]//input[@name="csrf_token"]')->length===1, 'Resident management exposes a CSRF-protected End occupancy button for tenant accounts');
+    tenantCheck($residentsXPath->query('//button[@data-archive-mode="end_occupancy" and @data-archive-user="1"]')->length===0, 'Resident management has no End occupancy button for unit owners');
     tenantCheck(tenantRequest('superadmin/residents.php',2)['status']===403 && tenantRequest('superadmin/units.php',2)['status']===403, 'tenant cannot inspect management resident or unit inventories');
     $endInput=['action'=>'end_tenancy','resident_id'=>9,'unit_number'=>'0101'];
     tenantCheck(tenantRequest('superadmin/residents.php',2,$endInput)['status']===403, 'tenant cannot forge management End occupancy POST');
@@ -303,13 +311,17 @@ try {
     $endingParking=(int)$db->insert_id;
     $db->query("INSERT INTO remember_tokens(user_id,selector,validator_hash,expires_at) VALUES(9,'tenant-ending-fixture','fixture',DATE_ADD(NOW(),INTERVAL 1 DAY))");
     tenantRequest('superadmin/residents.php',7,$endInput);
-    $ended=$db->query('SELECT status,unit_number,unit_owner_id,session_version FROM users WHERE id=9')->fetch_assoc();
-    tenantCheck($ended['status']==='pending' && $ended['unit_number']===null && $ended['unit_owner_id']===null && (int)$ended['session_version']===2, 'valid management End occupancy revokes tenant approval, unit link and existing session version');
+    tenantCheck(residentContext($db,9)['approved'],'Legacy unconfirmed End occupancy POST cannot revoke access');
+    tenantActor($db,7);
+    $confirmed=['mode'=>'end_occupancy','user_id'=>9,'unit_number'=>'0101','reason_code'=>'moved_out','reason'=>'Verified tenant departure','confirmed'=>'1','cancel_unused'=>'1','request_key'=>bin2hex(random_bytes(32))];
+    $confirmed['preview_hash']=archivePreview($db,$confirmed)['preview_hash'];archiveApply($db,$confirmed);
+    $ended=$db->query('SELECT status,unit_number,unit_owner_id,session_version,is_active,archived_at FROM users WHERE id=9')->fetch_assoc();
+    tenantCheck($ended['status']==='approved' && $ended['unit_number']==='0101' && (int)$ended['unit_owner_id']===1 && (int)$ended['session_version']===2 && !$ended['is_active'] && $ended['archived_at']!==null, 'Confirmed End occupancy archives access while preserving original approval and unit history');
     tenantCheck($db->query('SELECT status FROM resident_service_requests WHERE id='.$endingVisitor)->fetch_assoc()['status']==='cancelled' && $db->query('SELECT status FROM parking_requests WHERE id='.$endingParking)->fetch_assoc()['status']==='cancelled' && (int)$db->query('SELECT COUNT(*) AS n FROM remember_tokens WHERE user_id=9')->fetch_assoc()['n']===0, 'End occupancy revokes selected tenant visitor access, parking and remembered login');
     tenantCheck(residentContext($db,1)['approved'] && residentContext($db,2)['approved'] && $db->query('SELECT status FROM resident_service_requests WHERE id='.$ownerService)->fetch_assoc()['status']==='pending' && (int)$db->query('SELECT assigned_user_id FROM parking_slots WHERE id='.$ownerSlot)->fetch_assoc()['assigned_user_id']===1, 'End occupancy leaves owner, sibling tenant, owner visitors and standing parking active');
-    tenantCheck((int)$db->query("SELECT COUNT(*) AS n FROM audit_logs WHERE action='unassign' AND entity_type='user' AND entity_id=9")->fetch_assoc()['n']===1, 'End occupancy records one management audit');
+    tenantCheck((int)$db->query("SELECT COUNT(*) AS n FROM audit_logs WHERE action='archive' AND entity_type='account_archive' AND entity_id=9")->fetch_assoc()['n']===1, 'End occupancy records one management audit');
     tenantRequest('superadmin/residents.php',30,['action'=>'end_tenancy','resident_id'=>11,'unit_number'=>'0101']);
-    tenantCheck(!residentContext($db,11)['approved'] && residentContext($db,1)['approved'], 'ordinary management admin can end authorized family occupant access without removing owner');
+    tenantCheck(residentContext($db,11)['approved'] && residentContext($db,1)['approved'], 'Ordinary Admin cannot bypass the Super Admin Archive confirmation');
     $pendingPage=tenantRequest('superadmin/pending_accounts.php',7);
     $pendingXPath=tenantXPath($pendingPage['body']);
     tenantCheck($pendingPage['status']===200 && $pendingXPath->query('//dialog[@id="approveDialog"]//select[@name="assigned_unit" and @required]/option[@value="0101"]')->length===1 && $pendingXPath->query('//dialog[@id="approveDialog"]//input[@name="csrf_token"]')->length===1, 'account approval dialog provides a verified inventory unit selector and CSRF token');
@@ -317,24 +329,32 @@ try {
     tenantCheck(residentContext($db,12)['approved'] && (int)residentContext($db,12)['billing_user_id']===1 && !residentCanPayBill($db,12,1), 'actual account approval POST links pending tenant to selected verified unit owner without payment rights');
 
     tenantActor($db,7);
-    tenantCheck(unassignResidentUnit($db,2,'0101'), 'management can end one tenant residency');
-    $vacated=$db->query('SELECT status,unit_number,unit_owner_id,session_version FROM users WHERE id=2')->fetch_assoc();
-    tenantCheck($vacated['status']==='pending' && $vacated['unit_number']===null && $vacated['unit_owner_id']===null && (int)$vacated['session_version']===1, 'tenant vacancy removes owner link and revokes sessions');
-    tenantCheck($db->query('SELECT status FROM resident_service_requests WHERE id='.$tenantService)->fetch_assoc()['status']==='cancelled' && $db->query('SELECT status FROM bookings WHERE id='.$tenantBooking)->fetch_assoc()['status']==='cancelled', 'tenant vacancy cancels their future access requests');
-    tenantCheck($db->query('SELECT status FROM resident_service_requests WHERE id='.$ownerService)->fetch_assoc()['status']==='pending' && $db->query('SELECT status FROM bookings WHERE id='.$ownerBooking)->fetch_assoc()['status']==='confirmed', 'tenant vacancy preserves owner visitors and amenities');
-    tenantCheck((int)$db->query('SELECT assigned_user_id FROM parking_slots WHERE id='.$ownerSlot)->fetch_assoc()['assigned_user_id']===1 && residentContext($db,1)['approved'], 'tenant vacancy preserves owner unit and standing parking assignment');
-    $db->query("CREATE TRIGGER reject_linked_tenant_vacancy BEFORE UPDATE ON users FOR EACH ROW BEGIN IF NEW.id=4 AND NEW.unit_number IS NULL THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Injected tenant cascade failure'; END IF; END");
-    tenantCheck(!unassignResidentUnit($db,3,'0102'), 'linked tenant revocation failure prevents partial owner vacancy');
-    tenantCheck(residentContext($db,3)['approved'] && residentContext($db,4)['approved'] && (int)$db->query('SELECT assigned_user_id FROM parking_slots WHERE id='.$otherSlot)->fetch_assoc()['assigned_user_id']===3, 'cascade failure preserves owner, tenant and parking together');
-    $db->query('DROP TRIGGER reject_linked_tenant_vacancy');
-    tenantCheck(unassignResidentUnit($db,3,'0102'), 'management can vacate an owner and their linked occupants');
-    foreach ([3,4] as $id) {
-        $vacated=$db->query('SELECT status,unit_number,unit_owner_id,session_version FROM users WHERE id='.$id)->fetch_assoc();
-        tenantCheck($vacated['status']==='pending' && $vacated['unit_number']===null && $vacated['unit_owner_id']===null && (int)$vacated['session_version']===1, 'owner vacancy revokes account and unit association '.$id);
-    }
-    tenantCheck($db->query('SELECT status FROM parking_slots WHERE id='.$otherSlot)->fetch_assoc()['status']==='available', 'owner vacancy releases standing slot after linked access revocation');
-    tenantCheck(residentContext($db,1)['approved'] && residentContext($db,16)['approved'], 'owner vacancy cannot revoke a different unit household');
-    tenantCheck((int)$db->query('SELECT COUNT(*) AS n FROM payments')->fetch_assoc()['n']===3 && $db->query('SELECT status FROM payments WHERE id='.$tenantBill)->fetch_assoc()['status']==='pending', 'residency revocation preserves historical unpaid financial rows');
+    tenantCheck(!unassignResidentUnit($db,2,'0101'),'Legacy vacancy helper refuses unconfirmed removal');
+    $confirmed=['mode'=>'end_occupancy','user_id'=>2,'unit_number'=>'0101','reason_code'=>'moved_out','reason'=>'Verified tenant departure','confirmed'=>'1','cancel_unused'=>'1','request_key'=>bin2hex(random_bytes(32))];
+    $confirmed['preview_hash']=archivePreview($db,$confirmed)['preview_hash'];archiveApply($db,$confirmed);
+    $vacated=$db->query('SELECT is_active,archived_at,unit_number,session_version FROM users WHERE id=2')->fetch_assoc();
+    tenantCheck(!$vacated['is_active'] && $vacated['archived_at']!==null && $vacated['unit_number']==='0101' && (int)$vacated['session_version']===1,'Tenant archival ends access and retains the historical unit');
+    $messagesBefore=(int)$db->query('SELECT COUNT(*) n FROM messages')->fetch_assoc()['n'];
+    $maintenanceBefore=(int)$db->query('SELECT COUNT(*) n FROM maintenance_requests')->fetch_assoc()['n'];
+    tenantRequest('resident/messages.php',2,['reply'=>'Archived message must not save']);
+    tenantRequest('superadmin/admin_messages.php',7,['user_id'=>2,'reply'=>'Archived recipient must not receive']);
+    tenantRequest('resident/maintenance.php',2,['action'=>'submit_request','issue_type'=>'Plumbing','location'=>'Kitchen','description'=>'Archived work must not save','urgency'=>'normal']);
+    tenantCheck((int)$db->query('SELECT COUNT(*) n FROM messages')->fetch_assoc()['n']===$messagesBefore && (int)$db->query('SELECT COUNT(*) n FROM maintenance_requests')->fetch_assoc()['n']===$maintenanceBefore,'Archived direct URLs and manipulated recipient POSTs cannot create messages or maintenance');
+    tenantCheck(tenantRequest('api/admin_messages.php',7,null,['get'=>['user_id'=>2]])['status']===404,'Active messaging API rejects an archived recipient while history remains stored');
+
+    tenantCheck($db->query('SELECT status FROM resident_service_requests WHERE id='.$tenantService)->fetch_assoc()['status']==='cancelled' && $db->query('SELECT status FROM bookings WHERE id='.$tenantBooking)->fetch_assoc()['status']==='cancelled','Tenant departure cancels only confirmed unused authorizations');
+    tenantCheck($db->query('SELECT status FROM resident_service_requests WHERE id='.$ownerService)->fetch_assoc()['status']==='pending' && $db->query('SELECT status FROM bookings WHERE id='.$ownerBooking)->fetch_assoc()['status']==='confirmed','Tenant departure preserves owner authorizations');
+    tenantCheck((int)$db->query('SELECT assigned_user_id FROM parking_slots WHERE id='.$ownerSlot)->fetch_assoc()['assigned_user_id']===1 && residentContext($db,1)['approved'],'Tenant departure preserves owner parking and access');
+    $confirmed=['mode'=>'vacate_unit','user_id'=>3,'unit_number'=>'0102','reason_code'=>'turnover','reason'=>'Verified physical vacancy','confirmed'=>'1','cancel_unused'=>'1','request_key'=>bin2hex(random_bytes(32))];
+    $confirmed['preview_hash']=archivePreview($db,$confirmed)['preview_hash'];
+    $db->query("CREATE TRIGGER reject_linked_tenant_vacancy BEFORE UPDATE ON users FOR EACH ROW BEGIN IF NEW.id=4 AND NEW.is_active=0 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Injected tenant cascade failure'; END IF; END");
+    try{archiveApply($db,$confirmed);throw new RuntimeException('Expected archive rollback');}catch(mysqli_sql_exception $expected){tenantCheck(true,'Linked tenant archive failure prevents partial vacancy');}
+    tenantCheck(residentContext($db,3)['approved'] && residentContext($db,4)['approved'] && accountOccupiesUnit($db,3,'0102'),'Cascade failure rolls back owner occupancy and tenant access together');
+    $db->query('DROP TRIGGER reject_linked_tenant_vacancy');archiveApply($db,$confirmed);
+    tenantCheck(residentContext($db,3)['approved'] && !accountOccupiesUnit($db,3,'0102') && !residentContext($db,4)['approved'],'Vacancy ends tenant access and owner physical occupancy while retaining legal ownership');
+    tenantCheck((int)$db->query('SELECT assigned_user_id FROM parking_slots WHERE id='.$otherSlot)->fetch_assoc()['assigned_user_id']===3,'Retained owner contractual parking is preserved');
+    tenantCheck(residentContext($db,1)['approved'] && residentContext($db,16)['approved'],'Vacancy preserves a different unit household');
+    tenantCheck((int)$db->query('SELECT COUNT(*) AS n FROM payments')->fetch_assoc()['n']===3 && $db->query('SELECT status FROM payments WHERE id='.$tenantBill)->fetch_assoc()['status']==='pending','Archive preserves every original financial row');
 
     // A read never guesses a relationship; an explicit migration may backfill one unique owner.
     $db->query("INSERT INTO users(id,username,full_name,email,unit_number,role,account_type) VALUES

@@ -27,7 +27,7 @@ function reportNotify(mysqli $db,array $case,int $event,bool $reporter): void {
     if($reporter&&$case['reporting_mode']==='identified'){
         $s=$db->prepare('SELECT u.id,u.email FROM report_identities ri JOIN users u ON u.id=ri.user_id WHERE ri.report_id=?');$s->bind_param('i',$case['id']);$s->execute();foreach($s->get_result()as$row)$contacts[(int)$row['id']]=$row;
     }
-    if(!$reporter)foreach($db->query("SELECT id,email FROM users WHERE role IN ('admin','superadmin') AND is_active=1 AND is_verified=1 AND status='approved'")as$row)if(reportCanReview($db,(int)$case['id'],(int)$row['id']))$contacts[(int)$row['id']]=$row;
+    if(!$reporter)foreach($db->query("SELECT id,email FROM users WHERE role IN ('admin','superadmin') AND is_active=1 AND archived_at IS NULL AND is_verified=1 AND status='approved'")as$row)if(reportCanReview($db,(int)$case['id'],(int)$row['id']))$contacts[(int)$row['id']]=$row;
     foreach($contacts as$id=>$contact){
         $html=emailLayout('Private Community Report','A private case update is available','<p>There is an update for case '.htmlspecialchars($case['reference'],ENT_QUOTES,'UTF-8').'. Sign in to the secure Reports page to review it.</p>');
         if(!queueNotification($db,'community-report:'.$case['id'].':event:'.$event.':recipient:'.$id,'email',$contact['email'],'[The Celandine] Private report update',$html,$id,'community_report',(int)$case['id']))throw new RuntimeException('Unable to queue the private case update.');
@@ -62,7 +62,7 @@ function reportCreate(mysqli $db,array $input,array $uploads=[]): array {
     }catch(Throwable $error){$db->rollback();throw $error;}finally{if(!$committed)reportRemoveStaged($files);}
 }
 function reportEligibleReviewers(mysqli $db,array $case): array {
-    $out=[];foreach($db->query("SELECT id,full_name FROM users WHERE role IN ('admin','superadmin') AND is_active=1 AND is_verified=1 AND status='approved'")as$row)if(reportCanReview($db,(int)$case['id'],(int)$row['id']))$out[]=['id'=>(int)$row['id'],'name'=>$row['full_name']];return $out;
+    $out=[];foreach($db->query("SELECT id,full_name FROM users WHERE role IN ('admin','superadmin') AND is_active=1 AND archived_at IS NULL AND is_verified=1 AND status='approved'")as$row)if(reportCanReview($db,(int)$case['id'],(int)$row['id']))$out[]=['id'=>(int)$row['id'],'name'=>$row['full_name']];return $out;
 }
 function reportAction(mysqli $db,array $input,array $uploads=[],bool $management=false,bool $anonymous=false): array {
     $reference=reportText($input,'reference',24,true);$request=reportRequestHash((string)($input['request_key']??''));$action=reportText($input,'operation',30,true);$body=reportText($input,'body',6000);

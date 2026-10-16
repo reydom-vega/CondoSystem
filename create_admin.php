@@ -33,7 +33,7 @@ try {
     $db = connectDb();
     if (!ensureRememberTokensTable($db) || !ensureAuditLogTable($db)) throw new RuntimeException('Account storage is unavailable. Run migrations first.');
     $db->begin_transaction();
-    $find = $db->prepare('SELECT id,username,email,role FROM users WHERE username=? OR email=? FOR UPDATE');
+    $find = $db->prepare('SELECT id,username,email,role,is_active,archived_at FROM users WHERE username=? OR email=? FOR UPDATE');
     $find->bind_param('ss',$username,$email); $find->execute();
     $matches = $find->get_result()->fetch_all(MYSQLI_ASSOC);
     if (count($matches)>1) throw new InvalidArgumentException('The username and email identify different accounts. No changes made.');
@@ -41,6 +41,7 @@ try {
     if ($existing) {
         if (!$updateExisting) throw new InvalidArgumentException('An account already exists. Use --update to explicitly update an existing staff account.');
         if ($existing['role'] === 'resident') throw new InvalidArgumentException('Resident accounts cannot be converted to staff by this tool.');
+        if ((int)$existing['is_active']!==1 || $existing['archived_at']!==null) throw new InvalidArgumentException('Disabled or archived staff require the authorized Archive restoration process. Provisioning cannot reactivate them.');
         if (strcasecmp($existing['username'],$username)!==0 || strcasecmp($existing['email'],$email)!==0) throw new InvalidArgumentException('Both username and email must match the existing staff account.');
         $id = (int)$existing['id'];
         $change = $db->prepare("UPDATE users SET full_name=?,password_hash=?,role=?,is_verified=1,is_active=1,status='approved',

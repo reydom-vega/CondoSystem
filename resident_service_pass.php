@@ -5,7 +5,7 @@ $db = connectDb();
 ensureResidentServicesTables($db);
 $id = (int)($_GET['id'] ?? 0);
 $token = (string)($_GET['token'] ?? '');
-$pass = getResidentServicePass($db, $id, $token);
+$pass = getResidentServicePass($db, $id, $token, canAccess('security.gate'));
 if (!$pass || ((int)$pass['user_id'] !== (int)$_SESSION['user_id'] && !isSecurity() && !canReviewPermits())) { http_response_code(404); exit('Pass not found or access denied.'); }
 if ((int)$pass['user_id']===(int)$_SESSION['user_id']) requireResidentPermission($pass['request_kind']==='visitor' ? 'resident.visitors.register' : 'resident.permits.request');
 require_once __DIR__.'/includes/permit_pass_export.php';
@@ -86,6 +86,7 @@ if ($label === 'EXPIRED') {
 } elseif ($pass['status'] === 'cancelled') {
     $securityInstruction = 'This pass has been cancelled and cannot be used for entry.';
 }
+if(!empty($pass['exit_only']))$securityInstruction='Sponsoring account access has ended. Exit verification only: authorized Security must confirm identity and actual checkout. This pass cannot authorize a new entry.';
 $showQr = $approvalsComplete && in_array($pass['status'], ['approved','checked_in','checked_out'], true);
 $visitorFields = [
     ['clipboard', 'Reference number', '#' . $id],

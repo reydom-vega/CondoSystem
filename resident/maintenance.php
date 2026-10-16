@@ -70,11 +70,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (!$errors) {
-            $insert = $connection->prepare("INSERT INTO maintenance_requests (user_id, issue_type, location, description, preferred_date, urgency, evidence_path, status) VALUES (?, ?, ?, ?, NULLIF(?, ''), ?, ?, 'pending')");
+            $insert = $connection->prepare("INSERT INTO maintenance_requests (user_id, issue_type, location, description, preferred_date, urgency, evidence_path, status,unit_number_snapshot) SELECT ?, ?, ?, ?, NULLIF(?, ''), ?, ?, 'pending',unit_number FROM users WHERE id=? AND role='resident' AND is_active=1 AND archived_at IS NULL AND is_verified=1 AND status='approved'");
             $userId = (int)$_SESSION['user_id'];
             $imagePath = $image['path'];
-            $insert->bind_param('issssss', $userId, $issueType, $location, $description, $preferredDate, $urgency, $imagePath);
-            if ($insert->execute()) {
+            $insert->bind_param('issssssi', $userId, $issueType, $location, $description, $preferredDate, $urgency, $imagePath, $userId);
+            if ($insert->execute() && $insert->affected_rows===1) {
                 $success = true;
                 trackEvent('maintenance_request', $issueType, $userId);
                 $issueType = $location = $description = $preferredDate = '';

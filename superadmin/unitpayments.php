@@ -66,7 +66,7 @@ if (ensurePaymentsTable($connection)) {
         $totals = ['all' => (float)$summary['total'], 'paid' => (float)$summary['paid'], 'pending' => (float)$summary['pending'], 'overdue' => (float)$summary['overdue']];
     }
 
-    $result = $connection->query("SELECT p.id, p.amount, p.payment_method, p.payment_channel, p.status, p.due_date, p.paid_at, p.created_at, p.paymongo_payment_id, p.gateway_status, u.full_name, u.username, u.unit_number FROM payments p INNER JOIN users u ON u.id = p.user_id ORDER BY p.created_at DESC");
+    $result = $connection->query("SELECT p.id, p.amount, p.payment_method, p.payment_channel, p.status, p.due_date, p.paid_at, p.created_at, p.paymongo_payment_id, p.gateway_status, u.full_name, u.username, COALESCE(p.unit_number_snapshot,u.unit_number) AS unit_number FROM payments p INNER JOIN users u ON u.id = p.user_id ORDER BY p.created_at DESC");
     if ($result) {
         while ($payment = $result->fetch_assoc()) {
             $haystack = strtolower(implode(' ', [

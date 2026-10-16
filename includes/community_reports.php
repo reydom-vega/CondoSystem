@@ -46,7 +46,7 @@ function reportAuditKey(mysqli $db): string {
     if(!preg_match('/^[a-f0-9]{64}$/D',$key))throw new RuntimeException('Report audit signing key is not configured.');return hex2bin($key);
 }
 function reportReviewer(mysqli $db,int $id): ?array {
-    $s=$db->prepare("SELECT id,role,full_name,email FROM users WHERE id=? AND role IN ('admin','superadmin') AND is_active=1 AND is_verified=1 AND status='approved'");$s->bind_param('i',$id);$s->execute();return $s->get_result()->fetch_assoc()?:null;
+    $s=$db->prepare("SELECT id,role,full_name,email FROM users WHERE id=? AND role IN ('admin','superadmin') AND is_active=1 AND archived_at IS NULL AND is_verified=1 AND status='approved'");$s->bind_param('i',$id);$s->execute();return $s->get_result()->fetch_assoc()?:null;
 }
 function reportIndependentIds(): array {
     $value=appSetting('CONDO_REPORT_INDEPENDENT_REVIEWER_IDS');
@@ -94,7 +94,7 @@ function reportDetectConflicts(mysqli $db,array $data): array {
     if($data['category']==='Staff Misconduct'&&!in_array($data['person_kind'],['Security Personnel','Maintenance Staff'],true)&&!in_array($data['staff_scope'],['admin','superadmin'],true))$scope='oversight';
     if(in_array($data['person_kind'],['Other Staff','Multiple Persons'],true)&&$data['staff_scope']==='')$scope='oversight';
     $text=mb_strtolower(implode(' ',[$data['person_name'],$data['person_position'],$data['person_details'],$data['subject'],$data['description']]));$conflicts=[];
-    foreach($db->query("SELECT id,username,full_name,role FROM users WHERE role IN ('admin','superadmin','security','maintenance','treasurer')")as$staff){
+    foreach($db->query("SELECT id,username,full_name,role FROM users WHERE role IN ('admin','superadmin','security','maintenance','treasurer') AND is_active=1 AND archived_at IS NULL")as$staff){
         foreach([$staff['username'],$staff['full_name']]as$name){$name=mb_strtolower(trim($name));if($name!==''&&preg_match('/(?<![\p{L}\p{N}_])'.preg_quote($name,'/').'(?![\p{L}\p{N}_])/u',$text)){
             $conflicts[]=(int)$staff['id'];if($staff['role']==='superadmin')$scope='oversight';elseif($staff['role']==='admin'&&$scope==='ordinary')$scope='admin';break;
         }}

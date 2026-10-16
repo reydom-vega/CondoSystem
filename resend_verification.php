@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $connection = connectDb();
         $allowed = allowAuthenticationRequest($connection, 'resend_verification', 5);
-        $stmt = $connection->prepare('SELECT id, username, is_verified FROM users WHERE email = ? LIMIT 1');
+        $stmt = $connection->prepare('SELECT id, username, is_verified FROM users WHERE email = ? AND is_active=1 AND archived_at IS NULL LIMIT 1');
         $stmt->bind_param('s', $email);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $verificationToken = generateVerificationCode();
                 $digest = hash('sha256', $verificationToken);
-                $update = $connection->prepare('UPDATE users SET verification_token = ?, verification_expires = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?');
+                $update = $connection->prepare('UPDATE users SET verification_token = ?, verification_expires = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ? AND is_active=1 AND archived_at IS NULL');
                 $update->bind_param('si', $digest, $user['id']);
 
                 if ($update->execute()) {

@@ -17,7 +17,7 @@ $fineRates = getViolationFineRates();
 
 $errors = [];
 $success = '';
-$residentsResult = $connection->query("SELECT id, full_name, unit_number FROM users WHERE role = 'resident' AND is_verified = 1 AND is_active = 1 AND status = 'approved' ORDER BY full_name ASC, unit_number ASC, id ASC");
+$residentsResult = $connection->query("SELECT id, full_name, unit_number FROM users WHERE role = 'resident' AND is_verified = 1 AND is_active = 1 AND archived_at IS NULL AND status = 'approved' ORDER BY full_name ASC, unit_number ASC, id ASC");
 $residents = $residentsResult ? $residentsResult->fetch_all(MYSQLI_ASSOC) : [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

@@ -30,9 +30,12 @@ function queueNotification(mysqli $db, string $eventKey, string $channel, string
         if (!preg_match('/^[0-9]{10,15}$/D',$recipient)) return false;
     }
     $key = hash('sha256',$eventKey . '|' . $channel);
+    $accountNotice=in_array($eventKind,['account','account_approved','account_rejected'],true);
+    $eligible=($userId===null || accountRoutineEligible($db,$userId,$accountNotice)) && accountRecipientEligible($db,$recipient,$channel);
+    $status=$eligible?'pending':'cancelled';$suppression=$eligible?null:'Suppressed: archived, disabled or ineligible account';
     try {
-        $insert = $db->prepare('INSERT INTO notification_outbox (deduplication_key,user_id,event_kind,entity_id,channel,recipient,subject,body) VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE deduplication_key=VALUES(deduplication_key)');
-        $insert->bind_param('sisissss',$key,$userId,$eventKind,$entityId,$channel,$recipient,$subject,$body);
+        $insert = $db->prepare('INSERT INTO notification_outbox (deduplication_key,user_id,event_kind,entity_id,channel,recipient,subject,body,status,last_error) VALUES (?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE deduplication_key=VALUES(deduplication_key)');
+        $insert->bind_param('sisissssss',$key,$userId,$eventKind,$entityId,$channel,$recipient,$subject,$body,$status,$suppression);
         return $insert->execute();
     } catch (Throwable $e) {
         error_log('Notification enqueue failed for event kind ' . $eventKind . ': ' . $e->getMessage());
@@ -42,6 +45,7 @@ function queueNotification(mysqli $db, string $eventKey, string $channel, string
 
 /** Obsolete reminders/addresses are cancelled before any provider request. */
 function notificationStillRelevant(mysqli $db, array $job): bool {
+    if (($job['user_id']!==null && !accountRoutineEligible($db,(int)$job['user_id'],in_array($job['event_kind'],['account','account_approved','account_rejected'],true))) || !accountRecipientEligible($db,$job['recipient'],$job['channel'])) return false;
     if(in_array($job['event_kind'],['job_report_submitted','job_report_review'],true) && !jrNotificationRelevant($db,$job))return false;
     if($job['event_kind']==='visitor_parking'&&!vpNotificationRelevant($db,$job))return false;
     if ($job['event_kind']==='community_report' && !reportNotificationRelevant($db,$job)) return false;

@@ -7,6 +7,7 @@ function vpPostFinalCharge(mysqli $db,array $row,array $quote): int {
     $s=$db->prepare('SELECT id,full_name,email,contact_number FROM users WHERE id=?');$s->bind_param('i',$payer);$s->execute();$contact=$s->get_result()->fetch_assoc();if(!$contact)throw new InvalidArgumentException('The original billing account is missing.');
     $due=(new DateTimeImmutable('today',new DateTimeZone('Asia/Manila')))->modify('+15 days')->format('Y-m-d');$period=(new DateTimeImmutable($row['actual_check_in'],new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Asia/Manila'))->format('Y-m-01');$periodEnd=(new DateTimeImmutable($period))->format('Y-m-t');
     $s=$db->prepare("INSERT INTO payments(user_id,amount,payment_method,status,due_date,billing_scope,billing_period_start,billing_period_end) VALUES(?,?,'unbilled','pending',?,?,?,?)");$s->bind_param('isssss',$payer,$quote['amount'],$due,$row['billing_scope_snapshot'],$period,$periodEnd);$s->execute();$payment=(int)$db->insert_id;
+        lifecycleQuery($db,'UPDATE payments SET unit_number_snapshot=? WHERE id=?',[$row['sponsor_unit_snapshot'],$payment]);
     $description='VP-'.str_pad((string)$row['id'],8,'0',STR_PAD_LEFT).' / '.$row['vehicle_plate'].'; '.vpDuration($quote['seconds']);
     if(isset($quote['regular_cents']))$description.='; initial PHP '.vpMoney($quote['regular_cents']).'; additional PHP '.vpMoney($quote['succeeding_cents']).'; overnight PHP '.vpMoney($quote['overnight_cents']).'; rate version '.$quote['rate_version'];
     else $description.='; original hourly rate PHP '.$row['rate_snapshot'];

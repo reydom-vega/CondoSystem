@@ -48,7 +48,7 @@ try {
     $db->query('UPDATE users SET is_verified = 0 WHERE id = 8');
     ensurePaymentsTable($db); ensurePaymongoColumns($db); ensureResidentServicesTables($db); ensureParkingTables($db); ensureVisitorLogsTable($db); ensureVisitorLogColumns($db); ensureVehiclesTable($db); ensureStickerVehicleLinks($db); ensureBillingTables($db); ensureMessagesTable($db); ensureBookingsTable($db); ensureMaintenanceTable($db); ensureViolationsTable($db); ensureAnnouncementsTable($db); ensureRememberTokensTable($db);
     ensureNotificationOutboxTable($db); ensureCommunityReportSchema($db); ensureVisitorParkingFeeSchema($db);
-    ensureQrScanHistorySchema($db);
+    ensureDigitalIdSchema($db); ensurePhoneVerificationColumns($db); ensureQrScanHistorySchema($db); ensureJobReportSchema($db); ensureAccountArchiveSchema($db); ensureAmenityBookingSchema($db);
     // Manual visitor logging belongs to management; QR gate operations stay available.
     authorizationActor($db,3);
     checkAuthorization(!canAccess('visitors.logs') && canAccess('security.gate'), 'security loses manual visitor logs while retaining gate access');
@@ -214,14 +214,17 @@ try {
     checkAuthorization($unchanged['status']==='approved' && $unchanged['unit_number']==='0102' && (int)$unchanged['session_version']===1, 'vacancy failure rolls back resident assignment and session invalidation');
     checkAuthorization((int)$db->query('SELECT COUNT(*) AS n FROM remember_tokens WHERE user_id=2')->fetch_assoc()['n']===1, 'vacancy failure rolls back remembered login removal');
     $db->query('DROP TRIGGER reject_unit_vacancy');
-    checkAuthorization(unassignResidentUnit($db,2,'0102'), 'management can vacate assigned unit');
-    $resident=$db->query('SELECT status,unit_number,session_version FROM users WHERE id=2')->fetch_assoc();
-    checkAuthorization($resident['status']==='pending' && $resident['unit_number']===null && (int)$resident['session_version']===2, 'vacancy revokes approval and session');
-    checkAuthorization((int)$db->query('SELECT COUNT(*) AS n FROM remember_tokens WHERE user_id=2')->fetch_assoc()['n']===0, 'vacancy removes remembered login');
-    checkAuthorization($db->query('SELECT status FROM resident_service_requests WHERE id='.$service)->fetch_assoc()['status']==='cancelled', 'vacancy cancels unopened visitor access');
-    checkAuthorization($db->query('SELECT status FROM parking_requests WHERE user_id=2')->fetch_assoc()['status']==='cancelled', 'vacancy cancels active parking access');
-    checkAuthorization($db->query('SELECT status FROM parking_slots WHERE id='.$slotId)->fetch_assoc()['status']==='available', 'vacancy releases standing slot');
-    checkAuthorization($db->query('SELECT status FROM bookings WHERE id='.$bookingId)->fetch_assoc()['status']==='cancelled', 'vacancy cancels future confirmed amenity booking');
+    checkAuthorization(!unassignResidentUnit($db,2,'0102'),'Unconfirmed legacy calls cannot archive a resident');
+    authorizationActor($db,4);
+    $confirmed=['mode'=>'archive_account','user_id'=>2,'unit_number'=>'0102','reason_code'=>'relationship_ended','reason'=>'Authorized fixture account closure','confirmed'=>'1','cancel_unused'=>'1','parking_cleared'=>'1','request_key'=>bin2hex(random_bytes(32))];
+    $confirmed['preview_hash']=archivePreview($db,$confirmed)['preview_hash'];archiveApply($db,$confirmed);
+    $resident=$db->query('SELECT is_active,archived_at,unit_number,session_version FROM users WHERE id=2')->fetch_assoc();
+    checkAuthorization(!$resident['is_active'] && $resident['archived_at']!==null && $resident['unit_number']==='0102' && (int)$resident['session_version']===2,'Explicit confirmed closure archives access and preserves the historical unit');
+    checkAuthorization((int)$db->query('SELECT COUNT(*) AS n FROM remember_tokens WHERE user_id=2')->fetch_assoc()['n']===0,'Archive revokes remembered login');
+    checkAuthorization($db->query('SELECT status FROM resident_service_requests WHERE id='.$service)->fetch_assoc()['status']==='cancelled','Archive cancels unused visitor authorization');
+    checkAuthorization($db->query('SELECT status FROM parking_requests WHERE user_id=2')->fetch_assoc()['status']==='cancelled','Archive cancels unused parking reservation');
+    checkAuthorization($db->query('SELECT status FROM parking_slots WHERE id='.$slotId)->fetch_assoc()['status']==='available','Confirmed empty slot is released after account relationship ends');
+    checkAuthorization($db->query('SELECT status FROM bookings WHERE id='.$bookingId)->fetch_assoc()['status']==='cancelled','Confirmed unused future booking is cancelled');
     authorizationActor($db,3);
     checkAuthorization(!unassignResidentUnit($db,1,'0101'), 'security cannot clear resident assignment');
     $db->query("UPDATE users SET reset_token='old-recovery', reset_expires=DATE_ADD(NOW(),INTERVAL 1 HOUR) WHERE id=6");

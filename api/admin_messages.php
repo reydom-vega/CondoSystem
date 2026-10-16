@@ -21,6 +21,7 @@ if ($userId <= 0) {
     echo json_encode(['error' => 'Invalid user_id']);
     exit;
 }
+if(!accountRoutineEligible($connection,$userId)) {http_response_code(404);echo json_encode(['error'=>'This account is not available for active messaging. Historical conversations remain preserved.']);exit;}
 
 try {
     // Get messages for this resident

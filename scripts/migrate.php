@@ -37,6 +37,8 @@ try {
         $step = $function;
         if ($function($db) === false) throw new RuntimeException('A schema update did not complete.');
     }
+    $step='account archive schema';
+    ensureAccountArchiveSchema($db);
     $step = 'access storage';
     visitorIdRetentionDays(); visitorIdStorageDirectory(true);
     $db->query("CREATE TABLE IF NOT EXISTS access_signing_keys (key_name VARCHAR(30) PRIMARY KEY, key_value CHAR(64) NOT NULL) ENGINE=InnoDB");

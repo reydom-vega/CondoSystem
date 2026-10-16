@@ -1,7 +1,7 @@
 <?php
 /** Resident notifications are queued; provider delivery belongs to the worker. */
 function getAllResidentContacts(): array {
-    return connectDb()->query("SELECT id,full_name,email,contact_number FROM users WHERE role='resident' AND is_verified=1 AND is_active=1 AND status='approved'")->fetch_all(MYSQLI_ASSOC);
+    return connectDb()->query("SELECT id,full_name,email,contact_number FROM users WHERE role='resident' AND is_verified=1 AND is_active=1 AND archived_at IS NULL AND status='approved'")->fetch_all(MYSQLI_ASSOC);
 }
 
 function emailLayout(string $eyebrow, string $heading, string $bodyHtml): string {
@@ -14,18 +14,20 @@ function emailLayout(string $eyebrow, string $heading, string $bodyHtml): string
 
 /** Financial notices go to the unit owner or the tenant billed for their own parking or amenity reservation. */
 function billingNoticeContact(mysqli $db,int $billUserId,?int $paymentId=null): ?array {
+    if (!accountRoutineEligible($db,$billUserId)) return null;
     $context=residentContext($db,$billUserId);
     if (!$context || !$context['billing_user_id']) return null;
     if ($context['account_kind']!=='owner' && !$context['approved']) return null;
     $ownerId=(int)$context['billing_user_id'];
     if ($paymentId!==null && $context['account_kind']==='tenant' && residentCanPayBill($db,$billUserId,$billUserId,$paymentId)) $ownerId=$billUserId;
-    $find=$db->prepare('SELECT id,full_name,email,contact_number FROM users WHERE id=?');
+    $find=$db->prepare('SELECT id,full_name,email,contact_number FROM users WHERE id=? AND is_active=1 AND archived_at IS NULL');
     $find->bind_param('i',$ownerId); $find->execute();
     return $find->get_result()->fetch_assoc() ?: null;
 }
 
 /** Caller prepares storage before opening a business transaction. */
 function queueResidentChannels(mysqli $db, string $eventKey, array $resident, string $subject, string $html, string $sms, string $eventKind, int $entityId, bool $strict = false): array {
+    if(!accountRoutineEligible($db,(int)$resident['id']))return ['email_queued'=>false,'sms_queued'=>false,'suppressed'=>true];
     $id=(int)$resident['id']; $email=(string)$resident['email']; $phone=(string)$resident['contact_number'];
     $emailValid=filter_var($email,FILTER_VALIDATE_EMAIL)!==false;
     $smsValid=preg_match('/^[0-9]{10,15}$/D',normalizePhDigits($phone))===1;
@@ -106,11 +108,11 @@ function sendDueDateReminders(int $daysAhead = 3): array {
     $db=connectDb(); ensurePaymentsTable($db); ensureReminderColumn($db);
     if (!ensureNotificationOutboxTable($db)) return $counts;
     $daysAhead=min(30,max(0,$daysAhead));
-    $ids=$db->query("SELECT p.id FROM payments p JOIN users u ON u.id=p.user_id WHERE p.status IN ('pending','overdue') AND p.amount>0 AND p.due_date<=DATE_ADD(CURDATE(),INTERVAL {$daysAhead} DAY) AND (p.reminder_sent_at IS NULL OR p.reminder_sent_at<DATE_SUB(NOW(),INTERVAL 24 HOUR)) AND u.role='resident' AND u.is_active=1 AND u.is_verified=1 AND u.status='approved' ORDER BY p.due_date,p.id LIMIT 500")->fetch_all(MYSQLI_ASSOC);
+    $ids=$db->query("SELECT p.id FROM payments p JOIN users u ON u.id=p.user_id WHERE p.status IN ('pending','overdue') AND p.amount>0 AND p.due_date<=DATE_ADD(CURDATE(),INTERVAL {$daysAhead} DAY) AND (p.reminder_sent_at IS NULL OR p.reminder_sent_at<DATE_SUB(NOW(),INTERVAL 24 HOUR)) AND u.role='resident' AND u.is_active=1 AND u.archived_at IS NULL AND u.is_verified=1 AND u.status='approved' ORDER BY p.due_date,p.id LIMIT 500")->fetch_all(MYSQLI_ASSOC);
     foreach ($ids as $entry) {
         $db->begin_transaction();
         try {
-            $find=$db->prepare("SELECT p.amount,p.due_date,u.id,u.full_name,u.email,u.contact_number FROM payments p JOIN users u ON u.id=p.user_id WHERE p.id=? AND p.status IN ('pending','overdue') AND p.amount>0 AND (p.reminder_sent_at IS NULL OR p.reminder_sent_at<DATE_SUB(NOW(),INTERVAL 24 HOUR)) AND u.is_active=1 AND u.is_verified=1 AND u.status='approved' FOR UPDATE");
+            $find=$db->prepare("SELECT p.amount,p.due_date,u.id,u.full_name,u.email,u.contact_number FROM payments p JOIN users u ON u.id=p.user_id WHERE p.id=? AND p.status IN ('pending','overdue') AND p.amount>0 AND (p.reminder_sent_at IS NULL OR p.reminder_sent_at<DATE_SUB(NOW(),INTERVAL 24 HOUR)) AND u.is_active=1 AND u.archived_at IS NULL AND u.is_verified=1 AND u.status='approved' FOR UPDATE");
             $id=(int)$entry['id']; $find->bind_param('i',$id); $find->execute(); $row=$find->get_result()->fetch_assoc();
             if (!$row) { $db->rollback(); continue; }
             $contact=billingNoticeContact($db,(int)$row['id'],$id);

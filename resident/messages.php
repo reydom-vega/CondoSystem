@@ -39,12 +39,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         @unlink(__DIR__ . '/../private_uploads/message_attachments/' . $attachment['path']);
     }
     if (empty($errors)) {
-        $insert = $connection->prepare("INSERT INTO messages (user_id, sender_role, body, attachment_path, attachment_name, attachment_mime, is_read) VALUES (?, 'resident', ?, ?, ?, ?, 0)");
+        $insert = $connection->prepare("INSERT INTO messages (user_id, sender_role, body, attachment_path, attachment_name, attachment_mime, is_read) SELECT ?, 'resident', ?, ?, ?, ?, 0 FROM users WHERE id=? AND role='resident' AND is_active=1 AND archived_at IS NULL AND is_verified=1 AND status='approved'");
         $attachmentPath = $attachment['path'] ?? null;
         $attachmentName = $attachment['name'] ?? null;
         $attachmentMime = $attachment['mime'] ?? null;
-        $insert->bind_param('issss', $_SESSION['user_id'], $reply, $attachmentPath, $attachmentName, $attachmentMime);
-        if ($insert->execute()) {
+        $insert->bind_param('issssi', $_SESSION['user_id'], $reply, $attachmentPath, $attachmentName, $attachmentMime, $_SESSION['user_id']);
+        if ($insert->execute() && $insert->affected_rows===1) {
             // Redirect to GET to prevent duplicate messages on refresh (Post-Redirect-Get pattern)
             header('Location: messages.php');
             exit;

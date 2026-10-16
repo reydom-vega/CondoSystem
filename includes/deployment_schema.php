@@ -1,10 +1,12 @@
 <?php
 /** A migration is complete only after these dependencies are available. */
-const APP_SCHEMA_VERSION = '2026.10.15.3';
+const APP_SCHEMA_VERSION = '2026.10.16.1';
 require_once __DIR__.'/analytics_schema.php';
 
 function deploymentSchemaRequirements(): array {
     return [
+        'account_unit_relationships'=>['user_id','unit_number','relationship_kind','owner_id','started_at','recorded_at','occupancy_ended_at','ended_at','ended_by','end_reason','active_unit','active_owner_unit'],
+        'account_archive_events'=>['user_id','relationship_id','category','event_kind','account_archived','former_unit','former_role','reason_code','reason','actor_id','actor_name','request_key','snapshot','created_at'],
         'job_reports'=>['reference','user_id','staff_id','staff_name','staff_role','report_type','period_start','period_end','version','previous_report_id','request_key','request_digest','snapshot','snapshot_hash','status','filed_at'],
         'job_report_drafts'=>['user_id','report_type','period_start','notes','revision','updated_at'],
         'job_report_reviews'=>['report_id','actor_id','actor_name','action','feedback','created_at','request_key'],
@@ -16,13 +18,13 @@ function deploymentSchemaRequirements(): array {
         'report_conflicts'=>['report_id','user_id'],
         'report_events'=>['report_id','request_hash','visibility','actor_kind','actor_user_id','old_status','new_status','previous_hash','event_hash','created_at'],
         'report_attachments'=>['report_id','event_id','stored_name','content_hash','deleted_at'],
-        'users' => ['profile_photo', 'role', 'account_type', 'unit_owner_id', 'is_active', 'status', 'session_version', 'last_seen_at', 'verification_token', 'verification_expires', 'reset_token', 'reset_expires', 'failed_login_attempts', 'locked_until', 'phone_verified', 'phone_otp', 'phone_otp_expires', 'phone_otp_attempts', 'phone_otp_sent_at'],
+        'users' => ['archived_at','archived_by','archive_reason','profile_photo', 'role', 'account_type', 'unit_owner_id', 'is_active', 'status', 'session_version', 'last_seen_at', 'verification_token', 'verification_expires', 'reset_token', 'reset_expires', 'failed_login_attempts', 'locked_until', 'phone_verified', 'phone_otp', 'phone_otp_expires', 'phone_otp_attempts', 'phone_otp_sent_at'],
         'authentication_limits' => ['bucket', 'attempts', 'window_started_at'],
         'digital_id_credentials' => ['user_id','token_hash','account_fingerprint','issued_at','expires_at','revoked_at'],
         'notification_outbox' => ['deduplication_key','user_id','event_kind','entity_id','channel','recipient','subject','body','status','attempts','next_attempt_at','locked_at','sent_at'],
-        'payments' => ['status', 'billing_scope', 'billing_period_start', 'billing_period_end', 'paymongo_checkout_id', 'paymongo_payment_id', 'checkout_url', 'gateway_status', 'payment_channel', 'reminder_sent_at'],
+        'payments' => ['unit_number_snapshot','status', 'billing_scope', 'billing_period_start', 'billing_period_end', 'paymongo_checkout_id', 'paymongo_payment_id', 'checkout_url', 'gateway_status', 'payment_channel', 'reminder_sent_at'],
         'bill_items' => ['payment_id', 'amount'],
-        'maintenance_requests' => ['urgency', 'evidence_path', 'completion_note', 'before_photo_path', 'after_photo_path', 'status'],
+        'maintenance_requests' => ['unit_number_snapshot','urgency', 'evidence_path', 'completion_note', 'before_photo_path', 'after_photo_path', 'status'],
         'messages' => ['attachment_path', 'attachment_name', 'attachment_mime', 'is_read'],
         'bookings' => ['attendees','status','unit_number','end_time','duration_hours','hourly_rate','total_fee','payment_id','approved_by','approved_at','rejection_reason','cancellation_note'],
         'analytics' => ['event_type'],
@@ -32,12 +34,12 @@ function deploymentSchemaRequirements(): array {
         'parking_slots' => ['slot_code', 'slot_type', 'status', 'assigned_user_id', 'lookup_plate'],
         'parking_requests' => ['registration_authority','reservation_start_utc','fee_ack_rate_id','fee_acknowledged_by','registration_actor_id','rate_version_id','rate_policy_snapshot','calculation_snapshot','fee_state','rate_reviewed_by','rate_reviewed_at','rate_review_reason','fee_policy_version','vehicle_type','vehicle_model','vehicle_color','expected_arrival_utc','expected_departure_utc','reservation_end_utc','requested_slot_id','fee_acknowledged_at','actual_check_in','actual_check_out','rate_snapshot','billing_user_id','billing_scope_snapshot','sponsor_unit_snapshot','visitor_name_snapshot','authorized_until','parking_compliance','billable_seconds','billable_hours','parking_fee','last_monitored_at','payment_id','checked_in_by','checked_out_by','active_parking_plate','active_parking_slot','visitor_registration_id','slot_id','status','lookup_plate'],
         'parking_policy' => ['sticker_price', 'sticker_max_quantity', 'visitor_max_days'],
-        'parking_sticker_orders' => ['quantity', 'bill_payment_id', 'claim_status', 'issued_at', 'issued_by'],
-        'vehicles' => ['normalized_plate', 'or_cr_path', 'or_cr_mime', 'status'],
-        'parking_sticker_vehicles' => ['order_id', 'vehicle_id', 'sticker_number'],
+        'parking_sticker_orders' => ['authorization_revoked_at','authorization_revocation_reason','quantity', 'bill_payment_id', 'claim_status', 'issued_at', 'issued_by'],
+        'vehicles' => ['authorization_revoked_at','authorization_revocation_reason','unit_number_snapshot','normalized_plate', 'or_cr_path', 'or_cr_mime', 'status'],
+        'parking_sticker_vehicles' => ['revoked_at','revocation_reason','order_id', 'vehicle_id', 'sticker_number'],
         'violations' => ['location', 'evidence_path', 'admin_remarks', 'payment_id', 'vehicle_id', 'visitor_registration_id', 'parking_request_id', 'parking_slot_id', 'observed_plate', 'observed_plate_normalized', 'registration_source', 'vehicle_snapshot', 'account_name_snapshot', 'unit_snapshot', 'incident_at', 'report_remarks', 'review_status', 'reviewed_by', 'reviewed_at', 'responsibility_note'],
         'visitor_logs' => ['visitor_count', 'checked_out_by', 'time_out', 'status'],
-        'resident_service_requests' => ['gate_data', 'qr_token_hash', 'updated_at', 'visitor_count', 'request_kind', 'visitor_log_id', 'access_token', 'status', 'identity_status', 'id_type', 'id_number_last4', 'id_document_name', 'id_document_mime', 'id_uploaded_at', 'identity_reviewed_by', 'identity_reviewed_at', 'identity_review_note', 'id_deleted_at'],
+        'resident_service_requests' => ['unit_number_snapshot','gate_data', 'qr_token_hash', 'updated_at', 'visitor_count', 'request_kind', 'visitor_log_id', 'access_token', 'status', 'identity_status', 'id_type', 'id_number_last4', 'id_document_name', 'id_document_mime', 'id_uploaded_at', 'identity_reviewed_by', 'identity_reviewed_at', 'identity_review_note', 'id_deleted_at'],
         'permit_items' => ['request_id','item_name','category','quantity','description'],
         'permit_documents' => ['request_id','stored_name','original_name','mime'],
         'permit_history' => ['request_id','actor_id','action','remarks','created_at'],
@@ -62,6 +64,8 @@ function deploymentSchemaProblems(mysqli $db): array {
     }
     $uniqueColumns = [
         'users' => ['username', 'email'], 'remember_tokens' => ['selector'],
+        'account_unit_relationships'=>['active_owner_unit'],
+        'account_archive_events'=>['request_key'],
         'parking_slots' => ['slot_code'], 'resident_service_requests' => ['access_token'],
         'parking_sticker_vehicles' => ['vehicle_id', 'sticker_number'],
         'payments' => ['paymongo_checkout_id','paymongo_payment_id'],
@@ -83,7 +87,10 @@ function deploymentSchemaProblems(mysqli $db): array {
             if (!in_array([$column], array_values($indexes), true)) $problems[] = "Missing unique index: {$table}.{$column}";
         }
     }
-    foreach(analyticsReportingIndexes()as$table=>$required) {
+    $reportingIndexes=analyticsReportingIndexes();
+    $reportingIndexes['account_unit_relationships']=['ux_relationship_active'=>'user_id,active_unit','ix_relationship_unit'=>'unit_number,ended_at,occupancy_ended_at'];
+    $reportingIndexes['account_archive_events']=['ix_archive_category'=>'category,created_at,id','ix_archive_user'=>'user_id,id','ix_archive_unit'=>'former_unit,created_at','ix_archive_actor'=>'actor_id,created_at'];
+    foreach($reportingIndexes as$table=>$required) {
         if(!isset($tables[$table]))continue;
         $actual=[];$result=$db->query("SHOW INDEX FROM `$table`");
         while($row=$result->fetch_assoc())$actual[$row['Key_name']][(int)$row['Seq_in_index']]=$row['Column_name'];

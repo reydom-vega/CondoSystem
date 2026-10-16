@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect($pendingAccountsUrl);
         }
 
-        $applicantStmt = $connection->prepare("SELECT full_name, email, session_version FROM users WHERE id = ? AND role = 'resident' AND status = 'pending'");
+        $applicantStmt = $connection->prepare("SELECT full_name, email, session_version FROM users WHERE id = ? AND role = 'resident' AND status = 'pending' AND is_active=1 AND archived_at IS NULL");
         $applicantStmt->bind_param('i', $userIdToReject);
         $applicantStmt->execute();
         $applicant = $applicantStmt->get_result()->fetch_assoc();
@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $previousVersion = (int)$applicant['session_version'];
-        $stmtReject = $connection->prepare("UPDATE users SET status = 'rejected', rejection_reason = ?, reset_token = NULL, reset_expires = NULL, session_version = session_version + 1 WHERE id = ? AND role = 'resident' AND status = 'pending' AND session_version = ?");
+        $stmtReject = $connection->prepare("UPDATE users SET status = 'rejected', rejection_reason = ?, reset_token = NULL, reset_expires = NULL, session_version = session_version + 1 WHERE id = ? AND role = 'resident' AND status = 'pending' AND is_active=1 AND archived_at IS NULL AND session_version = ?");
         $stmtReject->bind_param('sii', $rejectionReason, $userIdToReject, $previousVersion);
         $rejected = $stmtReject->execute() && $stmtReject->affected_rows === 1;
         $stmtReject->close();
@@ -113,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Kunin ang mga pending registrations
-$pendingResult = $connection->query("SELECT id, full_name, username, email, contact_number, unit_number, account_type, created_at FROM users WHERE role = 'resident' AND is_verified = 1 AND status = 'pending' ORDER BY created_at ASC");
+$pendingResult = $connection->query("SELECT id, full_name, username, email, contact_number, unit_number, account_type, created_at FROM users WHERE role = 'resident' AND is_verified = 1 AND status = 'pending' AND is_active=1 AND archived_at IS NULL ORDER BY created_at ASC");
 if ($pendingResult) {
     $pendingApprovals = $pendingResult->fetch_all(MYSQLI_ASSOC);
 }

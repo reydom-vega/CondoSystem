@@ -1,5 +1,6 @@
 <?php
 require_once '../config.php';
+require_once __DIR__.'/../includes/archive_ui.php';
 require_once __DIR__.'/../includes/job_report_workspace.php';
 header('Cache-Control: no-store, private');
 
@@ -75,28 +76,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     } elseif ($action === 'toggle_status') {
-        $active = (int)($_POST['is_active'] ?? 0) === 1 ? 1 : 0;
-        if ($staffId <= 0 || $staffId === (int)($_SESSION['user_id'] ?? 0)) {
-            $errors[] = 'You cannot deactivate or change your own account.';
-        } else {
-            $update = $connection->prepare("UPDATE users SET is_active = ?, reset_token = NULL, reset_expires = NULL, session_version = session_version + 1 WHERE id = ? AND role <> 'resident'");
-            $update->bind_param('ii', $active, $staffId);
-            if ($update->execute() && $update->affected_rows > 0) {
-                ensureRememberTokensTable($connection);
-                $tokens = $connection->prepare('DELETE FROM remember_tokens WHERE user_id = ?');
-                $tokens->bind_param('i', $staffId);
-                $tokens->execute();
-                logAudit($active ? 'reactivate' : 'deactivate', 'staff', $staffId, 'Staff account ' . ($active ? 'reactivated' : 'deactivated'));
-                $success = 'Staff account status updated.';
-            } else {
-                $errors[] = 'Unable to update that staff account status.';
-            }
-        }
+        $errors[]='Use Remove & Archive to confirm a reason. Reactivation is available only through the controlled Archive restore workflow.';
     } elseif ($action === 'force_logout') {
         if ($staffId <= 0 || $staffId === (int)($_SESSION['user_id'] ?? 0)) {
             $errors[] = 'You cannot force logout your own account.';
         } else {
-            $update = $connection->prepare("UPDATE users SET reset_token = NULL, reset_expires = NULL, session_version = session_version + 1 WHERE id = ? AND role <> 'resident'");
+            $update = $connection->prepare("UPDATE users SET reset_token = NULL, reset_expires = NULL, session_version = session_version + 1 WHERE id = ? AND role <> 'resident' AND is_active=1 AND archived_at IS NULL");
             $update->bind_param('i', $staffId);
             if ($update->execute() && $update->affected_rows > 0) {
                 ensureRememberTokensTable($connection);
@@ -117,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character.';
         } else {
             $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
-            $update = $connection->prepare("UPDATE users SET password_hash = ?, failed_login_attempts = 0, locked_until = NULL, reset_token = NULL, reset_expires = NULL, session_version = session_version + 1 WHERE id = ? AND role <> 'resident'");
+            $update = $connection->prepare("UPDATE users SET password_hash = ?, failed_login_attempts = 0, locked_until = NULL, reset_token = NULL, reset_expires = NULL, session_version = session_version + 1 WHERE id = ? AND role <> 'resident' AND is_active=1 AND archived_at IS NULL");
             $update->bind_param('si', $passwordHash, $staffId);
             if ($update->execute() && $update->affected_rows > 0) {
                 ensureRememberTokensTable($connection);
@@ -134,8 +119,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Please select a valid staff role.';
     } elseif ($action === 'update_role' && $staffId === (int)($_SESSION['user_id'] ?? 0)) {
         $errors[] = 'You cannot change your own SuperAdmin role.';
+    } elseif ($action === 'update_role' && (archiveUser($connection,$staffId)['role']??'')==='superadmin') {
+        $errors[]='Super Admin accounts require a separate secure account-transfer process.';
     } elseif ($action === 'update_role') {
-        $update = $connection->prepare("UPDATE users SET role = ?, reset_token = NULL, reset_expires = NULL, session_version = session_version + 1 WHERE id = ? AND role <> 'resident'");
+        $update = $connection->prepare("UPDATE users SET role = ?, reset_token = NULL, reset_expires = NULL, session_version = session_version + 1 WHERE id = ? AND role <> 'resident' AND is_active=1 AND archived_at IS NULL");
         $update->bind_param('si', $newRole, $staffId);
         if ($update->execute() && $update->affected_rows > 0) {
             $connection->query('UPDATE users SET session_version = session_version + 1 WHERE id = ' . $staffId);
@@ -152,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $staff = [];
-$result = $connection->query("SELECT id, staff_id, full_name, username, email, role, is_verified, is_active, last_login_at, last_seen_at, created_at FROM users WHERE role <> 'resident' ORDER BY role ASC, full_name ASC");
+$result = $connection->query("SELECT id, staff_id, full_name, username, email, role, is_verified, is_active, last_login_at, last_seen_at, created_at FROM users WHERE role <> 'resident' AND is_active=1 AND archived_at IS NULL ORDER BY role ASC, full_name ASC");
 if ($result) {
     while ($member = $result->fetch_assoc()) {
         if ($roleFilter !== 'all' && $member['role'] !== $roleFilter) {
@@ -714,7 +701,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <td><?php echo $member['last_login_at'] ? htmlspecialchars(date('M j, Y g:i A', strtotime($member['last_login_at']))) : 'Never'; ?></td>
                         <td><?php echo htmlspecialchars(date('M j, Y', strtotime($member['created_at']))); ?></td>
                         <td><div class="staff-actions">
-                            <form method="post"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="toggle_status"><input type="hidden" name="staff_id" value="<?php echo (int)$member['id']; ?>"><input type="hidden" name="is_active" value="<?php echo (int)$member['is_active'] === 1 ? '0' : '1'; ?>"><button type="submit"><?php echo (int)$member['is_active'] === 1 ? 'Deactivate' : 'Reactivate'; ?></button></form>
+                            <?php if($member['role']!=='superadmin' && (int)$member['id']!==(int)$_SESSION['user_id']): ?><button type="button" class="service-btn service-btn-danger" data-archive-mode="archive_staff" data-archive-user="<?= (int)$member['id'] ?>">Remove &amp; Archive</button><?php endif; ?>
                             <form method="post"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="force_logout"><input type="hidden" name="staff_id" value="<?php echo (int)$member['id']; ?>"><button type="submit">Force Logout</button></form>
                             <form method="post" class="staff-password-form"><?php echo workflowCsrfField(); ?><input type="hidden" name="action" value="reset_password"><input type="hidden" name="staff_id" value="<?php echo (int)$member['id']; ?>"><label for="staff-password-<?php echo (int)$member['id']; ?>">New password</label><input id="staff-password-<?php echo (int)$member['id']; ?>" type="password" name="new_password" autocomplete="new-password" placeholder="At least 8 characters" minlength="8" required><button type="submit">Change Password</button></form>
                         </div></td>
@@ -790,5 +777,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </script>
     <script src="../js/profile-menu.js"></script>
     <script src="../js/notification-menu.js"></script>
+<?php renderArchiveConfirmation(); ?>
 </body>
 </html>

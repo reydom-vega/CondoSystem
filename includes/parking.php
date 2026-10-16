@@ -401,11 +401,11 @@ function getParkingPassDetails(int $requestId, string $signature): ?array {
     $connection = connectDb();
     ensureParkingTables($connection);
     ensureResidentServicesTables($connection);
-    $stmt = $connection->prepare("SELECT pr.*, ps.slot_code, ps.level, ps.status AS slot_status, u.full_name, u.unit_number, u.email, vr.visitor_name, vr.status AS visitor_status, vr.request_kind AS visitor_kind, vr.identity_status AS visitor_identity_status, vr.id_document_name AS visitor_id_document_name, vr.id_uploaded_at AS visitor_id_uploaded_at, vr.id_deleted_at AS visitor_id_deleted_at FROM parking_requests pr INNER JOIN users u ON u.id = pr.user_id LEFT JOIN parking_slots ps ON ps.id = pr.slot_id LEFT JOIN resident_service_requests vr ON vr.id = pr.visitor_registration_id AND vr.user_id = pr.user_id WHERE pr.id = ? AND pr.request_type = 'visitor' AND u.status = 'approved' AND u.is_active = 1 AND u.is_verified = 1 AND u.role = 'resident' AND TRIM(COALESCE(u.unit_number,'')) <> '' LIMIT 1");
+    $stmt = $connection->prepare("SELECT pr.*, ps.slot_code, ps.level, ps.status AS slot_status, u.full_name, COALESCE(pr.sponsor_unit_snapshot,u.unit_number) unit_number, u.email, vr.visitor_name, vr.status AS visitor_status, vr.request_kind AS visitor_kind, vr.identity_status AS visitor_identity_status, vr.id_document_name AS visitor_id_document_name, vr.id_uploaded_at AS visitor_id_uploaded_at, vr.id_deleted_at AS visitor_id_deleted_at FROM parking_requests pr INNER JOIN users u ON u.id = pr.user_id LEFT JOIN parking_slots ps ON ps.id = pr.slot_id LEFT JOIN resident_service_requests vr ON vr.id = pr.visitor_registration_id AND vr.user_id = pr.user_id WHERE pr.id = ? AND pr.request_type = 'visitor' AND u.status = 'approved' AND u.is_active = 1 AND u.archived_at IS NULL AND u.is_verified = 1 AND u.role = 'resident' AND TRIM(COALESCE(u.unit_number,'')) <> '' LIMIT 1");
     $stmt->bind_param('i', $requestId);
     $stmt->execute();
     $pass=$stmt->get_result()->fetch_assoc();
-    return $pass && (residentContext($connection,(int)$pass['user_id'])['approved'] ?? false) ? $pass : null;
+    return $pass && accountOccupiesUnit($connection,(int)$pass['user_id'],$pass['unit_number']) && accountHasUnitEntitlement($connection,(int)$pass['user_id'],$pass['unit_number']) && (residentContext($connection,(int)$pass['user_id'])['approved']??false) ? $pass : null;
 }
 
 /** The same approval checks govern the request button, pass QR and scanner. */
@@ -423,7 +423,7 @@ function parkingPassApprovalNotice(array $pass): ?string {
 /** Access authorization remains strict even when the owner can view its status. */
 function getParkingPass(int $requestId, string $signature): ?array {
     $pass = getParkingPassDetails($requestId, $signature);
-    return $pass && parkingPassApprovalNotice($pass) === null ? $pass : null;
+    return $pass && residentUserHasPermission(connectDb(),(int)$pass['user_id'],'resident.parking.request') && parkingPassApprovalNotice($pass) === null ? $pass : null;
 }
 
 function parkingPassUrl(int $requestId): string {

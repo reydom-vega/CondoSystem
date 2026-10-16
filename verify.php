@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
         $connection = connectDb();
         if (!allowAuthenticationRequest($connection, 'verify', 5)) { http_response_code(429); exit('Too many attempts. Please try again later.'); }
-        $stmt = $connection->prepare('SELECT id, is_verified, verification_token, verification_expires FROM users WHERE email = ? AND is_active = 1 LIMIT 1');
+        $stmt = $connection->prepare('SELECT id, is_verified, verification_token, verification_expires FROM users WHERE email = ? AND is_active = 1 AND archived_at IS NULL LIMIT 1');
         $stmt->bind_param('s', $email);
         $stmt->execute();
         $result = $stmt->get_result();

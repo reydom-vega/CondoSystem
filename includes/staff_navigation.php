@@ -9,6 +9,7 @@ function staffSidebarLinks(): array {
         ['superadmin/residents.php', 'residents', 'Residents', 'residents.read'],
         ['superadmin/pending_accounts.php', 'pending', 'Pending Accounts', 'accounts.review'],
         ['superadmin/staff.php', 'staff', 'Staff Management', 'staff.manage'],
+        ['superadmin/archive.php', 'archive', 'Archive', 'archive.manage'],
         ['superadmin/unitpayments.php', 'billing', 'Billing & Payments', 'billing.manage'],
         ['superadmin/generate_bills.php', 'bills', 'Generate Bills', 'billing.manage'],
         ['superadmin/violations.php', 'violations', 'Violations', 'violations.manage'],

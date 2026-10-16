@@ -31,7 +31,7 @@ function portalWorkspaceModule(): ?string {
         'resident/announcements.php'=>'announcements', 'superadmin/announcements.php'=>'announcements',
         'resident/visitors.php'=>'visitors', 'superadmin/visitorlog.php'=>'visitors',
         'security/visitor_log.php'=>'visitors',
-        'superadmin/units.php'=>'accounts', 'superadmin/residents.php'=>'accounts',
+        'superadmin/archive.php'=>'accounts', 'superadmin/units.php'=>'accounts', 'superadmin/residents.php'=>'accounts',
         'superadmin/pending_accounts.php'=>'accounts', 'superadmin/staff.php'=>'accounts',
         'superadmin/analytics.php'=>'reports', 'superadmin/auditlog.php'=>'reports',
         'superadmin/notification_delivery.php'=>'notifications',

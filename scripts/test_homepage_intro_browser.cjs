@@ -38,6 +38,7 @@ if(!/^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?\/[^?#]*$/.test(base||'')||!ba
   await fresh();
   await check("document.documentElement.dataset.celIntro==='playing'&&!document.querySelector('#cel-intro').hidden",'first tab visit starts intro');
   await check("sessionStorage.getItem('celandineIntroSeenV1')==='1'",'session marked at start, including reload during animation');
+  await check("!document.querySelector('#cel-intro audio,#cel-intro-entry,#cel-enter-sound,#cel-enter-silent,#cel-mute,#cel-intro-status')",'silent intro has no narration element or sound choice controls');
   await check("document.querySelector('main').inert&&document.activeElement.id==='cel-skip'",'background disabled and Skip focused during intro');
   await check("document.querySelectorAll('script[src*=gsap]').length===1&&document.querySelector('script[src*=gsap]').src.includes('/assets/vendor/gsap/')",'one existing local GSAP import');
   await check(`[...document.querySelectorAll('link[href*=celandine-intro],script[src*=celandine-intro]')].every(el=>new URL(el.href||el.src).href.startsWith(${JSON.stringify(base)}))`,'intro assets use configured application base');

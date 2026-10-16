@@ -12,7 +12,6 @@ $username = $_SESSION['username'] ?? 'Administrator';
 $nameParts = preg_split('/\s+/', trim($username));
 $initials = strtoupper(substr($nameParts[0], 0, 1) . (count($nameParts) > 1 ? substr(end($nameParts), 0, 1) : ''));
 $search = trim($_GET['search'] ?? '');
-$statusFilter = $_GET['status'] ?? 'all';
 $residents = [];
 
 $connection = connectDb();
@@ -21,21 +20,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     setFlash('error','Use End Occupancy or End Account Relationship to review the impact and confirm an archive reason.');redirect('residents.php');
 }
 $flash=getFlash();
-$result = $connection->query("SELECT id,resident_id, account_type, unit_owner_id, full_name, username, email, contact_number, unit_number, status, is_active, is_verified, last_login_at, last_seen_at, created_at FROM users WHERE role = 'resident' AND is_active=1 AND archived_at IS NULL ORDER BY full_name ASC");
+$result = $connection->query("SELECT id,resident_id, account_type, unit_owner_id, full_name, username, email, contact_number, unit_number, status, is_active, is_verified, last_login_at, last_seen_at, created_at FROM users WHERE role = 'resident' AND status = 'approved' AND is_verified=1 AND is_active=1 AND archived_at IS NULL ORDER BY full_name ASC");
 if ($result) {
     while ($resident = $result->fetch_assoc()) {
         $haystack = strtolower(implode(' ', [$resident['full_name'], $resident['username'], $resident['email'], $resident['unit_number'] ?? '', $resident['contact_number']]));
         $context=residentContext($connection,(int)$resident['id']);
-        $isActive = $context['approved'] ?? false;
-        $displayStatus = $isActive ? 'Active' : ((int)$resident['is_active'] !== 1 ? 'Inactive' : ($resident['status'] === 'rejected' ? 'Rejected' : ((int)$resident['is_verified'] !== 1 ? 'Unverified' : 'Pending')));
+        $displayStatus = ($context['approved'] ?? false) ? 'Active' : 'Approved';
 
         if ($search !== '' && strpos($haystack, strtolower($search)) === false) {
-            continue;
-        }
-        if ($statusFilter === 'active' && !$isActive) {
-            continue;
-        }
-        if ($statusFilter === 'pending' && $isActive) {
             continue;
         }
 
@@ -58,8 +50,7 @@ if ($result) {
     }
 }
 
-$activeCount = count(array_filter($residents, static fn (array $resident): bool => $resident['status'] === 'Active'));
-$pendingCount = count($residents) - $activeCount;
+$activeCount = count($residents);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -98,8 +89,8 @@ $pendingCount = count($residents) - $activeCount;
             </header>
 
             <section class="unit-page-head">
-                <div><h2>Residents</h2><p>Review unit owners and linked tenants or occupants. Super Admin can end a selected relationship here. Mark Vacant in Units ends physical occupancy while preserving legal ownership.</p></div>
-                <div class="unit-summary"><span><?php echo $activeCount; ?> Active</span><span><?php echo $pendingCount; ?> Pending</span></div>
+                <div><h2>Residents</h2><p>Review approved unit owners and linked tenants or occupants. Pending registrations appear in Pending Accounts. Super Admin can end a selected relationship here. Mark Vacant in Units ends physical occupancy while preserving legal ownership.</p></div>
+                <div class="unit-summary"><span><?php echo $activeCount; ?> Approved</span></div>
             </section>
 
             <section class="unit-management-panel">
@@ -107,12 +98,6 @@ $pendingCount = count($residents) - $activeCount;
                 <form class="unit-filters" method="get" action="residents.php">
                     <label for="residentSearch">Search residents</label>
                     <input id="residentSearch" type="search" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Search resident or unit...">
-                    <label for="residentStatus">Filter by status</label>
-                    <select id="residentStatus" name="status">
-                        <option value="all" <?php echo $statusFilter === 'all' ? 'selected' : ''; ?>>All residents</option>
-                        <option value="active" <?php echo $statusFilter === 'active' ? 'selected' : ''; ?>>Active</option>
-                        <option value="pending" <?php echo $statusFilter === 'pending' ? 'selected' : ''; ?>>Pending</option>
-                    </select>
                     <button type="submit">Search</button>
                 </form>
                 <div class="unit-table-wrap">

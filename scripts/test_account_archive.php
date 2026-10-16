@@ -54,11 +54,14 @@ try{
     $financial=$db->query('SELECT * FROM payments WHERE user_id=3 ORDER BY id')->fetch_all(MYSQLI_ASSOC);
     $slot=arInsert($db,'parking_slots',['slot_code'=>'ARCHIVE-RES','slot_type'=>'resident','status'=>'occupied','assigned_user_id'=>3,'assigned_unit'=>$unit,'vehicle_plate'=>'AR-123']);
     $vehicle=arInsert($db,'vehicles',['user_id'=>3,'make'=>'Toyota','model'=>'Vios','color'=>'White','year'=>2025,'plate_number'=>'AR-123','normalized_plate'=>'AR123','or_cr_path'=>'fixture.pdf','or_cr_mime'=>'application/pdf','status'=>'approved','parking_slot_id'=>$slot,'unit_number_snapshot'=>$unit]);
+    $olderVehicle=arInsert($db,'vehicles',['user_id'=>3,'make'=>'Honda','model'=>'City','color'=>'Silver','year'=>2024,'plate_number'=>'AR-OLD','normalized_plate'=>'AROLD','or_cr_path'=>'older-fixture.pdf','or_cr_mime'=>'application/pdf','status'=>'approved','unit_number_snapshot'=>$second]);
+    $pendingVehicle=arInsert($db,'vehicles',['user_id'=>3,'make'=>'Honda','model'=>'Civic','color'=>'Blue','year'=>2024,'plate_number'=>'AR-PENDING','normalized_plate'=>'ARPENDING','or_cr_path'=>'pending-fixture.pdf','or_cr_mime'=>'application/pdf','status'=>'pending','unit_number_snapshot'=>$second]);
     $order=arInsert($db,'parking_sticker_orders',['user_id'=>3,'quantity'=>1,'amount'=>'1250.25','bill_payment_id'=>$paid,'status'=>'paid','claim_status'=>'issued']);arInsert($db,'parking_sticker_vehicles',['order_id'=>$order,'vehicle_id'=>$vehicle,'sticker_number'=>'CS-ARCHIVE-1']);
     $maintenance=arInsert($db,'maintenance_requests',['user_id'=>3,'issue_type'=>'Electrical','description'=>'Preserved in-progress work','location'=>'Kitchen','status'=>'in_progress','unit_number_snapshot'=>$unit]);
     $booking=arInsert($db,'bookings',['user_id'=>3,'amenity'=>'Swimming Pool','booking_date'=>date('Y-m-d',time()+86400),'booking_time'=>'09:00','status'=>'approved','payment_id'=>$paid,'unit_number'=>$unit]);
     $service=arInsert($db,'resident_service_requests',['user_id'=>3,'request_kind'=>'visitor','visitor_name'=>'Unused Guest','details'=>'Preserve visitor history','start_date'=>date('Y-m-d'),'end_date'=>date('Y-m-d'),'status'=>'approved','identity_status'=>'verified','access_token'=>str_repeat('b',64),'unit_number_snapshot'=>$unit]);
     $input=arInput($db,'end_occupancy',3,$unit);
+    arCheck(archivePreview($db,$input)['totals']['vehicles']===3,'Full account archive previews vehicles from every recorded unit and review state');
     arDenied(fn()=>archiveApply($db,$input),'Physically occupied resident slot requires explicit inspection confirmation');
     arCheck(archiveUser($db,3)['archived_at']===null&&$db->query('SELECT status FROM resident_service_requests WHERE id='.$service)->fetch_assoc()['status']==='approved','Failed multi-table archive rolls back every preceding change');
     $result=archiveApply($db,$input+['parking_cleared'=>'1']);
@@ -66,6 +69,8 @@ try{
     arCheck($db->query('SELECT * FROM payments WHERE user_id=3 ORDER BY id')->fetch_all(MYSQLI_ASSOC)===$financial,'Paid amounts, unpaid balances, PayMongo references and payment rows remain unchanged');
     arCheck($db->query('SELECT status,assigned_user_id FROM parking_slots WHERE id='.$slot)->fetch_assoc()===['status'=>'available','assigned_user_id'=>null],'Inspected empty resident slot is released safely');
     arCheck($db->query('SELECT authorization_revoked_at FROM vehicles WHERE id='.$vehicle)->fetch_assoc()['authorization_revoked_at']!==null,'Departed vehicle authorization is revoked without deleting registration history');
+    foreach([$olderVehicle,$pendingVehicle] as $vehicleId) arCheck($db->query('SELECT authorization_revoked_at FROM vehicles WHERE id='.$vehicleId)->fetch_assoc()['authorization_revoked_at']!==null,'Full account archival revokes older-unit vehicle #'.$vehicleId);
+    arCheck($db->query('SELECT status,or_cr_path FROM vehicles WHERE id='.$pendingVehicle)->fetch_assoc()===['status'=>'pending','or_cr_path'=>'pending-fixture.pdf'],'Archiving retains the original vehicle review status and ownership document');
     arCheck($db->query('SELECT revoked_at FROM parking_sticker_vehicles WHERE vehicle_id='.$vehicle)->fetch_assoc()['revoked_at']!==null,'Issued sticker is revoked while preserving its paid order');
     arCheck($db->query('SELECT status FROM maintenance_requests WHERE id='.$maintenance)->fetch_assoc()['status']==='in_progress','Ongoing maintenance remains in its staff queue');
     arCheck($db->query('SELECT status FROM bookings WHERE id='.$booking)->fetch_assoc()['status']==='cancelled','Explicitly confirmed future booking cancellation preserves its paid charge for financial review');
@@ -73,6 +78,11 @@ try{
     arCheck(createBill(3,[['category'=>'Parking','amount'=>50]],null,null,date('Y-m-d'))===false,'Manipulated archived recipient cannot receive a new personal bill');
     arCheck(getResidentServicePass($db,$service,str_repeat('b',64))===null,'Unused visitor QR cannot authorize entry after sponsor archival');
     $detail=archiveDetails($db,(int)$result['event_id']);arCheck(isset($detail['history']['billing'],$detail['history']['vehicles'],$detail['history']['relationships'])&&$detail['balance']['outstanding']==='1500.75','Archive detail exposes preserved linked history and original debt to Super Admin');
+    $vehicleBadge=vehicleRegistryStatus($detail['history']['vehicles']['rows'][0]);
+    arCheck($vehicleBadge===['label'=>'Archived','class'=>'vehicle-status-archived','actionable'=>false],'Revoked vehicle history displays Archived without changing original review status');
+    arCheck(vehicleRegistryStatus(['status'=>'approved','account_archived_at'=>gmdate('Y-m-d H:i:s')])['label']==='Archived','Archived account overrides an old green vehicle approval');
+    arCheck(vehicleRegistryStatus(['status'=>'approved','account_status'=>'pending'])===['label'=>'Pending account','class'=>'pending','actionable'=>false],'Pending account is accurately labelled and cannot expose vehicle actions');
+    arCheck($detail['history']['vehicles']['total']===3&&count($detail['snapshot']['vehicles'])===3,'Archive history and confirmation snapshot retain every archived vehicle');
     $json=json_encode($detail);arCheck(!str_contains($json,'password_hash')&&!str_contains($json,'access_token')&&!str_contains($json,'id_document_name'),'Archive details exclude credentials, QR tokens and identification documents');
     arCheck(archiveList($db,['tab'=>'tenants','search'=>'AR-123'])['total']===1,'Archive search finds historical vehicle plates');
     arCheck(archiveList($db,['tab'=>'tenants','search'=>'Archive Fixture 3','unit'=>$unit,'reason_code'=>'moved_out'])['total']===1,'Name, unit and reason filters combine on the server');
@@ -88,12 +98,15 @@ try{
     archiveApply($db,arInput($db,'vacate_unit',2,$unit));
     arDenied(fn()=>archivePreview($db,['mode'=>'vacate_unit','user_id'=>2,'unit_number'=>$unit]),'Already ended occupancy cannot create another vacancy event');
     arInsert($db,'account_unit_relationships',['user_id'=>2,'unit_number'=>$second,'relationship_kind'=>'owner','owner_id'=>2,'started_at'=>gmdate('Y-m-d H:i:s')]);
+    $otherUnitVehicle=arInsert($db,'vehicles',['user_id'=>2,'make'=>'Toyota','model'=>'Innova','color'=>'White','year'=>2025,'plate_number'=>'AR-OTHER','normalized_plate'=>'AROTHER','or_cr_path'=>'other-unit.pdf','or_cr_mime'=>'application/pdf','status'=>'approved','unit_number_snapshot'=>$second]);
     $end=arInput($db,'archive_account',2,$unit);archiveApply($db,$end);
     arCheck(archiveUser($db,2)['archived_at']===null&&archiveUser($db,2)['unit_number']===$second,'Multi-unit owner retains unrelated unit entitlement and primary portal access');
+    arCheck($db->query('SELECT authorization_revoked_at FROM vehicles WHERE id='.$otherUnitVehicle)->fetch_assoc()['authorization_revoked_at']===null,'Ending one unit relationship preserves vehicles belonging to another active unit');
     $restoreTenant=['user_id'=>3,'unit_number'=>$second,'reason'=>'New approved tenancy','new_password'=>'TenantFresh!2026','confirmed'=>'1','request_key'=>bin2hex(random_bytes(32))];
     archiveRestore($db,$restoreTenant);arCheck(residentContext($db,3)['approved']&&archiveUser($db,3)['unit_number']===$second,'Tenant restoration creates a new approved occupancy period');
     arCheck($db->query('SELECT unit_number_snapshot FROM payments WHERE id='.$paid)->fetch_assoc()['unit_number_snapshot']===$unit,'Restoration never moves historical charges to the new occupancy period');
     arCheck($db->query('SELECT authorization_revoked_at FROM vehicles WHERE id='.$vehicle)->fetch_assoc()['authorization_revoked_at']!==null,'Restoration does not silently restore old vehicle or parking authorization');
+    arCheck(getVehiclesForResident($db,3)===[]&&!array_intersect([$vehicle,$olderVehicle,$pendingVehicle],array_column(getAllVehicles($db),'id')),'Restoration cannot return archived registrations to resident or management active lists');
     // An archived sponsor must not strand a visitor or fabricate a vehicle exit.
     $log=arInsert($db,'visitor_logs',['visitor_name'=>'Inside Fixture Guest','unit_number'=>$second,'purpose'=>'Active visit retained','logged_by'=>5,'visitor_count'=>2]);
     $inside=arInsert($db,'resident_service_requests',['user_id'=>3,'request_kind'=>'visitor','visitor_name'=>'Inside Fixture Guest','visitor_count'=>2,'details'=>'Active visit retained','start_date'=>date('Y-m-d'),'end_date'=>date('Y-m-d'),'status'=>'checked_in','identity_status'=>'verified','access_token'=>str_repeat('c',64),'visitor_log_id'=>$log,'unit_number_snapshot'=>$second]);

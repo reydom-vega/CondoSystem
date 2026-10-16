@@ -204,3 +204,66 @@ Validation: 33 Security backend checks now include actual password authenticatio
 Implemented Super Admin Archive with confirmed vacancy, tenant departure, staff removal, private historical views, safe restoration and global archived-account exclusions. Legal ownership and original debts survive physical vacancy. Existing active visitor/parking sessions require real checkout; revoked authorization is separate from historical workflow/payment status. See [ARCHIVE_MANAGEMENT.md](ARCHIVE_MANAGEMENT.md) for the complete file inventory, schema, operational flow and test results.
 
 Schema `2026.10.16.1` was applied locally twice after the private SQL/file backup at `C:/xampp/condo_backups/account_archive/snapshot_20261015_182300_b49d6c87`. Exact comparisons preserved existing account access/passwords/unit links, monetary values/payers/PayMongo results and historical row counts. Two legacy relationship records were imported; zero real archive events were created. HTTP-inclusive preflight passed with zero failures and warnings. Automated archive checks: 79 backend, 69 browser, 265 UI routes/assets/CSRF, alongside authentication, billing, notifications, lifecycle, parking, analytics, dashboards, Digital IDs, filed reports and deployment regressions listed in the implementation guide. Tests used disposable data and no real providers. Local PHP was 8.2.12; the exact 8.3 runtime and hosting deployment were unavailable.
+
+
+## Silent Radial Bloom intro (2026-10-16)
+
+Removed the narration integration, audio element, Mute control, ?Experience The Celandine? prompt and sound choice buttons at the user's request. The existing GSAP petal, halo, wordmark and glow animation starts automatically on the first eligible homepage visit and fades into the homepage after approximately 2.9 seconds. Skip Intro, Escape, focus restoration, navigation cleanup, reduced-motion support and the existing once-per-tab sessionStorage flag remain. The WAV file remains on disk, unused by the intro.
+
+Updated `includes/celandine-intro.php`, `assets/js/celandine-intro.js` and `assets/css/celandine-intro.css`. The intro browser checks now cover automatic silent playback and the absence of audio/sound controls, alongside session, responsive, accessibility and failure cleanup checks.
+
+To replay for testing in the same tab, run `sessionStorage.removeItem('celandineIntroSeenV1'); location.reload();` in the browser console. Normal refreshes intentionally do not replay the intro.
+
+Validation: **44 intro browser checks** and **99 homepage browser checks** passed, along with PHP/JavaScript syntax and Git whitespace checks.
+
+## Homepage section navigation highlights (2026-10-16)
+
+The homepage navigation now highlights both Interiors and Resident Portal when they share a grid row. On narrow layouts where those panels stack, it highlights the current panel separately. Desktop and mobile menu links share active styling/state and aria-current updates; scrolling to another section clears the previous highlights. Existing anchor destinations, palette and layout remain unchanged.
+
+Changed `js/homepage.js` and `homepage.css`, with coverage added to `scripts/test_homepage_redesign_browser.cjs`. Validation: **135 homepage browser checks** passed, including shared/stacked panel highlighting and transition to Location at six viewport sizes in both themes, plus JavaScript syntax and Git whitespace checks. Inspected the desktop shared-row screenshot.
+
+## Approved resident directory (2026-10-16)
+
+`superadmin/residents.php`, shared by Admin and Super Admin, now selects only approved, verified, active, non-archived resident accounts, including tenants and occupants. Pending applications stay in Pending Accounts. Removed the directory's Pending status filter/count and retained resident search. Approved accounts without current service entitlement display Approved rather than Pending; existing relationship/occupancy action eligibility remains intact. No account records, approval logic or permissions were changed.
+
+Added request/render regression checks to `scripts/test_authorization.php`: both management roles exclude pending accounts even with legacy status parameters or a matching search, Pending Accounts retains the application, and an approved applicant subsequently appears in Residents. Validation passed: **285 authorization/lifecycle checks**, **212 tenant policy/lifecycle/billing checks**, PHP syntax and Git whitespace checks. Suites used disposable databases and no real providers.
+
+## Archived resident vehicle integration (2026-10-16)
+
+Full account archival now includes all of a resident's vehicle registrations in the impact preview, immutable event snapshot and authorization revocation, including registrations that retain an older unit snapshot. Ending only one relationship on a multi-unit account still preserves vehicles for other active units, and retained owner vacancy policy is unchanged. Existing account/vehicle revocation filters keep archived registrations out of both Admin and Super Admin Registered Vehicles lists. No registration, ownership document, payment or vehicle review status is deleted or rewritten.
+
+Registered Vehicle History automatically expands in archived account details. Parking Management now explains the history location and shows an Archive shortcut only to users with the existing Archive permission. Archive access remains Super Admin only. Account restoration does not revive revoked vehicle registrations.
+
+Changed `includes/archive.php`, `includes/parking_vehicle_content.php`, `superadmin/archive.php`, archive backend/browser checks and the Archive guide. Validation passed: **86 archive backend checks**, **78 archive browser checks**, and **265 UI route/asset/CSRF checks**, plus PHP/JavaScript syntax and Git whitespace checks. Coverage includes older-unit approved and pending vehicle revocation, preserved documents/review state, archive snapshots, both management lists, Archive permissions, rollback, multi-unit preservation and account restoration. All mutation checks used disposable databases; no real accounts were archived.
+
+## Assign resident slots from Registered Vehicles (2026-10-16)
+
+Added Choose a resident slot and Save slot to eligible Admin/Super Admin vehicle cards. Controls reuse the existing reassign_vehicle_slot POST action, CSRF protection, issued/paid sticker requirement, transactional inventory allocation and audit entry. Only available, unassigned resident inventory is offered; the backend rechecks availability/reservation conflicts on save. Controls disable when no resident slots are available. Saving from Registered Vehicles retains that tab, while Sticker Requests retains its existing behavior. Responsive controls keep the existing palette and wrap on mobile.
+
+The existing reassignment query now also rejects revoked vehicles, revoked sticker links/orders and archived/inactive accounts, preserving Archive exclusion even for manipulated requests. No authentication, billing or permission rules were broadened.
+
+Production changes: `includes/parking_vehicle_content.php`, `includes/vehicle_registry_page.php`, `includes/parking_workspace.php`, `includes/parking_allocation.php` and `assets/css/parking-workspace.css`. Validation passed: **318 workflow integration checks**, **29 focused browser checks**, **109 UI route/asset/CSRF checks**, PHP/JavaScript syntax and Git whitespace checks. Covered actual saves by Admin and Super Admin, unassigned tenant vehicles, moving an owner vehicle and releasing its previous slot, staying on the vehicle tab, legacy URLs, staff-only controls and dark/light layouts at 1366/390/320 pixels. Mobile screenshots were inspected. All writes used disposable fixture databases and no real providers.
+
+To repeat browser checks, run `C:/xampp/php/php.exe scripts/test_ui_redesign.php --vehicle-slots-only --preview`, then pass its printed application base URL to `node scripts/test_vehicle_slots_browser.cjs`. Press Enter in the fixture terminal when finished to clean up.
+
+## Vehicle badges reflect account lifecycle (2026-10-16)
+
+Vehicle cards now derive their displayed badge from the account lifecycle before considering the original vehicle review status. Archived accounts or revoked vehicle authorizations display Archived with a yellow badge; pending accounts display Pending account in the existing warning style and expose no review or slot-assignment controls. Inactive, unverified and rejected accounts similarly cannot present an actionable vehicle approval. The original registration status remains unchanged in the database and is retained alongside the Archived badge in vehicle history.
+
+The pictured local vehicle 123BCA belongs to a pending, active, verified account with no archive event or archived timestamp. Its badge therefore becomes Pending account rather than incorrectly asserting archival. No real account or vehicle records were modified. Existing exclusion of archived registrations from active lists remains.
+
+Changed `includes/vehicles.php`, `includes/parking_vehicle_content.php`, `superadmin/archive.php` and scoped Archived badge styles in `assets/css/components.css`. Regression fixtures include a previously approved vehicle with a paid issued sticker whose account is pending, verifying that both management roles see a warning badge and no slot-assignment form.
+
+Validation: **89 archive backend checks**, **80 archive browser checks**, **31 vehicle-slot browser checks** and **376 UI route/asset/CSRF checks** passed, plus PHP/JavaScript syntax and Git whitespace checks. Browser assertions verify yellow Archived colors in both themes and account-aware vehicle controls for both management roles. Tests used disposable databases.
+
+## Resident and tenant dashboard visibility update (2026-10-16)
+
+Moved announcements into the primary dashboard row, directly after the welcome/approval notices, alongside a compact overview and service shortcuts. Important notices display an explicit badge and featured styling; each notice retains its category/date, a readable preview and complete text through native expandable details when needed. View all opens the existing Announcements page. Existing priority order, expiration/inactive filtering and pending-account access restriction remain. Pending accounts see only the approval message, without empty service cards or protected dashboard polling.
+
+The overview keeps the existing scoped billing, maintenance and message information. Upcoming Bookings now excludes dates before today. Zero outstanding balance displays Up to date instead of a red Due badge. Existing visitor/permit/parking shortcuts are preserved and compacted; permission-checked shortcuts now also link to Community Report and Contact Management. Tenant billing guidance remains. The navy/orange palette, profile, QR, theme controls and existing GSAP system remain unchanged.
+
+Added page-scoped `assets/css/resident-dashboard.css`; updated `resident/dashboard.php`. The page supplies its configured API URL to the existing `js/live-updates.js`, fixing the previous root-relative request on subfolder installations, and versions that script through the existing asset helper. Other pages retain their endpoint fallback. Announcements are rendered on page load; the existing polling mechanism remains count-based.
+
+Validation passed: **119 resident/tenant dashboard browser checks**, **35 focused final mobile checks**, **212 tenant policy/lifecycle/billing checks** and **92 UI route/asset/CSRF checks**, plus PHP/JavaScript syntax, versioned script URL and Git whitespace checks. Verified dark/light layouts at 1366/768/390/320 pixels, prominent notice placement, full-message expansion, keyboard access, View all navigation, escaped script-like text, expired/inactive notice exclusions, correct roles/upcoming totals, existing tenant billing restrictions, pending-account privacy and no-JavaScript readability. Desktop and phone screenshots were inspected. All fixtures used disposable databases; no real accounts, payments or announcements were changed.
+
+Repeat UI checks: `C:/xampp/php/php.exe scripts/test_ui_redesign.php --resident-dashboard-only --preview`, then pass the printed application base URL to `node scripts/test_resident_dashboard_browser.cjs`. Press Enter in the fixture terminal to clean up.

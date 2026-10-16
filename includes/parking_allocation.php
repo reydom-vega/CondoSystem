@@ -75,7 +75,7 @@ function reassignStickerVehicleSlot(int $vehicleId, int $slotId): bool {
     ensureAuditLogTable($db);
     $db->begin_transaction();
     try {
-        $find = $db->prepare("SELECT v.*, u.unit_number FROM vehicles v JOIN users u ON u.id = v.user_id JOIN parking_sticker_vehicles sv ON sv.vehicle_id = v.id JOIN parking_sticker_orders o ON o.id = sv.order_id JOIN payments p ON p.id = o.bill_payment_id WHERE v.id = ? AND v.status = 'approved' AND o.claim_status = 'issued' AND o.status <> 'cancelled' AND p.status = 'paid' FOR UPDATE");
+        $find = $db->prepare("SELECT v.*, u.unit_number FROM vehicles v JOIN users u ON u.id = v.user_id JOIN parking_sticker_vehicles sv ON sv.vehicle_id = v.id JOIN parking_sticker_orders o ON o.id = sv.order_id JOIN payments p ON p.id = o.bill_payment_id WHERE v.id = ? AND v.status = 'approved' AND v.authorization_revoked_at IS NULL AND sv.revoked_at IS NULL AND o.authorization_revoked_at IS NULL AND u.is_active=1 AND u.archived_at IS NULL AND o.claim_status = 'issued' AND o.status <> 'cancelled' AND p.status = 'paid' FOR UPDATE");
         $find->bind_param('i', $vehicleId); $find->execute(); $vehicle = $find->get_result()->fetch_assoc();
         if (!$vehicle || !(residentContext($db, (int)$vehicle['user_id'])['approved'] ?? false)) throw new RuntimeException('Issued resident vehicle not found.');
         $oldId = (int)($vehicle['parking_slot_id'] ?? 0);

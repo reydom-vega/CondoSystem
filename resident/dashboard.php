@@ -32,7 +32,7 @@ if (ensurePaymentsTable($connection)) {
     $monthlyDue = getResidentBillingSummary($connection,(int)$_SESSION['user_id'])['amount'];
 }
 if (residentHasPermission('resident.amenities.book') && ensureBookingsTable($connection)) {
-    $bookingResult = $connection->query("SELECT COUNT(*) AS total FROM bookings WHERE user_id = " . (int)$_SESSION['user_id'] . " AND status IN ('pending', 'approved', 'confirmed')");
+    $bookingResult = $connection->query("SELECT COUNT(*) AS total FROM bookings WHERE user_id = " . (int)$_SESSION['user_id'] . " AND status IN ('pending', 'approved', 'confirmed') AND booking_date >= CURRENT_DATE()");
     if ($bookingResult) $activeBookings = (int)$bookingResult->fetch_assoc()['total'];
 }
 if (residentHasPermission('resident.maintenance.request') && ensureMaintenanceTable($connection)) {
@@ -56,8 +56,9 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
     <title>The Celandine - My Dashboard</title>
     <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('resident.css'), ENT_QUOTES, 'UTF-8') ?>">
 <?php renderPortalUiHead(); ?>
+    <link rel="stylesheet" href="<?= htmlspecialchars(portalUiAssetUrl('assets/css/resident-dashboard.css'), ENT_QUOTES, 'UTF-8') ?>">
 </head>
-<body class="portal-ui dashboard-page">
+<body class="portal-ui dashboard-page resident-dashboard-page">
     <?php if (!$accountApproved): ?>
         <div id="approvalModal" class="approval-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="approval-modal-title">
             <div class="approval-modal">
@@ -141,15 +142,51 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
                 </section>
             <?php endif; ?>
 
-            <section class="stats-grid">
+            <div class="resident-dashboard-grid <?= !$accountApproved?'resident-dashboard-pending':'' ?>">
+                <?php if (!$accountApproved || residentHasPermission('resident.announcements.view')): ?>
+                <section class="announcements-section resident-dashboard-announcements" aria-labelledby="dashboardAnnouncementsTitle">
+                    <div class="resident-dashboard-section-heading">
+                        <div><span class="resident-dashboard-eyebrow"><?= systemIcon('announcements') ?> COMMUNITY UPDATES</span><h2 id="dashboardAnnouncementsTitle">Announcements</h2><p>Updates from your property management office.</p></div>
+                        <?php if (residentHasPermission('resident.announcements.view')): ?><a class="btn-neutral" href="announcements.php">View all <?= systemIcon('arrow-right') ?></a><?php endif; ?>
+                    </div>
+                    <?php if (!$accountApproved): ?>
+                        <div class="resident-dashboard-empty"><p>Announcements will show here once your account is approved.</p></div>
+                    <?php elseif (!$announcements): ?>
+                        <div class="resident-dashboard-empty"><?= systemIcon('announcements') ?><h3>You're all caught up</h3><p>No active announcements at this time. Community updates will appear here.</p></div>
+                    <?php else: ?>
+                        <div class="resident-dashboard-announcement-list">
+                        <?php foreach ($announcements as $index=>$announcement):
+                            $priority=$announcement['priority'];
+                            $priorityLabel=['high'=>'Important','medium'=>'Notice','low'=>'Community'][$priority]??'Community';
+                            $priorityBadge=['high'=>'badge-danger','medium'=>'badge-warning','low'=>'badge-info'][$priority]??'badge-info';
+                            $plainContent=preg_replace('/\s+/u',' ',trim($announcement['content']))??trim($announcement['content']);
+                            $isLong=mb_strlen($plainContent)>200;
+                            $preview=$isLong?mb_substr($plainContent,0,200).'...':$announcement['content'];
+                        ?>
+                            <article class="announcement-item resident-announcement <?= $index===0?'resident-announcement-featured':'' ?>" data-announcement-priority="<?= htmlspecialchars($priority,ENT_QUOTES,'UTF-8') ?>">
+                                <div class="notice-content">
+                                    <div class="resident-announcement-meta"><span class="badge <?= $priorityBadge ?>"><?= htmlspecialchars($priorityLabel,ENT_QUOTES,'UTF-8') ?></span><?php if($index===0): ?><span class="resident-announcement-feature-label">Featured update</span><?php endif; ?><time datetime="<?= htmlspecialchars(date('c',strtotime($announcement['created_at'])),ENT_QUOTES,'UTF-8') ?>"><?= htmlspecialchars(date('M j, Y',strtotime($announcement['created_at'])),ENT_QUOTES,'UTF-8') ?></time></div>
+                                    <h3><?= htmlspecialchars($announcement['title'],ENT_QUOTES,'UTF-8') ?></h3>
+                                    <?php if($announcement['category']): ?><span class="resident-announcement-category"><?= htmlspecialchars($announcement['category'],ENT_QUOTES,'UTF-8') ?></span><?php endif; ?>
+                                    <p class="dashboard-announcement-preview"><?= htmlspecialchars($preview,ENT_QUOTES,'UTF-8') ?></p>
+                                    <?php if($isLong): ?><details class="resident-announcement-full"><summary>Read full announcement</summary><p class="dashboard-announcement-content"><?= htmlspecialchars($announcement['content'],ENT_QUOTES,'UTF-8') ?></p></details><?php endif; ?>
+                                </div>
+                            </article>
+                        <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </section>
+                <?php endif; ?>
+                <?php if($accountApproved): ?><div class="resident-dashboard-side">
+            <section class="stats-grid" aria-label="Your account overview">
                 <?php if (residentHasPermission('resident.billing.view')): ?>
                 <a href="payments.php" class="stat-card">
                     <div class="stat-head">
                         <?php echo systemIconFromGlyph('💳', 'stat-icon icon-yellow'); ?>
-                        <span class="badge badge-danger">Due</span>
+                        <span class="badge <?= $monthlyDue > 0 ? 'badge-warning' : 'badge-success' ?>"><?= $monthlyDue > 0 ? 'To review' : 'Up to date' ?></span>
                     </div>
                     <div class="stat-value">₱<?php echo number_format($monthlyDue, 2); ?></div>
-                    <div class="stat-label">Outstanding Unit Bills</div>
+                    <div class="stat-label">Outstanding Bills</div>
                 </a>
 
                 <?php endif; ?>
@@ -160,7 +197,7 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
                         <span class="badge badge-success"><?php echo $activeBookings; ?> Booking<?php echo $activeBookings === 1 ? '' : 's'; ?></span>
                     </div>
                     <div class="stat-value"><?php echo $activeBookings; ?></div>
-                    <div class="stat-label">Active Bookings</div>
+                    <div class="stat-label">Upcoming Bookings</div>
                 </a>
 
                 <?php endif; ?>
@@ -181,7 +218,7 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
                         <span class="badge badge-info"><?php echo $unreadMessages; ?> New</span>
                     </div>
                     <div class="stat-value"><?php echo $unreadMessages; ?></div>
-                    <div class="stat-label">Messages</div>
+                    <div class="stat-label">Unread Messages</div>
                 </a>
                 <?php endif; ?>
             </section>
@@ -193,7 +230,9 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
                 </section>
             <?php endif; ?>
 
-            <section class="stats-grid" aria-label="Resident services">
+            <section class="resident-dashboard-services" aria-labelledby="residentServicesTitle">
+                <div class="resident-dashboard-section-heading"><div><h2 id="residentServicesTitle">Your services</h2><p>Start a request or check its progress.</p></div></div>
+                <div class="resident-service-links">
                 <?php if (residentHasPermission('resident.visitors.register')): ?>
                 <a href="visitors.php" class="stat-card"><div class="stat-head"><?php echo systemSidebarIcon('visitors'); ?></div><div class="stat-label">Visitor Registration</div><p>Register guests and view their access passes.</p></a>
                 <?php endif; ?>
@@ -203,45 +242,13 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
                 <?php if (residentHasPermission('resident.parking.request') || residentHasPermission('resident.stickers.order')): ?>
                 <a href="parking.php" class="stat-card"><div class="stat-head"><?php echo systemSidebarIcon('parking'); ?></div><div class="stat-label"><?php echo 'Parking &amp; Vehicles'; ?></div><p><?php echo residentHasPermission('resident.stickers.order') ? 'Order stickers and request visitor parking.' : 'Request temporary parking for your registered visitors.'; ?></p></a>
                 <?php endif; ?>
+                <?php if (residentHasPermission('resident.reports.use')): ?><a href="reports.php" class="stat-card"><div class="stat-head"><?= systemSidebarIcon('report') ?></div><div class="stat-label">Community Report</div><p>Report a concern and follow your case.</p></a><?php endif; ?>
+                <?php if (residentHasPermission('resident.messages.use')): ?><a href="messages.php" class="stat-card"><div class="stat-head"><?= systemSidebarIcon('messages') ?></div><div class="stat-label">Contact Management</div><p>Open your private conversation.</p></a><?php endif; ?>
+                </div>
             </section>
 
-            <?php if (!$accountApproved || residentHasPermission('resident.announcements.view')): ?>
-            <section class="announcements-section resident-dashboard-announcements">
-                <h3 class="section-title">Recent Announcements</h3>
-
-                <?php if (!$accountApproved): ?>
-                    <div style="text-align: center; color: var(--theme-copy,#9ca3af); padding: 20px;">
-                        <p>Announcements will show here once your account is approved.</p>
-                    </div>
-                <?php elseif (empty($announcements)): ?>
-                    <div style="text-align: center; color: var(--theme-copy,#9ca3af); padding: 20px;">
-                        <p>No announcements at this time.</p>
-                    </div>
-                <?php else: ?>
-                    <?php foreach ($announcements as $announcement):
-                        $priorityClass = 'notice-info';
-                        if ($announcement['priority'] === 'high') $priorityClass = 'notice-danger';
-                        elseif ($announcement['priority'] === 'medium') $priorityClass = 'notice-warning';
-
-                        $priorityIcon = 'info';
-                        if ($announcement['priority'] === 'high') $priorityIcon = 'violations';
-                        elseif ($announcement['priority'] === 'medium') $priorityIcon = 'clock';
-                    ?>
-                        <div class="announcement-item <?php echo $priorityClass; ?>">
-                            <div class="notice-icon"><?php echo systemIcon($priorityIcon, 'notice-icon-svg'); ?></div>
-                            <div class="notice-content">
-                                <h4><?php echo htmlspecialchars($announcement['title']); ?></h4>
-                                <?php if (!empty($announcement['category'])): ?>
-                                    <small style="color: var(--theme-copy,#9ca3af);"><?php echo htmlspecialchars($announcement['category']); ?> • </small>
-                                <?php endif; ?>
-                                <small style="color: var(--theme-copy,#9ca3af);"><?php echo date('M d, Y', strtotime($announcement['created_at'])); ?></small>
-                                <p class="dashboard-announcement-content"><?php echo htmlspecialchars($announcement['content']); ?></p>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </section>
-            <?php endif; ?>
+                </div><?php endif; ?>
+            </div>
         </main>
 
     </div>
@@ -353,6 +360,6 @@ $announcements = residentHasPermission('resident.announcements.view') ? getAnnou
             }
         }
     </script>
-    <script src="../js/live-updates.js"></script>
+    <?php if($accountApproved): ?><script src="<?= htmlspecialchars(portalUiAssetUrl('js/live-updates.js'), ENT_QUOTES, 'UTF-8') ?>" data-endpoint="<?= htmlspecialchars(buildUrl('api/dashboard.php'), ENT_QUOTES, 'UTF-8') ?>"></script><?php endif; ?>
 </body>
 </html>

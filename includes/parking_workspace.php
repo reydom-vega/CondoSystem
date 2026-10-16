@@ -39,7 +39,8 @@ function parkingWorkspaceActiveTab(array $tabs, string $default): string {
         $requested = match ($action) {
             'register_vehicle', 'review_vehicle' => 'vehicles',
             'update_status', 'import_inventory' => 'slots',
-            'issue_sticker', 'reassign_vehicle_slot' => 'stickers',
+            'issue_sticker' => 'stickers',
+            'reassign_vehicle_slot' => $requested === 'vehicles' ? 'vehicles' : 'stickers',
             'decide_request', 'reassign_request_slot' => 'visitors',
             default => isset($_POST['sticker_price']) ? 'slots' : $default,
         };

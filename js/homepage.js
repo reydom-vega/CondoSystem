@@ -8,7 +8,7 @@
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const behavior = () => reduced.matches ? 'auto' : 'smooth';
   const sections = [...document.querySelectorAll('main section[id]')];
-  const links = [...document.querySelectorAll('.nav-links a')];
+  const links = [...document.querySelectorAll('.nav-links a, #mobileMenu > a[href^="#"]')];
   let frame;
   function closeMenu(focus = false) {
     const wasOpen = !menu.hidden;
@@ -48,8 +48,13 @@
     nav.classList.toggle('scrolled', scrollY > 18);
     top.hidden = scrollY <= 600;
     const current = sections.filter(section => section.getBoundingClientRect().top <= nav.offsetHeight + 110).pop();
+    // Sections sharing a grid row are both current; stacked mobile panels remain separate.
+    const row = current?.closest('.dual-panels');
+    const activeIds = new Set((row
+      ? [...row.querySelectorAll('section[id]')].filter(section => section.offsetTop === current.offsetTop)
+      : current ? [current] : []).map(section => '#' + section.id));
     links.forEach(link => {
-      const active = !!current && link.hash === '#' + current.id;
+      const active = activeIds.has(link.hash);
       link.classList.toggle('active', active);
       if (active) link.setAttribute('aria-current', 'location'); else link.removeAttribute('aria-current');
     });

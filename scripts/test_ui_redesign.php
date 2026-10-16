@@ -177,7 +177,27 @@ try {
         $manifest[]=['path'=>'resident/payment_receipt.php?id='.$paidParkingBill,'actor'=>1,'label'=>'Paid visitor parking receipt PDF'];
     }
     if(in_array('--archive-only',$argv,true))$manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>!in_array($entry['label'],['Access denied','Anonymous tracking'],true)));
+    if(in_array('--vehicle-slots-only',$argv,true)) {
+        $db->query("INSERT INTO parking_slots(slot_code,slot_type,status,assigned_user_id,assigned_unit,vehicle_plate) VALUES('SLOT-CURRENT','resident','occupied',1,'0101','SLOT-OWNER'),('SLOT-FREE-A','resident','available',NULL,NULL,NULL),('SLOT-FREE-B','resident','available',NULL,NULL,NULL),('SLOT-MAINTENANCE','resident','maintenance',NULL,NULL,NULL)");
+        $currentSlot=(int)$db->insert_id;
+        $db->query("INSERT INTO vehicles(user_id,make,model,color,year,plate_number,normalized_plate,or_cr_path,or_cr_mime,status,parking_slot_id) VALUES(1,'Toyota','Vios','White',2024,'SLOT-OWNER','SLOTOWNER','fixture.pdf','application/pdf','approved',$currentSlot),(2,'Honda','City','Silver',2024,'SLOT-TENANT','SLOTTENANT','fixture.pdf','application/pdf','approved',NULL),(1,'Toyota','Innova','Blue',2024,'SLOT-NOSTICKER','SLOTNOSTICKER','fixture.pdf','application/pdf','approved',NULL)");
+        $firstVehicle=(int)$db->insert_id;
+        $db->query("INSERT INTO vehicles(user_id,make,model,color,year,plate_number,normalized_plate,or_cr_path,or_cr_mime,status) VALUES(3,'Honda','Civic','White',2024,'SLOT-PENDING-ACCOUNT','SLOTPENDINGACCOUNT','fixture.pdf','application/pdf','approved')");$pendingAccountVehicle=(int)$db->insert_id;
+        $db->query("INSERT INTO payments(user_id,amount,payment_method,status,paid_at) VALUES(1,3000,'cash','paid',NOW())");$slotBill=(int)$db->insert_id;
+        $db->query("INSERT INTO parking_sticker_orders(user_id,quantity,amount,bill_payment_id,status,claim_status) VALUES(1,3,3000,$slotBill,'paid','issued')");$slotOrder=(int)$db->insert_id;
+        $db->query("INSERT INTO parking_sticker_vehicles(order_id,vehicle_id,sticker_number) VALUES($slotOrder,$firstVehicle,'CS-SLOT-OWNER'),($slotOrder,".($firstVehicle+1).",'CS-SLOT-TENANT'),($slotOrder,$pendingAccountVehicle,'CS-SLOT-PENDING')");
+        $manifest=[];foreach([4,6] as $actor)$manifest[]=['path'=>'superadmin/parking.php?tab=vehicles','actor'=>$actor,'label'=>'Registered vehicle slot assignment'];
+        foreach([1,2] as $actor)$manifest[]=['path'=>'resident/parking.php?tab=vehicles','actor'=>$actor,'label'=>'Resident vehicle slot restrictions'];
+    }
     if(in_array('--management-only',$argv,true))$manifest=array_values(array_filter($manifest,static fn(array $entry):bool=>in_array($entry['path'],['admin/admin_dashboard.php','superadmin/admin_dashboard.php'],true)));
+    if(in_array('--resident-dashboard-only',$argv,true)) {
+        $content="Water service will pause for scheduled work. ".str_repeat("Please store enough water and contact management for assistance. ",5)."\nComplete notice end. <script>window.announcementInjected=true</script>";
+        $update=$db->prepare("UPDATE announcements SET content=? WHERE title='Community schedule'");$update->bind_param('s',$content);$update->execute();
+        $db->query("INSERT INTO announcements(admin_id,title,content,category,priority,is_active,expires_at) VALUES(6,'Weekend community update','The lobby remains open.','Community','low',1,NULL),(6,'Expired notice must stay private','Expired fixture content','General','high',1,DATE_SUB(NOW(),INTERVAL 1 DAY)),(6,'Inactive notice must stay private','Inactive fixture content','General','high',0,NULL)");
+        $db->query("INSERT INTO bookings(user_id,amenity,booking_date,booking_time,status) VALUES(1,'Swimming Pool',DATE_SUB(CURDATE(),INTERVAL 1 DAY),'09:00','approved'),(2,'Swimming Pool',DATE_SUB(CURDATE(),INTERVAL 1 DAY),'10:00','approved')");
+        $manifest=[];foreach([1,2,3] as $actor)$manifest[]=['path'=>'resident/dashboard.php','actor'=>$actor,'label'=>'Resident dashboard'];
+        foreach([1,2] as $actor)$manifest[]=['path'=>'resident/announcements.php','actor'=>$actor,'label'=>'Resident announcements'];
+    }
     putenv('CONDO_UI_MANIFEST='.json_encode($manifest,JSON_THROW_ON_ERROR));
     $log=tempnam(sys_get_temp_dir(),'condo-ui-http-');
     $http=proc_open([PHP_BINARY,'-S','127.0.0.1:'.$port,__DIR__.'/ui_fixture_router.php'],[0=>['pipe','r'],1=>['file',$log,'a'],2=>['file',$log,'a']],$pipes,dirname(__DIR__));

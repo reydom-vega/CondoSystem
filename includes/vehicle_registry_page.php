@@ -43,9 +43,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && (!($parkingWorkspaceEmbedded ?? false
 }
 $vehicles=$isResident?getVehiclesForResident($db,$userId):getAllVehicles($db);
 $vehicleSlotLabels=[];
-foreach (getParkingSlots($db) as $slot) $vehicleSlotLabels[(int)$slot['id']]=$slot['slot_code'];
+$vehicleParkingSlots=getParkingSlots($db);
+foreach ($vehicleParkingSlots as $slot) $vehicleSlotLabels[(int)$slot['id']]=$slot['slot_code'];
+$vehicleAssignableSlots=array_values(array_filter($vehicleParkingSlots,static fn(array $slot): bool => $slot['slot_type']==='resident' && $slot['status']==='available' && empty($slot['assigned_user_id'])));
 $stickers=[];
-$sql='SELECT sv.vehicle_id,sv.sticker_number,o.id AS order_id,o.claim_status,p.status AS payment_status FROM parking_sticker_vehicles sv JOIN parking_sticker_orders o ON o.id=sv.order_id JOIN payments p ON p.id=o.bill_payment_id';
+$sql='SELECT sv.vehicle_id,sv.sticker_number,sv.revoked_at AS sticker_revoked_at,o.id AS order_id,o.claim_status,o.status AS order_status,o.authorization_revoked_at AS order_revoked_at,p.status AS payment_status FROM parking_sticker_vehicles sv JOIN parking_sticker_orders o ON o.id=sv.order_id JOIN payments p ON p.id=o.bill_payment_id';
 // No sticker rows means payments may not exist yet on a fresh installation.
 ensurePaymentsTable($db);
 $query=$db->prepare($sql.($isResident?' WHERE o.user_id=?':''));

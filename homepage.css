@@ -46,6 +46,7 @@ html[data-theme=light] body.portal-ui.portal-homepage {
 .portal-ui.portal-homepage .nav-toggle.open span:nth-child(3) { transform:translateY(-6px) rotate(-45deg); }
 .portal-ui.portal-homepage .mobile-menu { position:fixed; top:var(--home-nav-height); inset-inline:0; z-index:999; padding:16px max(24px,calc((100% - 1360px)/2)); max-height:calc(100dvh - var(--home-nav-height)); overflow-y:auto; background:var(--home-panel); border-bottom:1px solid var(--home-line); }
 .portal-ui.portal-homepage .mobile-menu>a { display:block; padding:10px 4px; }
+.portal-ui.portal-homepage .mobile-menu>a.active { color:var(--home-highlight); font-weight:600; }
 .portal-ui.portal-homepage .mobile-actions { display:flex; gap:12px; padding-top:12px; border-top:1px solid var(--home-line); }
 .portal-ui.portal-homepage .hero { position:relative; isolation:isolate; overflow:hidden; background:#0a0f1d; color:#fff; }
 .portal-ui.portal-homepage .hero-bg { position:absolute; inset:-30px 0; z-index:-1; background:linear-gradient(90deg,#06101ff2 0%,#07121bc4 35%,#07111f28 80%),linear-gradient(0deg,#0a0f1d 0%,transparent 42%),url('assets/homepage/main-building.jpg') center 43%/cover no-repeat; }

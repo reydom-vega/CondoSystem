@@ -79,7 +79,17 @@ function getVehiclesForResident(mysqli $db, int $userId): array {
     $stmt->bind_param('i',$userId); $stmt->execute(); return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 function getAllVehicles(mysqli $db): array {
-    return $db->query('SELECT v.*, u.full_name, COALESCE(v.unit_number_snapshot,u.unit_number) AS unit_number FROM vehicles v JOIN users u ON u.id=v.user_id WHERE v.authorization_revoked_at IS NULL AND u.is_active=1 AND u.archived_at IS NULL ORDER BY v.created_at DESC,v.id DESC')->fetch_all(MYSQLI_ASSOC);
+    return $db->query('SELECT v.*, u.full_name, u.status AS account_status,u.is_active AS account_is_active,u.is_verified AS account_is_verified,u.archived_at AS account_archived_at,COALESCE(v.unit_number_snapshot,u.unit_number) AS unit_number FROM vehicles v JOIN users u ON u.id=v.user_id WHERE v.authorization_revoked_at IS NULL AND u.is_active=1 AND u.archived_at IS NULL ORDER BY v.created_at DESC,v.id DESC')->fetch_all(MYSQLI_ASSOC);
+}
+/** Account access takes precedence over an old vehicle review approval in the UI. */
+function vehicleRegistryStatus(array $vehicle): array {
+    if (!empty($vehicle['account_archived_at']) || !empty($vehicle['authorization_revoked_at'])) return ['label'=>'Archived','class'=>'vehicle-status-archived','actionable'=>false];
+    if ((int)($vehicle['account_is_active']??1)!==1) return ['label'=>'Inactive account','class'=>'pending','actionable'=>false];
+    $accountStatus=$vehicle['account_status']??'approved';
+    if ($accountStatus!=='approved') return ['label'=>$accountStatus==='pending'?'Pending account':'Rejected account','class'=>$accountStatus==='pending'?'pending':'rejected','actionable'=>false];
+    if ((int)($vehicle['account_is_verified']??1)!==1) return ['label'=>'Unverified account','class'=>'pending','actionable'=>false];
+    $status=(string)$vehicle['status'];
+    return ['label'=>ucfirst($status),'class'=>$status,'actionable'=>true];
 }
 function ensureStickerVehicleLinks(mysqli $db): bool {
     if (!schemaMutationAllowed()) return true;

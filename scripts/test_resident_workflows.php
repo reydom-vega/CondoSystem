@@ -112,6 +112,12 @@ try {
     checkWorkflow($issuedVehicles[0]['sticker_number']!==$issuedVehicles[1]['sticker_number'], 'sticker numbers are unique');
     checkWorkflow($issuedVehicles[0]['parking_slot_id'] && $issuedVehicles[1]['parking_slot_id'] && $issuedVehicles[0]['parking_slot_id']!==$issuedVehicles[1]['parking_slot_id'], 'each issued vehicle gets a different inventory slot');
     $oldVehicleSlot=(int)$issuedVehicles[0]['parking_slot_id'];
+    foreach(['vehicles'=>'authorization_revoked_at','parking_sticker_vehicles'=>'revoked_at','parking_sticker_orders'=>'authorization_revoked_at'] as $table=>$column) {
+        $where=$table==='parking_sticker_vehicles'?'vehicle_id=1':'id=' . ($table==='vehicles'?1:(int)$order['id']);
+        $db->query("UPDATE $table SET $column=UTC_TIMESTAMP(6) WHERE $where");
+        checkWorkflow(!reassignStickerVehicleSlot(1,13),'revoked '.$table.' cannot assign a resident slot');
+        $db->query("UPDATE $table SET $column=NULL WHERE $where");
+    }
     checkWorkflow(!reassignStickerVehicleSlot(1,(int)$issuedVehicles[1]['parking_slot_id']), 'cannot move resident into occupied slot');
     $db->query("UPDATE parking_slots SET status='maintenance' WHERE id=12");
     checkWorkflow(!reassignStickerVehicleSlot(1,12), 'cannot move resident into maintenance slot');
@@ -181,8 +187,12 @@ try {
     workflowTestActor(4,'superadmin');
     $reassignHtml=postWorkflowFixture('superadmin/parking.php',['action'=>'reassign_vehicle_slot','vehicle_id'=>1,'slot_id'=>10],false);
     checkWorkflow(str_contains($reassignHtml,'session token is invalid') && (int)$db->query('SELECT parking_slot_id FROM vehicles WHERE id=1')->fetch_assoc()['parking_slot_id']===13, 'resident slot editing requires valid CSRF');
-    $reassignHtml=postWorkflowFixture('superadmin/parking.php',['action'=>'reassign_vehicle_slot','vehicle_id'=>1,'slot_id'=>10]);
+    $reassignHtml=postWorkflowFixture('superadmin/registeredvehicles.php',['action'=>'reassign_vehicle_slot','vehicle_id'=>1,'slot_id'=>10]);
     checkWorkflow(str_contains($reassignHtml,'Resident vehicle parking slot updated.') && (int)$db->query('SELECT parking_slot_id FROM vehicles WHERE id=1')->fetch_assoc()['parking_slot_id']===10, 'resident slot edit form updates assigned inventory');
+    $dom=new DOMDocument();libxml_use_internal_errors(true);$dom->loadHTML($reassignHtml);libxml_clear_errors();$xpath=new DOMXPath($dom);
+    checkWorkflow($xpath->query('//*[@id="parking-panel-vehicles" and not(@hidden)]')->length===1,'saving from Registered Vehicles retains the vehicle tab');
+    checkWorkflow($xpath->query('//*[@id="vehicle-1"]//form[contains(@class,"vehicle-slot-form") and @action="parking.php?tab=vehicles"]//input[@name="csrf_token"]')->length===1,'registered vehicle card exposes the existing slot action with CSRF');
+    checkWorkflow($xpath->query('//*[@id="vehicle-1"]//form[contains(@class,"vehicle-slot-form")]//option[@value="11" or @value="12"]')->length===0,'vehicle slot selector excludes occupied and maintenance slots');
     checkWorkflow(getStickerVehicles($db,(int)$order['id'])[0]['slot_code']==='AUTO-R10', 'issued sticker details reflect the edited inventory slot');
     $reassignHtml=postWorkflowFixture('superadmin/parking.php',['action'=>'reassign_request_slot','request_id'=>$request1,'slot_id'=>1]);
     checkWorkflow(str_contains($reassignHtml,'Designated parking slot updated.') && getParkingPass($request1,parkingPassSignature($request1))['slot_code']==='V-01', 'visitor slot edit form updates existing pass');

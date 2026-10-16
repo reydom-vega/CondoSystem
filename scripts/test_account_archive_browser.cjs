@@ -65,9 +65,21 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     for(const entry of details) {
       await go(6,entry.path);
       await check("document.querySelector('.archive-home').textContent.includes('Archived Account') && document.querySelectorAll('.archive-history').length>0 && !document.querySelector('.archive-home').textContent.includes('password_hash') && !document.querySelector('.archive-home').textContent.includes('access_token')",'Read-only Archive details preserve linked history without credentials');
+      if(await ev("document.querySelector('.archive-home').textContent.includes('ARC-999')")) await check("[...document.querySelectorAll('.archive-history')].some(n=>n.open&&n.querySelector('summary').textContent.includes('Registered Vehicle History')&&n.textContent.includes('ARC-999'))",'Archived registered vehicles are visible in their expanded account history');
+      if(await ev("!!document.querySelector('.archive-history .vehicle-status-archived')")) {
+        for(const theme of ['dark','light']) {
+          await ev(`CelandineTheme.set(${JSON.stringify(theme)})`);
+          await check(`(()=>{const b=document.querySelector('.vehicle-status-archived');return b.textContent==='Archived'&&!b.classList.contains('approved')&&getComputedStyle(b).color===${JSON.stringify(theme==='dark'?'rgb(251, 191, 36)':'rgb(133, 77, 14)')};})()`,'Archived vehicle badge is yellow in '+theme+' mode');
+        }
+      }
       for(const width of [1366,390,320]){await send('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:false});await check('document.documentElement.scrollWidth<=innerWidth+1','Archive detail fits '+width+'px');}
     }
     await send('Emulation.setDeviceMetricsOverride',{width:1366,height:1000,deviceScaleFactor:1,mobile:false});
+    for(const actor of [4,6]) {
+      await go(actor,'superadmin/parking.php?tab=vehicles');
+      await check("!document.querySelector('#parking-panel-vehicles').textContent.includes('ARC-999')&&!document.querySelector('#parking-panel-vehicles').textContent.includes('Former Owner')",'Archived vehicle is absent from Registered Vehicles for manager '+actor);
+      await check(`!!document.querySelector('#parking-panel-vehicles a[href="archive.php"]')===${actor===6}`,'Vehicle history shortcut respects existing Archive permissions for manager '+actor);
+    }
     for(const route of ['superadmin/residents.php','superadmin/staff.php?tab=information','superadmin/generate_bills.php','superadmin/parking.php?tab=vehicles','superadmin/parking.php?tab=stickers']) {
       await go(6,route);
       const activeText=route.includes('generate_bills')?"[...document.querySelectorAll('select option, datalist option')].map(n=>n.value+' '+n.textContent).join(' ')":"document.querySelector('.dashboard-main').textContent";

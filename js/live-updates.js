@@ -5,6 +5,7 @@
 
 (function() {
     'use strict';
+    const configuredEndpoint = document.currentScript?.dataset.endpoint;
 
     // Configuration
     const CONFIG = {
@@ -25,7 +26,9 @@
             : '/api/';
         const endpoint = CONFIG.isAdmin ? 'admin_dashboard.php' : 'dashboard.php';
         
-        return fetch(baseUrl + endpoint + '?t=' + Date.now())
+        const url = new URL(configuredEndpoint || baseUrl + endpoint, location.href);
+        url.searchParams.set('t', Date.now());
+        return fetch(url, {credentials:'same-origin',cache:'no-store'})
             .then(response => response.json())
             .catch(error => {
                 console.error('Failed to fetch updates:', error);

@@ -31,6 +31,12 @@ if(!/^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?\/[^?#]*$/.test(base||'')||!ba
     await until("document.readyState==='complete'&&!!document.querySelector('[data-theme-toggle]')");
     await send('Page.removeScriptToEvaluateOnNewDocument',{identifier:init.identifier});
   }
+  async function checkNavigation(id, expected, label) {
+    await ev(`document.querySelector('#${id}').scrollIntoView({block:'start',behavior:'instant'})`);
+    const expression = `['.nav-links','#mobileMenu'].every(selector=>{const links=[...document.querySelectorAll(selector+' > a[href^="#"]')];return JSON.stringify(links.filter(a=>a.classList.contains('active')).map(a=>a.hash))===${JSON.stringify(JSON.stringify(expected))}&&links.every(a=>a.classList.contains('active')===(a.getAttribute('aria-current')==='location'));})`;
+    await until(expression);
+    await check(expression,label);
+  }
   for(const [width,height] of [[1366,900],[1024,768],[768,1024],[390,844],[320,740],[844,390]]) {
     for(const theme of ['dark','light']) {
       await visit({width,height,theme});
@@ -40,6 +46,11 @@ if(!/^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?\/[^?#]*$/.test(base||'')||!ba
       await check("parseFloat(getComputedStyle(document.querySelector('h1')).fontSize)>=46&&getComputedStyle(document.querySelector('h1')).color==='rgb(255, 255, 255)'",`hero typography contrast ${width} ${theme}`);
       await check("document.querySelector('#location iframe').getBoundingClientRect().width<=innerWidth&&document.querySelector('.map-frame').getBoundingClientRect().height>=280",`responsive map ${width} ${theme}`);
       await check("document.querySelectorAll('[data-home-preview]').length===12&&document.querySelectorAll('.service-grid article').length===4",`all photos and service cards ${width} ${theme}`);
+      await checkNavigation('interiors',width>900?['#interiors','#portal']:['#interiors'],`interiors navigation matches shared or stacked layout ${width} ${theme}`);
+      await checkNavigation('portal',width>900?['#interiors','#portal']:['#portal'],`portal navigation matches shared or stacked layout ${width} ${theme}`);
+      if(width===1366) await shot(`shared-row-navigation-${theme}`);
+      await checkNavigation('location',['#location'],`leaving the shared row clears both highlights ${width} ${theme}`);
+      await ev("window.scrollTo({top:0,behavior:'instant'})");await sleep(75);
       if(width===1366||width===390) {await shot(`hero-${width}-${theme}`); await ev("window.scrollTo(0,document.querySelector('#amenities').offsetTop-95)");await until("[...document.querySelectorAll('#amenityGallery img')].filter(img=>{const r=img.getBoundingClientRect();return r.right>0&&r.left<innerWidth}).every(img=>img.complete&&img.naturalWidth>0)");await ev("Promise.all([...document.querySelectorAll('#amenityGallery img')].filter(img=>img.complete).map(img=>img.decode().catch(()=>{})))");await sleep(100);await shot(`amenities-${width}-${theme}`);}
       if(width===1366) {await ev("window.scrollTo(0,document.querySelector('#location').offsetTop-95)");await sleep(100);await shot(`location-${theme}`);}
       if(width===390&&theme==='light') {
@@ -58,7 +69,7 @@ if(!/^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?\/[^?#]*$/.test(base||'')||!ba
   await ev("window.scrollTo(0,document.querySelector('#amenities').offsetTop-90)");
   await ev("document.querySelector('#amenityNext').click()");await until("document.querySelector('#amenityGallery').scrollLeft>150&&!document.querySelector('#amenityPrev').disabled");
   await check("!document.querySelector('#amenityPrev').disabled",'amenity arrows scroll and update enabled state');
-  await ev("document.querySelector('#amenityPrev').click()");await until("document.querySelector('#amenityGallery').scrollLeft<2");
+  await ev("document.querySelector('#amenityPrev').click()");await until("document.querySelector('#amenityGallery').scrollLeft<2&&document.querySelector('#amenityPrev').disabled");
   await check("document.querySelector('#amenityPrev').disabled",'amenity previous arrow reaches start');
   await ev("document.querySelector('#galleryNext').click()");await until("document.querySelector('#interiorGallery').scrollLeft>100&&!document.querySelector('#galleryPrev').disabled");
   await check("!document.querySelector('#galleryPrev').disabled",'interior gallery arrows scroll');

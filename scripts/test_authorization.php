@@ -48,6 +48,21 @@ try {
     $db->query('UPDATE users SET is_verified = 0 WHERE id = 8');
     ensurePaymentsTable($db); ensurePaymongoColumns($db); ensureResidentServicesTables($db); ensureParkingTables($db); ensureVisitorLogsTable($db); ensureVisitorLogColumns($db); ensureVehiclesTable($db); ensureStickerVehicleLinks($db); ensureBillingTables($db); ensureMessagesTable($db); ensureBookingsTable($db); ensureMaintenanceTable($db); ensureViolationsTable($db); ensureAnnouncementsTable($db); ensureRememberTokensTable($db);
     ensureNotificationOutboxTable($db); ensureCommunityReportSchema($db); ensureVisitorParkingFeeSchema($db);
+    foreach ([4,5] as $manager) {
+        foreach (['all','active','pending'] as $legacyFilter) {
+            $directory=authorizationRequest('superadmin/residents.php',$manager,null,['get'=>['status'=>$legacyFilter]]);
+            $document=new DOMDocument();libxml_use_internal_errors(true);$document->loadHTML($directory['body']);libxml_clear_errors();
+            $xpath=new DOMXPath($document);
+            $names=$xpath->query('//table[contains(@class,"resident-table")]/tbody/tr/td[2]/small');
+            $listed=array_map(static fn($node): string=>trim($node->textContent),iterator_to_array($names));
+            checkAuthorization($directory['status']===200 && $listed===['@resident'],'resident directory excludes pending and unverified accounts for manager '.$manager.' with legacy filter '.$legacyFilter);
+            checkAuthorization($xpath->query('//select[@name="status"]/option[@value="pending"]')->length===0,'resident directory has no pending filter');
+        }
+        $search=authorizationRequest('superadmin/residents.php',$manager,null,['get'=>['search'=>'applicant']]);
+        checkAuthorization(!str_contains($search['body'],'@applicant') && str_contains($search['body'],'No resident information matches your search.'),'search cannot expose pending applicant to manager '.$manager);
+    }
+    $pendingDirectory=authorizationRequest('superadmin/pending_accounts.php',4);
+    checkAuthorization(str_contains($pendingDirectory['body'],'applicant@example.invalid'),'pending applicant remains available in Pending Accounts');
     ensureDigitalIdSchema($db); ensurePhoneVerificationColumns($db); ensureQrScanHistorySchema($db); ensureJobReportSchema($db); ensureAccountArchiveSchema($db); ensureAmenityBookingSchema($db);
     // Manual visitor logging belongs to management; QR gate operations stay available.
     authorizationActor($db,3);
@@ -166,6 +181,10 @@ try {
     checkAuthorization($applicant['session_version'] === 1,'approval returns its committed account version for notification relevance');
     $approved = $db->query('SELECT status, resident_id, session_version FROM users WHERE id=2')->fetch_assoc();
     checkAuthorization($approved['status'] === 'approved' && $approved['resident_id'] === '0102' && (int)$approved['session_version'] === 1, 'approval activates resident assignment and invalidates prior session');
+    foreach ([4,5] as $manager) {
+        $directory=authorizationRequest('superadmin/residents.php',$manager,null,['get'=>['search'=>'applicant']]);
+        checkAuthorization($directory['status']===200 && str_contains($directory['body'],'@applicant'),'approved applicant appears in resident search for manager '.$manager);
+    }
     authorizationRejects(fn()=>approvePendingResident($db,9,'0102'),'second account cannot claim approved unit');
     authorizationActor($db,5);
     authorizationRejects(fn()=>approvePendingResident($db,9,'0103'),'ordinary admin cannot approve resident accounts');

@@ -193,3 +193,10 @@ The following inventory covers this implementation. Unrelated user assets under 
 - `scripts/ui_fixture_router.php`
 
 Final staff confirmation verification: the focused 11-check browser run passed on the updated code and the 265 route/asset/CSRF checks passed. A broader browser attempt was interrupted by a transient DevTools navigation-context error after the staff workflow passed; navigation polling now retries only that transient inspection error. JavaScript syntax checks passed. No production staff accounts were removed.
+
+
+### Registered vehicles when an account is archived
+
+Full resident or tenant account archival includes every registered vehicle in the confirmation and archive snapshot, even when a vehicle records an older unit. Vehicle and sticker authorization is revoked without deleting registrations, ownership documents or payment history. Both Admin and Super Admin Parking Management lists exclude archived accounts and revoked vehicle authorizations. Restoring an account does not restore its old vehicle authorization.
+
+Registered Vehicle History opens automatically in an archived account's details. Parking Management explains where that history is retained and offers an Archive shortcut to users who already have Archive permission. Ending only one unit relationship preserves vehicles associated with another active unit; physical vacancy that retains legal ownership keeps the existing owner parking policy.

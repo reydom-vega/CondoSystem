@@ -28,11 +28,12 @@ function archiveUnitMembers(mysqli $db,string $unit,bool $lock=false): array {
     return array_values($members);
 }
 
-function archiveImpactForUser(mysqli $db,array $user,string $unit,bool $lock=false): array {
+function archiveImpactForUser(mysqli $db,array $user,string $unit,bool $lock=false,bool $allVehicles=false): array {
     $id=(int)$user['id'];$suffix=$lock?' FOR UPDATE':'';
     $fetch=static fn(string $sql,array $params=[])=>lifecycleQuery($db,$sql.$suffix,$params)->get_result()->fetch_all(MYSQLI_ASSOC);
     $relationships=$fetch('SELECT id,user_id,unit_number,relationship_kind,owner_id,started_at,occupancy_ended_at,ended_at FROM account_unit_relationships WHERE user_id=? ORDER BY id',[$id]);
-    $vehicles=$fetch("SELECT id,plate_number,make,model,status,parking_slot_id,authorization_revoked_at,unit_number_snapshot FROM vehicles WHERE user_id=? AND COALESCE(unit_number_snapshot,?)=? ORDER BY id",[$id,normalizeUnitNumber($user['unit_number']),$unit]);
+    $vehicleWhere=$allVehicles?'user_id=?':'user_id=? AND COALESCE(unit_number_snapshot,?)=?';
+    $vehicles=$fetch("SELECT id,plate_number,make,model,status,parking_slot_id,authorization_revoked_at,unit_number_snapshot FROM vehicles WHERE $vehicleWhere ORDER BY id",$allVehicles?[$id]:[$id,normalizeUnitNumber($user['unit_number']),$unit]);
     $slots=$fetch('SELECT id,slot_code,slot_type,status,assigned_user_id,assigned_unit,vehicle_plate FROM parking_slots WHERE assigned_user_id=? ORDER BY id',[$id]);
     // An untracked physical occupancy can never be guessed to have left.
     $activeParking=$fetch('SELECT id,vehicle_plate,slot_id,active_parking_slot,actual_check_in,actual_check_out,billing_user_id,visitor_registration_id FROM parking_requests WHERE user_id=? AND actual_check_in IS NOT NULL AND actual_check_out IS NULL ORDER BY id',[$id]);
@@ -70,7 +71,11 @@ function archivePreview(mysqli $db,array $input,bool $lock=false): array {
     foreach ($targets as $target) {
         if ($mode==='vacate_unit' && !accountOccupiesUnit($db,(int)$target['id'],$unit) && residentAccountKind($target['account_type'])!=='owner') continue;
         if ($mode!=='archive_staff' && !accountHasUnitEntitlement($db,(int)$target['id'],$unit)) continue;
-        $impact=archiveImpactForUser($db,$target,$unit,$lock);$impact['retain_owner']=$mode==='vacate_unit' && residentAccountKind($target['account_type'])==='owner';
+        $retainOwner=$mode==='vacate_unit' && residentAccountKind($target['account_type'])==='owner';
+        $otherRelationships=lifecycleQuery($db,'SELECT id FROM account_unit_relationships WHERE user_id=? AND unit_number<>? AND ended_at IS NULL'.($lock?' FOR UPDATE':''),[$target['id'],$unit])->get_result()->num_rows;
+        // Full account archival covers every registration, including older unit snapshots.
+        // Ending one relationship must preserve vehicles tied to another active unit.
+        $impact=archiveImpactForUser($db,$target,$unit,$lock,!$retainOwner && !$otherRelationships);$impact['retain_owner']=$retainOwner;
         $impacts[]=$impact;$totals['accounts']++;$totals['vehicles']+=count($impact['vehicles']);$totals['parking_slots']+=count($impact['slots']);$totals['active_visits']+=count(array_filter($impact['services'],static fn($r)=>$r['status']==='checked_in'));$totals['active_parking']+=count($impact['active_parking']);$totals['unused_requests']+=$impact['unused_requests'];$totals['maintenance']+=count($impact['maintenance']);$totals['unpaid_cents']+=archiveCents($impact['unpaid_balance']);$totals['unpaid_bills']+=$impact['unpaid_bills'];$totals['filed_reports']+=$impact['filed_reports'];$totals['assigned_cases']+=$impact['assigned_cases'];
     }
     if (!$impacts) throw new InvalidArgumentException('This occupancy has already ended. Review its Archive record.');

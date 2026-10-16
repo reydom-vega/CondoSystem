@@ -45,7 +45,11 @@ function ensureAccountArchiveSchema(mysqli $db): bool {
         FOREIGN KEY(relationship_id) REFERENCES account_unit_relationships(id) ON DELETE RESTRICT
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     foreach (['vehicles','payments','maintenance_requests','resident_service_requests'] as $table) {
-        if ($db->query("SHOW TABLES LIKE '$table'")->num_rows) $db->query("UPDATE `$table` r JOIN users u ON u.id=r.user_id SET r.unit_number_snapshot=u.unit_number WHERE r.unit_number_snapshot IS NULL AND u.unit_number IS NOT NULL");
+        if (!$db->query("SHOW TABLES LIKE '$table'")->num_rows) continue;
+        // A migration's unit-label backfill is not a new workflow event. Keep
+        // historical modification dates, including ON UPDATE timestamps.
+        $preserveUpdated=$db->query("SHOW COLUMNS FROM `$table` LIKE 'updated_at'")->num_rows ? ',r.updated_at=r.updated_at' : '';
+        $db->query("UPDATE `$table` r JOIN users u ON u.id=r.user_id SET r.unit_number_snapshot=u.unit_number$preserveUpdated WHERE r.unit_number_snapshot IS NULL AND u.unit_number IS NOT NULL");
     }
     // Legacy start dates were not recorded. Do not invent an occupancy date.
     // Ambiguous ownership is reported for manual review instead of guessed.

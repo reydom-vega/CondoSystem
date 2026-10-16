@@ -195,8 +195,12 @@ try {
     poolActor(4); decideAmenityBooking($db,$moved,'approved'); $vacantBill=(int)poolRow($db,$moved)['payment_id'];
     $vacantPaid=poolCreate($db,3,date('Y-m-d',strtotime('+7 days')),'10:00',1);poolActor(4);decideAmenityBooking($db,$vacantPaid,'approved');$vacantPaidBill=(int)poolRow($db,$vacantPaid)['payment_id'];
     $db->query("UPDATE payments SET payment_method='cash' WHERE id=$vacantPaidBill");poolActor(6);poolCheck(confirmCashBillPayment($db,$vacantPaidBill),'vacancy paid reservation fixture');
-    poolCheck(unassignResidentUnit($db,3,'0102'),'residency revocation with active pool reservations');
-    poolCheck(poolRow($db,$moved)['status']==='cancelled' && $db->query('SELECT status FROM payments WHERE id='.$vacantBill)->fetch_assoc()['status']==='rejected','vacancy releases approved pool booking and voids unpaid fee');
+    ensureAccountArchiveSchema($db);
+    poolCheck(!unassignResidentUnit($db,3,'0102'),'unconfirmed legacy revocation is rejected');
+    $archiveInput=['mode'=>'archive_account','user_id'=>3,'unit_number'=>'0102','request_key'=>bin2hex(random_bytes(32)),'reason_code'=>'moved_out','reason'=>'Confirmed isolated fixture departure','confirmed'=>'1','cancel_unused'=>'1'];
+    $archiveInput['preview_hash']=archivePreview($db,$archiveInput)['preview_hash'];
+    poolCheck(archiveApply($db,$archiveInput)['event_id']>0,'confirmed archival with active pool reservations');
+    poolCheck(poolRow($db,$moved)['status']==='cancelled' && $db->query('SELECT status FROM payments WHERE id='.$vacantBill)->fetch_assoc()['status']==='pending','archival releases approved pool booking and preserves unpaid financial history');
     poolCheck(poolRow($db,$vacantPaid)['status']==='cancelled' && $db->query('SELECT status FROM payments WHERE id='.$vacantPaidBill)->fetch_assoc()['status']==='paid','vacancy preserves paid financial history for PMO');
     // A rate change must not invalidate earlier requests or rewrite their invoices.
     $oldRateDate=date('Y-m-d',strtotime('+10 days'));

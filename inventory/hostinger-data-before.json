@@ -1,0 +1,42 @@
+{
+    "users": {
+        "rows": 11,
+        "sha256": "70f24bdfe28fdaad1e3ae348ec5b031500514c55c4fb9becb56cfe4e3c33a55d"
+    },
+    "payments": {
+        "rows": 35,
+        "sha256": "f8d243f68d0ca971a146ddc524eaa0defa74ead3bc28f2bbcfd0edcef554d71a"
+    },
+    "bill_items": {
+        "rows": 100,
+        "sha256": "f8a9861929855f2f010d2dc7eae7aaf5e1b45bb6efd755e8c255b82ccf3bdba5"
+    },
+    "parking_requests": {
+        "rows": 8,
+        "sha256": "5b569813a71a52800a8cf0f977ac8be400fc7a6ba8aa2de1f3918faf2ffeea05"
+    },
+    "parking_slots": {
+        "rows": 800,
+        "sha256": "2258222152f6dcc6b6c4707694ea4cf9b70ffb307865c21f881b404be3c47579"
+    },
+    "vehicles": {
+        "rows": 1,
+        "sha256": "3b5729abcb05403af61875b12aafaa007703cd670a9cc9f2e7cebe03dd5df5ac"
+    },
+    "parking_sticker_orders": {
+        "rows": 7,
+        "sha256": "dadec264073fa87fb54c5d14ec8f7df236d76012a3f1588ed75fa19318d4ec3d"
+    },
+    "account_archive_events": {
+        "rows": 3,
+        "sha256": "11279ba67825f6b4b45f930f9565d44369afe018bcd9fe93733e0879589084d7"
+    },
+    "audit_logs": {
+        "rows": 876,
+        "sha256": "ec476f5a33a7916294c7db732a55a189e5343aeb3d96c4d64f045384d130a457"
+    },
+    "job_reports": {
+        "rows": 1,
+        "sha256": "e8b99345f37213fc90f0a2fca56d9fe980e2f6d72566a8e6ea5d181df0354431"
+    }
+}

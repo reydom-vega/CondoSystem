@@ -1,14 +1,14 @@
 # Tenant configuration and unit ownership
 
-This release distinguishes a **unit owner** from a **tenant or authorized occupant** while retaining `role=resident` for all resident accounts. The signup selection is stored as `account_type`; selecting **Tenant** does not grant ownership or access before management approval. Daily services belong to the individual resident. Unit charges belong to the unit owner; parking requested by an approved tenant is billed to and paid only by that tenant.
+This release distinguishes a **unit owner** from a **tenant or authorized occupant** while retaining `role=resident` for all resident accounts. The signup selection is stored as `account_type`; selecting **Tenant** does not grant ownership or access before management approval. Daily services belong to the individual resident. Unit charges belong to the unit owner; parking and amenity bookings requested by an approved tenant are billed to and paid only by that tenant.
 
 ## Recommended policy
 
 | Service | Approved unit owner | Approved linked tenant or occupant |
 | --- | --- | --- |
 | Dashboard, announcements and own profile | Available | Available |
-| Bills | View and pay own bills and eligible linked occupants' existing bills | Read-only unit bills; request and pay own parking bills |
-| Checkout, payment returns, receipts and gateway details | Own unit bills; tenant personal parking bills excluded | Own personal parking bills only |
+| Bills | View and pay own bills and eligible linked occupants' existing bills | Read-only unit bills; pay own parking and amenity booking bills |
+| Checkout, payment returns, receipts and gateway details | Own unit bills; tenant personal parking and booking bills excluded | Own personal parking and amenity booking bills only |
 | Amenities, maintenance, messages and visitors | Available | Available by default; own requests and messages only |
 | Temporary visitor parking | Available | Available by default; own visitors and requests only |
 | Vehicle registration | Register own vehicle | Register own vehicle by default |
@@ -18,7 +18,7 @@ This release distinguishes a **unit owner** from a **tenant or authorized occupa
 
 **Family/Relative of the Owner** and **Friend of Owner** use the same restricted policy as tenants. They are displayed as authorized occupants. Staff roles retain their separate capability rules.
 
-Tenant billing exposes unit bill identifiers, amounts, status, due/billing dates and line items. Payment controls, checkout links, provider identifiers and receipts are available only for the tenant's own personal parking bills. The owner may view the statement but cannot pay or download receipts for tenant-requested parking. A tenant does not gain access to another occupant's bills, requests, messages or private documents. An owner sponsoring a tenant vehicle can select its plate, model and registration status without gaining access to the tenant's OR/CR or vehicle photo.
+Tenant billing exposes unit bill identifiers, amounts, status, due/billing dates and line items. Payment controls, checkout links, provider identifiers and receipts are available only for the tenant's own personal parking and amenity booking bills. The owner may view the statement but cannot pay or download receipts for tenant-requested parking or amenity bookings. A tenant does not gain access to another occupant's bills, requests, messages or private documents. An owner sponsoring a tenant vehicle can select its plate, model and registration status without gaining access to the tenant's OR/CR or vehicle photo.
 
 This is an account-and-unit ownership policy. It does not calculate contractual rent, transfer financial liability or filter bills by a lease start/end date. Review historical invoices with management before changing occupancy.
 

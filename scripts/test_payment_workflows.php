@@ -41,6 +41,7 @@ try {
         (6,'finance','Treasurer','finance@example.invalid',NULL,'treasurer')");
     $db=connectDb(); ensurePaymentsTable($db); ensureBillingTables($db); ensurePaymongoColumns($db);
     ensureViolationsTable($db); ensureParkingStickerOrdersTable($db);
+    ensureResidentServicesTables($db); ensureAccountArchiveSchema($db);
     $raw='{"fixture":"paid"}'; $now=(string)time();
     $signature=hash_hmac('sha256',$now.'.'.$raw,'whsk_fixture');
     paymentCheck(verifyPaymongoWebhookSignature($raw,'t='.$now.',te='.$signature.',li='),'test signature verifies');

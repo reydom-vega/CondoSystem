@@ -50,7 +50,11 @@ try{
     feeDenied(fn()=>$db->query('UPDATE parking_requests SET actual_check_in=UTC_TIMESTAMP(6),slot_id=3 WHERE id='.$duplicate['id']),'database prevents simultaneous physical slot occupancy');
     feeActor($db,1);$future=vpRequestExtension($db,$long['id'],['requested_until'=>date('Y-m-d\TH:i',time()+96*3600),'extension_reason'=>'Additional stay','request_key'=>bin2hex(random_bytes(24))]);feeCheck(vpCancelExtension($db,$future),'sponsor can cancel own pending extension');
     $future=vpRequestExtension($db,$long['id'],['requested_until'=>date('Y-m-d\TH:i',time()+120*3600),'extension_reason'=>'New pending request','request_key'=>bin2hex(random_bytes(24))]);
-    feeActor($db,6);feeCheck(unassignResidentUnit($db,1,'0101'),'residency can be removed with active visitor vehicle');
+    feeActor($db,6);ensureAccountArchiveSchema($db);
+    feeCheck(!unassignResidentUnit($db,1,'0101'),'unconfirmed legacy revocation is rejected');
+    $archiveInput=['mode'=>'archive_account','user_id'=>1,'unit_number'=>'0101','request_key'=>bin2hex(random_bytes(32)),'reason_code'=>'moved_out','reason'=>'Confirmed isolated fixture departure','confirmed'=>'1','cancel_unused'=>'1'];
+    $archiveInput['preview_hash']=archivePreview($db,$archiveInput)['preview_hash'];
+    feeCheck(archiveApply($db,$archiveInput)['event_id']>0,'confirmed archival preserves active visitor vehicle');
     feeCheck($db->query('SELECT status FROM parking_slots WHERE id=3')->fetch_assoc()['status']==='occupied'&&vpLoad($db,$long['id'])['actual_check_out']===null,'residency removal does not erase fee clock or free occupied slot');
     feeActor($db,5);$db->query('UPDATE parking_requests SET actual_check_in=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 90 MINUTE) WHERE id='.$long['id']);$exit=vpCheckoutSession($db,$long['id']);if(!$exit['payment_id']&&$exit['fee_state']==='pending_rate_review'){feeActor($db,4);$exit=vpFinalizeRateReview($db,$long['id'],['late_rule'=>'present_at_start','reason'=>'Confirmed regular fixture rate.']);}$oldBill=(int)$exit['payment_id'];feeCheck((int)$db->query('SELECT user_id FROM payments WHERE id='.$oldBill)->fetch_assoc()['user_id']===1&&vpBillDetails($db,$oldBill)['sponsor_unit_snapshot']==='0101','checkout retains original payer and unit after residency change');
     feeCheck($db->query('SELECT status FROM parking_extensions WHERE id='.$future)->fetch_assoc()['status']==='cancelled','checkout cancels pending extension without removing history');

@@ -18,6 +18,52 @@ function validateUpgradeCommand(array $args,array $env): void {
     if (proc_close($process)!==0) throw new RuntimeException('Restored-copy readiness check failed. Inspect schema/configuration before changing the working database.');
 }
 
+/** The SQL client understands dump DELIMITER directives; mysqli does not.
+ * Binary, noninteractive mode disables source/system client commands. Database
+ * permissions remain the isolation boundary; no operator credential is passed.
+ */
+function restoreUpgradeDump(string $sql,string $database,string $user,string $password): void {
+    $binary=appSetting('CONDO_MYSQL_BINARY',PHP_OS_FAMILY==='Windows' ? dirname(__DIR__,3).'/mysql/bin/mysql.exe' : 'mysql');
+    $environment=['MYSQL_PWD'=>$password];
+    foreach (['PATH','SystemRoot','WINDIR','TEMP','TMP'] as $name) if (getenv($name)!==false) $environment[$name]=getenv($name);
+    // Import exactly the bytes whose checksum was verified, even if the source
+    // path is replaced afterwards. A stream also avoids SQL pipe backpressure.
+    $input=tmpfile();
+    if (!$input) throw new RuntimeException('Could not prepare the verified restore stream.');
+    try {
+        if (fwrite($input,$sql)!==strlen($sql) || !rewind($input)) throw new RuntimeException('Could not prepare the verified restore stream.');
+        $process=proc_open([$binary,'--no-defaults','--binary-mode=1','--batch','--skip-reconnect','--local-infile=0',
+            '--host='.appSetting('CONDO_DB_HOST','localhost'),'--user='.$user,'--database='.$database],
+            [0=>$input,1=>['pipe','w'],2=>['pipe','w']],$pipes,dirname(__DIR__),$environment);
+    } finally { fclose($input); }
+    if (!is_resource($process)) throw new RuntimeException('Could not launch the database client for restricted restoration.');
+    stream_get_contents($pipes[1]);$error=stream_get_contents($pipes[2]);fclose($pipes[1]);fclose($pipes[2]);
+    if (proc_close($process)!==0) {
+        // Do not print SQL text, connection details or data from the dump.
+        $code=preg_match('/ERROR\s+(\d+)/',$error,$match) ? (int)$match[1] : 0;
+        throw new RuntimeException('Restricted SQL client restore failed; database error code: '.$code.'. Check client availability/version and reviewed DEFINER clauses.');
+    }
+}
+
+/** Explicit clone-only portability for canonical mysqldump trigger headers.
+ * Do not rewrite data literals, trigger bodies, views or other DEFINER forms.
+ * The source backup remains unchanged and the restore account stays restricted.
+ */
+function upgradeRebindTriggerDefiners(string $sql,int &$count): string {
+    // Consume whole SQL literals/comments before looking for another header.
+    // In particular, a multiline text value containing a header is still data.
+    $pattern=<<<'REGEX'
+~(?<header>^(?<create>/\*!50003 CREATE\*/[ \t]*)/\*!50017[ \t]+DEFINER=`(?:[^`]|``)+`@`(?:[^`]|``)+`[ \t]*\*/(?=[ \t]*/\*!50003[ \t]+TRIGGER[ \t]))|'(?:\\[\s\S]|''|[^'\\])*'|"(?:\\[\s\S]|""|[^"\\])*"|`(?:``|[^`])*`|--[ \t][^\r\n]*|\#[^\r\n]*|/\*[\s\S]*?\*/~m
+REGEX;
+    $count=0;
+    $result=preg_replace_callback($pattern,static function(array $match) use (&$count): string {
+        if(empty($match['header']))return $match[0];
+        $count++;return $match['create'].'/*!50017 DEFINER=CURRENT_USER */';
+    },$sql);
+    if ($result===null) throw new RuntimeException('Could not prepare reviewed trigger headers.');
+    return $result;
+}
+
 /** Preserve every pre-existing column in the protected business tables. */
 function upgradeSnapshotColumns(mysqli $db): array {
     $columns=[];
@@ -35,8 +81,20 @@ function upgradeAccountColumnDefaults(): array {
     return ['account_type'=>null,'unit_owner_id'=>null,'is_active'=>1,'status'=>'approved','session_version'=>0];
 }
 
-/** Only planned owner links and their single session-version increment may differ. */
-function snapshotUpgradeState(mysqli $db,array $ownerLinks=[],?array $columns=null,bool $allowMissingDefaults=true): array {
+/** Exact nullable unit-label backfill performed by the Archive migration.
+ * Amounts, ownership, payment statuses and existing non-null labels are excluded.
+ */
+function upgradeUnitSnapshotPlan(mysqli $db): array {
+    $plan=[];
+    foreach(['vehicles','payments','maintenance_requests','resident_service_requests'] as $table) {
+        if(!$db->query("SHOW TABLES LIKE '$table'")->num_rows || !$db->query("SHOW COLUMNS FROM `$table` LIKE 'unit_number_snapshot'")->num_rows)continue;
+        foreach($db->query("SELECT r.id,u.unit_number FROM `$table` r JOIN users u ON u.id=r.user_id WHERE r.unit_number_snapshot IS NULL AND u.unit_number IS NOT NULL") as $row)$plan[$table][(int)$row['id']]=$row['unit_number'];
+    }
+    return $plan;
+}
+
+/** Only explicitly supplied owner-link/version and nullable unit-label plans differ. */
+function snapshotUpgradeState(mysqli $db,array $ownerLinks=[],?array $columns=null,bool $allowMissingDefaults=true,array $unitSnapshots=[]): array {
     $state=[];
     foreach ($columns ?? upgradeSnapshotColumns($db) as $table=>$fields) {
         if (!$db->query("SHOW TABLES LIKE '{$table}'")->num_rows) throw new RuntimeException('Upgrade removed a protected business table.');
@@ -53,6 +111,10 @@ function snapshotUpgradeState(mysqli $db,array $ownerLinks=[],?array $columns=nu
                 $protected['unit_owner_id']=(string)$ownerLinks[(int)$row['id']];
                 if ($protected['session_version']!==null) $protected['session_version']=(string)((int)$protected['session_version']+1);
             }
+            if(isset($unitSnapshots[$table][(int)$row['id']])) {
+                if(!array_key_exists('unit_number_snapshot',$protected) || $protected['unit_number_snapshot']!==null)throw new RuntimeException('Expected unit-label backfill does not match the restored record.');
+                $protected['unit_number_snapshot']=(string)$unitSnapshots[$table][(int)$row['id']];
+            }
             hash_update($hash,serialize($protected)."\n");
         }
         $state[$table]=hash_final($hash);
@@ -61,10 +123,16 @@ function snapshotUpgradeState(mysqli $db,array $ownerLinks=[],?array $columns=nu
 }
 
 if (defined('CONDO_UPGRADE_FUNCTIONS_ONLY') && CONDO_UPGRADE_FUNCTIONS_ONLY===true) return;
-if ($argc!==2 || !str_starts_with($argv[1],'--backup=')) {
-    echo "Usage: php scripts/validate_upgrade.php --backup=<trusted database.sql snapshot>\n"
+$backupFile=null;$rebindTriggerDefiners=false;$invalidArguments=false;
+foreach(array_slice($argv,1) as $argument) {
+    if(str_starts_with($argument,'--backup=') && $backupFile===null)$backupFile=substr($argument,9);
+    elseif($argument==='--rebind-trigger-definers' && !$rebindTriggerDefiners)$rebindTriggerDefiners=true;
+    else $invalidArguments=true;
+}
+if ($backupFile===null || $invalidArguments) {
+    echo "Usage: php scripts/validate_upgrade.php --backup=<trusted database.sql snapshot> [--rebind-trigger-definers]\n"
         . "Operator credentials need CREATE/DROP USER, CREATE/DROP DATABASE and GRANT for the disposable database.\n"
-        . "Dump SQL is never restored with those operator credentials. DEFINER/global exports may require a reviewed portable dump.\n";
+        . "A compatible mysql/mariadb CLI is required. Dump SQL is never restored with operator credentials. The optional flag rebinds canonical exported trigger headers to the restricted disposable account only; review other DEFINER formats separately.\n";
     exit($argc===1 || ($argv[1] ?? '')==='--help' ? 0 : 2);
 }
 $server=null; $restore=null; $databaseCreated=false; $userCreated=false;
@@ -74,7 +142,7 @@ $password=bin2hex(random_bytes(32));
 $account=null; $phase='snapshot validation'; $failure=false;
 
 try {
-    $file=realpath(substr($argv[1],9));
+    $file=realpath($backupFile);
     if (!$file || !is_file($file)) throw new RuntimeException('Backup file is missing.');
     $sql=file_get_contents($file);
     if (!is_string($sql) || $sql==='') throw new RuntimeException('Backup file could not be read.');
@@ -83,6 +151,10 @@ try {
     $manifest=json_decode(file_get_contents($manifestFile),true,512,JSON_THROW_ON_ERROR);
     $expected=$manifest['database_sha256'] ?? '';
     if (!is_string($expected) || !preg_match('/^[a-f0-9]{64}$/D',$expected) || !hash_equals($expected,hash('sha256',$sql))) throw new RuntimeException('Snapshot manifest/checksum does not match.');
+    if($rebindTriggerDefiners) {
+        $count=0;$sql=upgradeRebindTriggerDefiners($sql,$count);
+        echo 'Rebound '.$count." canonical trigger header(s) for the disposable restore only; the original snapshot is unchanged.\n";
+    }
     // Defense in depth only: account permissions enforce isolation even when
     // comments, stored programs or unusual syntax bypass textual detection.
     if (preg_match('/^\s*(?:USE\s|(?:CREATE|ALTER|DROP)\s+DATABASE\b)/im',$sql)) throw new RuntimeException('Use a table-only dump without database-switching statements.');
@@ -105,24 +177,33 @@ try {
     $phase='isolated restore';
     $restore=new mysqli(appSetting('CONDO_DB_HOST','localhost'),$testUser,$password,$copy);
     $restore->set_charset('utf8mb4');
-    $restore->multi_query($sql);
-    do { $result=$restore->store_result(); if($result) $result->free(); } while($restore->more_results() && $restore->next_result());
+    restoreUpgradeDump($sql,$copy,$testUser,$password);
+    $phase='restored snapshot validation';
     $columns=upgradeSnapshotColumns($restore);
     $ownerLinks=residentOwnerLinkPlan($restore->query('SELECT * FROM users ORDER BY id')->fetch_all(MYSQLI_ASSOC));
-    $expectedState=snapshotUpgradeState($restore,$ownerLinks,$columns);
+    $unitSnapshots=upgradeUnitSnapshotPlan($restore);
+    $expectedState=snapshotUpgradeState($restore,$ownerLinks,$columns,true,$unitSnapshots);
     $env=array_merge(getenv(),[
         'CONDO_DB_NAME'=>$copy,'CONDO_DB_USER'=>$testUser,'CONDO_DB_PASS'=>$password,
         'CONDO_APP_ENV'=>'test','CONDO_AUTO_MIGRATE'=>'0','CONDO_APP_URL'=>'http://localhost/CondoSystem3',
     ]);
     $phase='isolated migration/preflight';
     validateUpgradeCommand([__DIR__.'/migrate.php','--apply'],$env);
-    if ($expectedState!==snapshotUpgradeState($restore,[],$columns,false)) throw new RuntimeException('Upgrade changed existing account or workflow/financial states beyond the planned owner-link backfill. Review before applying.');
+    $actualState=snapshotUpgradeState($restore,[],$columns,false);
+    if ($expectedState!==$actualState) {
+        $changed=array_keys(array_filter($expectedState,static fn(string $hash,string $table): bool=>$hash!==($actualState[$table]??null),ARRAY_FILTER_USE_BOTH));
+        throw new RuntimeException('Upgrade changed protected data beyond the planned backfills in table(s): '.implode(', ',$changed).'. Review before applying.');
+    }
     validateUpgradeCommand([__DIR__.'/preflight.php'],$env);
 } catch (Throwable $e) {
     $failure=true;
     fwrite(STDERR,"Upgrade validation failed during {$phase}.\n");
+    if ($e instanceof mysqli_sql_exception) fwrite(STDERR,'Database error code: '.(int)$e->getCode()."\n");
     if ($phase==='temporary account provisioning') fwrite(STDERR,"Operator credentials require CREATE/DROP USER, CREATE/DROP DATABASE and GRANT for the disposable test database. No privileged restore was attempted.\n");
-    elseif ($phase==='isolated restore') fwrite(STDERR,"Dump access or syntax was rejected by the restricted restore account. Review DEFINER/global/cross-database statements; privileged restore fallback is prohibited.\n");
+    elseif ($phase==='isolated restore') {
+        fwrite(STDERR,"Dump access or syntax was rejected by the restricted restore account. Review DEFINER/global/cross-database statements; privileged restore fallback is prohibited.\n");
+        if ($e instanceof RuntimeException && !$e instanceof mysqli_sql_exception) fwrite(STDERR,$e->getMessage()."\n");
+    }
     elseif ($e instanceof RuntimeException && !$e instanceof mysqli_sql_exception) fwrite(STDERR,$e->getMessage()."\n");
 } finally {
     if ($restore instanceof mysqli) { try { $restore->close(); } catch (Throwable $e) {} }
@@ -144,4 +225,4 @@ try {
     unset($password,$env);
 }
 if ($failure) exit(1);
-echo "Backup restored with database-scoped temporary credentials, upgraded and passed read-only preflight. Existing business data and account states preserved except planned owner links and session revocation; temporary database and account removed.\n";
+echo "Backup restored with database-scoped temporary credentials, upgraded and passed read-only preflight. Existing business data and account states preserved except planned owner links, session revocation and exact nullable unit labels; temporary database and account removed.\n";

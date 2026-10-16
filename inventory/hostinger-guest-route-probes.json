@@ -1,0 +1,31 @@
+{
+  "/webhooks/paymongo_webhook.php": {
+    "status": 405
+  },
+  "/resident/dashboard.php": {
+    "status": 200,
+    "final_url": "https://thecelandinesystem.online/login.php"
+  },
+  "/superadmin/admin_dashboard.php": {
+    "status": 200,
+    "final_url": "https://thecelandinesystem.online/login.php"
+  },
+  "/api/dashboard.php": {
+    "status": 401
+  },
+  "/api/account_archive.php": {
+    "status": 404
+  },
+  "/private_uploads/": {
+    "status": 403
+  },
+  "/config.php": {
+    "status": 403
+  },
+  "/composer.lock": {
+    "status": 403
+  },
+  "/inventory/hostinger-static-audit.json": {
+    "status": 403
+  }
+}

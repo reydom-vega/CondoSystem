@@ -1,14 +1,16 @@
 <?php
 /** Read-only readiness checks: no business/schema writes, no provider calls. */
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
-$production = false; $httpUrl = null;
+$production = false; $testing = false; $httpUrl = null;
 foreach (array_slice($argv, 1) as $argument) {
     if ($argument === '--production') $production = true;
+    elseif ($argument === '--testing') $testing = true;
     elseif (str_starts_with($argument, '--http=')) $httpUrl = rtrim(substr($argument, 7), '/');
     elseif ($argument === '--help') {
-        echo "Usage: php scripts/preflight.php [--production] [--http=https://host/app]\nRead-only checks. --http also verifies public routes and forbidden artifact URLs.\n"; exit;
+        echo "Usage: php scripts/preflight.php [--production|--testing] [--http=https://host/app]\nRead-only checks. --testing requires hardened hosting settings and PayMongo test keys. --production requires live keys. --http also verifies public routes and forbidden artifact URLs.\n"; exit;
     } else { fwrite(STDERR, "Unknown option. Use --help.\n"); exit(2); }
 }
+if ($production && $testing) { fwrite(STDERR,"Choose either --testing or --production, never both.\n");exit(2); }
 $root = dirname(__DIR__);
 require_once $root . '/includes/environment.php';
 require_once $root . '/includes/deployment_schema.php';
@@ -53,9 +55,9 @@ try {
 } catch(Throwable $error) { preflightCheck(false,'Prepare private community report storage and valid report settings with the migration'); }
 foreach (['.htaccess','includes/.htaccess','private_uploads/.htaccess','private_uploads/profile_photos/.htaccess','scripts/.htaccess','vendor/.htaccess','inventory/.htaccess'] as $file) preflightCheck(is_file($root . '/' . $file), "HTTP protection file: {$file}");
 
-$production = $production || appIsProduction();
+$production = $production || $testing || appIsProduction();
 if ($production) {
-    preflightCheck(PHP_VERSION_ID >= 80400, 'Production deployment uses PHP 8.4 or later (install current security updates)');
+    preflightCheck(PHP_VERSION_ID >= ($testing ? 80300 : 80400), $testing ? 'Hostinger testing uses PHP 8.3 or later (install current security updates)' : 'Production deployment uses PHP 8.4 or later (install current security updates)');
     preflightCheck(appIsProduction(), 'CONDO_APP_ENV is production');
     $url = appSetting('CONDO_APP_URL');
     $parts = parse_url($url);
@@ -66,7 +68,7 @@ if ($production) {
     foreach (['CONDO_SMTP_USER','CONDO_SMTP_PASS','CONDO_MAIL_FROM'] as $setting) preflightCheck(appSetting($setting) !== '', "Required mail configuration: {$setting}");
     preflightCheck(filter_var(appSetting('CONDO_MAIL_FROM'), FILTER_VALIDATE_EMAIL) !== false, 'Mail sender has a valid email address');
     $key = appSetting('CONDO_PAYMONGO_SECRET_KEY');
-    preflightCheck(str_starts_with($key, 'sk_live_'), 'PayMongo live secret key is configured');
+    preflightCheck(str_starts_with($key, $testing ? 'sk_test_' : 'sk_live_'), $testing ? 'PayMongo sandbox secret key is configured; live charges are not permitted for this check' : 'PayMongo live secret key is configured');
     preflightCheck(str_starts_with(appSetting('CONDO_PAYMONGO_WEBHOOK_SECRET'), 'whsk_'), 'PayMongo webhook secret is configured');
     preflightCheck(strlen(appSetting('CONDO_PASS_SIGNING_KEY')) >= 32, 'Parking pass signing key has at least 32 characters');
     preflightCheck(strlen(appSetting('CONDO_CRON_SECRET')) >= 32, 'Reminder HTTP secret is configured (CLI scheduling can omit this)', true);

@@ -1,0 +1,266 @@
+{
+  "php": "8.3.35",
+  "results": [
+    {
+      "suite": "test_authentication.php",
+      "exit_code": 0,
+      "seconds": 35.28,
+      "summary": [
+        "Passed 67 authentication checks in a disposable database."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_digital_id.php",
+      "exit_code": 0,
+      "seconds": 16.25,
+      "summary": [
+        "Passed 121 Digital Condo ID database/security/HTTP checks."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_management_dashboard.php",
+      "exit_code": 0,
+      "seconds": 5.42,
+      "summary": [
+        "Passed 52 management dashboard counts, money, privacy, role and read-only checks. No provider contacted."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_notification_outbox.php",
+      "exit_code": 0,
+      "seconds": 10.2,
+      "summary": [
+        "Passed 58 notification checks in a disposable database; mocked delivery only."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_job_reports.php",
+      "exit_code": 0,
+      "seconds": 40.58,
+      "summary": [
+        "QA files: C:\\Users\\CABIGAS\\AppData\\Local\\Temp/condo-job-report-qa"
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_paymongo_bank_flow.php",
+      "exit_code": 0,
+      "seconds": 0.41,
+      "summary": [
+        "PayMongo hosted bank checkout tests passed."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_property_branding.php",
+      "exit_code": 0,
+      "seconds": 6.22,
+      "summary": [
+        "QA files: C:\\Users\\CABIGAS\\AppData\\Local\\Temp/condo-property-branding-qa"
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_authorization.php",
+      "exit_code": 0,
+      "seconds": 147.11,
+      "summary": [
+        "Passed 285 authorization and lifecycle checks in a disposable database."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_profile_photos.php",
+      "exit_code": 0,
+      "seconds": 49.55,
+      "summary": [
+        "Passed 99 profile role, upload, privacy and HTTP checks."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_security_dashboard.php",
+      "exit_code": 0,
+      "seconds": 5.59,
+      "summary": [
+        "Passed 33 Security dashboard scope/date/privacy/permission/read-only checks. No provider contacted."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_qr_scan_history.php",
+      "exit_code": 0,
+      "seconds": 38.76,
+      "summary": [
+        "Passed 81 QR scan history checks in a disposable database."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_system_analytics.php",
+      "exit_code": 0,
+      "seconds": 36.64,
+      "summary": [
+        "QA files: C:\\Users\\CABIGAS\\AppData\\Local\\Temp/condo-analytics-qa"
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_tenant_billing.php",
+      "exit_code": 0,
+      "seconds": 28.58,
+      "summary": [
+        "Passed 203 tenant billing checks in a disposable database; no provider calls."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_treasurer_dashboard.php",
+      "exit_code": 0,
+      "seconds": 4.66,
+      "summary": [
+        "Passed 38 Treasurer dashboard totals/date/aging/permission/read-only checks. No provider contacted."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_resident_workflows.php",
+      "exit_code": 0,
+      "seconds": 105.67,
+      "summary": [
+        "Passed 318 integration checks in a disposable database."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_vehicle_violations.php",
+      "exit_code": 0,
+      "seconds": 64.19,
+      "summary": [
+        "Passed 72 vehicle lookup, history, review, billing and HTTP checks in a disposable database."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_tenant_policy.php",
+      "exit_code": 0,
+      "seconds": 88.84,
+      "summary": [
+        "Passed 212 tenant policy, account lifecycle and owner billing checks in a disposable database."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_visitor_parking_rates.php",
+      "exit_code": 0,
+      "seconds": 0.34,
+      "summary": [
+        "Passed 67 centralized visitor parking rate checks. No database or provider used."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_visitor_parking_v2.php",
+      "exit_code": 0,
+      "seconds": 19.11,
+      "summary": [
+        "Passed 47 v2 parking lifecycle, pricing, consent, grace, extensions, rate review, billing, gateway fixture and receipt checks. No provider contacted."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_payment_workflows.php",
+      "exit_code": 0,
+      "seconds": 25.8,
+      "summary": [
+        "Passed 72 payment workflow checks in a disposable database; no provider calls."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_pool_reservations.php",
+      "exit_code": 0,
+      "seconds": 26.52,
+      "summary": [
+        "Passed 139 pool, gallery and billing integration checks."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_audit_log.php",
+      "exit_code": 0,
+      "seconds": 41.67,
+      "summary": [
+        "QA files: C:\\Users\\CABIGAS\\AppData\\Local\\Temp/condo-audit-qa"
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_visitor_parking_fees.php",
+      "exit_code": 0,
+      "seconds": 17.27,
+      "summary": [
+        "Passed 123 visitor parking fee, extension, gate, billing and receipt checks. No provider contacted."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_community_reports.php",
+      "exit_code": 0,
+      "seconds": 28.08,
+      "summary": [
+        "Passed 125 community-report integration checks in a disposable database. No provider contacted."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_property_gate_pass.php",
+      "exit_code": 0,
+      "seconds": 48.83,
+      "summary": [
+        "Passed 90 property gate pass integration checks in a disposable database."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_visitor_identity.php",
+      "exit_code": 0,
+      "seconds": 80.91,
+      "summary": [
+        "Passed 88 visitor identity upload, approval, privacy, QR and retention checks in a disposable database."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_account_archive.php",
+      "exit_code": 0,
+      "seconds": 24.03,
+      "summary": [
+        "Passed 89 account archive backend checks."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_deployment.php",
+      "exit_code": 0,
+      "seconds": 33.41,
+      "summary": [
+        "34 deployment checks passed using a disposable database."
+      ],
+      "warnings": 0
+    },
+    {
+      "suite": "test_backup_restore.php",
+      "exit_code": 0,
+      "seconds": 57.5,
+      "summary": [
+        "83 backup/restore checks passed; disposable fixtures only, no provider calls."
+      ],
+      "warnings": 0
+    }
+  ]
+}

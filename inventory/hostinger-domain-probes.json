@@ -1,0 +1,56 @@
+{
+  "domain": "thecelandinesystem.online",
+  "probes": [
+    {
+      "url": "https://thecelandinesystem.online/",
+      "status": 200,
+      "final_url": "https://thecelandinesystem.online/homepage.php",
+      "content_type": "text/html; charset=UTF-8"
+    },
+    {
+      "url": "http://thecelandinesystem.online/",
+      "status": 200,
+      "final_url": "https://thecelandinesystem.online/homepage.php",
+      "content_type": "text/html; charset=UTF-8"
+    },
+    {
+      "url": "https://thecelandinesystem.online/homepage.php",
+      "status": 200,
+      "final_url": "https://thecelandinesystem.online/homepage.php",
+      "content_type": "text/html; charset=UTF-8"
+    },
+    {
+      "url": "https://thecelandinesystem.online/login.php",
+      "status": 200,
+      "final_url": "https://thecelandinesystem.online/login.php",
+      "content_type": "text/html; charset=UTF-8"
+    },
+    {
+      "url": "https://thecelandinesystem.online/styles.css",
+      "status": 200,
+      "final_url": "https://thecelandinesystem.online/styles.css",
+      "content_type": "text/css"
+    },
+    {
+      "url": "https://thecelandinesystem.online/.env",
+      "status": 403
+    },
+    {
+      "url": "https://thecelandinesystem.online/.git/HEAD",
+      "status": 403
+    },
+    {
+      "url": "https://thecelandinesystem.online/database.sql",
+      "status": 403
+    },
+    {
+      "url": "https://thecelandinesystem.online/scripts/preflight.php",
+      "status": 403
+    },
+    {
+      "url": "https://thecelandinesystem.online/vendor/autoload.php",
+      "status": 403
+    }
+  ],
+  "dns_resolves": true
+}

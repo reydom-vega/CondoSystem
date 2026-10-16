@@ -53,6 +53,17 @@ try {
     deploymentTestCheck($ready['status'] === 0 && str_contains($ready['output'], '0 failure(s)'), 'migrated install passes schema readiness');
     $production = deploymentTestCli(['scripts/preflight.php','--production']);
     deploymentTestCheck($production['status'] === 1 && str_contains($production['output'], 'FAIL CONDO_APP_ENV'), 'production mode fails incomplete production settings');
+    $testing = deploymentTestCli(['scripts/preflight.php','--testing']);
+    deploymentTestCheck($testing['status']===1 && str_contains($testing['output'],'FAIL CONDO_APP_ENV') && str_contains($testing['output'],'Hostinger testing uses PHP 8.3'),'testing profile requires hardened environment and PHP 8.3');
+    deploymentTestCheck(str_contains($testing['output'],'PayMongo sandbox secret key') && !str_contains($testing['output'],'PayMongo live secret key'),'testing profile never requests live payment keys');
+    $conflict = deploymentTestCli(['scripts/preflight.php','--testing','--production']);
+    deploymentTestCheck($conflict['status']===2,'conflicting live and sandbox deployment profiles fail closed');
+    foreach(['sk_live_fixture','sk_test_fixture'] as $fixtureKey) {
+        putenv('CONDO_PAYMONGO_SECRET_KEY='.$fixtureKey);
+        $mode = deploymentTestCli(['scripts/preflight.php','--testing']);
+        deploymentTestCheck(str_contains($mode['output'],($fixtureKey==='sk_test_fixture'?'PASS':'FAIL').' PayMongo sandbox secret key'),'sandbox preflight validates payment-key mode');
+    }
+    putenv('CONDO_PAYMONGO_SECRET_KEY=');
 
     $password = 'DeploymentFixture!42';
     $provision = deploymentTestCli(['create_admin.php','fixture_admin','staff@example.invalid','--password-stdin','--full-name=Fixture Administrator'],$password . "\n");

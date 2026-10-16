@@ -1,0 +1,1785 @@
+{
+  "started": "2026-10-16T07:29:49.976Z",
+  "base": "https://thecelandinesystem.online/",
+  "pages": [
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 360,
+      "scrollWidth": 360,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 390,
+      "scrollWidth": 390,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 430,
+      "scrollWidth": 430,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 768,
+      "scrollWidth": 768,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1366,
+      "scrollWidth": 1366,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1920,
+      "scrollWidth": 1920,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 360,
+      "scrollWidth": 360,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 390,
+      "scrollWidth": 390,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 430,
+      "scrollWidth": 430,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 768,
+      "scrollWidth": 768,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1366,
+      "scrollWidth": 1351,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg",
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg",
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1920,
+      "scrollWidth": 1905,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg",
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg",
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 360,
+      "scrollWidth": 360,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 390,
+      "scrollWidth": 390,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 430,
+      "scrollWidth": 430,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 768,
+      "scrollWidth": 768,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1366,
+      "scrollWidth": 1366,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1920,
+      "scrollWidth": 1920,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 360,
+      "scrollWidth": 360,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 390,
+      "scrollWidth": 390,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 430,
+      "scrollWidth": 430,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 768,
+      "scrollWidth": 768,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1366,
+      "scrollWidth": 1366,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1920,
+      "scrollWidth": 1920,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 360,
+      "scrollWidth": 360,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 390,
+      "scrollWidth": 390,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 430,
+      "scrollWidth": 430,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 768,
+      "scrollWidth": 768,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1366,
+      "scrollWidth": 1366,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1920,
+      "scrollWidth": 1920,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 360,
+      "scrollWidth": 360,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 390,
+      "scrollWidth": 390,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 430,
+      "scrollWidth": 430,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 768,
+      "scrollWidth": 768,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1366,
+      "scrollWidth": 1366,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1920,
+      "scrollWidth": 1920,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    }
+  ],
+  "failures": [
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 360,
+      "scrollWidth": 360,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 390,
+      "scrollWidth": 390,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 430,
+      "scrollWidth": 430,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 768,
+      "scrollWidth": 768,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1366,
+      "scrollWidth": 1366,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1920,
+      "scrollWidth": 1920,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 360,
+      "scrollWidth": 360,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 390,
+      "scrollWidth": 390,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 430,
+      "scrollWidth": 430,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 768,
+      "scrollWidth": 768,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "mainVisible": false,
+      "gsapImports": 0,
+      "brokenImages": [],
+      "mixedImages": [],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1366,
+      "scrollWidth": 1351,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg",
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg",
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1920,
+      "scrollWidth": 1905,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg",
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg",
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": [
+        {
+          "path": "/homepage.php",
+          "status": 403
+        },
+        {
+          "path": "/favicon.ico",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 360,
+      "scrollWidth": 360,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 390,
+      "scrollWidth": 390,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 430,
+      "scrollWidth": 430,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 768,
+      "scrollWidth": 768,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1366,
+      "scrollWidth": 1366,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1920,
+      "scrollWidth": 1920,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 360,
+      "scrollWidth": 360,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 390,
+      "scrollWidth": 390,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 430,
+      "scrollWidth": 430,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 768,
+      "scrollWidth": 768,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1366,
+      "scrollWidth": 1366,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1920,
+      "scrollWidth": 1920,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 360,
+      "scrollWidth": 360,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 390,
+      "scrollWidth": 390,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 430,
+      "scrollWidth": 430,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 768,
+      "scrollWidth": 768,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1366,
+      "scrollWidth": 1366,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "dark",
+      "width": 1920,
+      "scrollWidth": 1920,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 360,
+      "scrollWidth": 360,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 390,
+      "scrollWidth": 390,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 430,
+      "scrollWidth": 430,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 768,
+      "scrollWidth": 768,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1366,
+      "scrollWidth": 1366,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "label": "Hosted guest",
+      "requestedTheme": "light",
+      "width": 1920,
+      "scrollWidth": 1920,
+      "mainVisible": true,
+      "gsapImports": 1,
+      "brokenImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "mixedImages": [
+        "http://localhost/CondoSystem3/celandineorange.svg"
+      ],
+      "errors": [],
+      "resources": []
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "width": 360,
+      "theme": "dark",
+      "file": "0-0-360-dark.png"
+    },
+    {
+      "path": "homepage.php",
+      "actor": 0,
+      "width": 360,
+      "theme": "light",
+      "file": "0-0-360-light.png"
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "width": 360,
+      "theme": "dark",
+      "file": "1-0-360-dark.png"
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "width": 390,
+      "theme": "dark",
+      "file": "1-0-390-dark.png"
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "width": 1366,
+      "theme": "dark",
+      "file": "1-0-1366-dark.png"
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "width": 360,
+      "theme": "light",
+      "file": "1-0-360-light.png"
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "width": 390,
+      "theme": "light",
+      "file": "1-0-390-light.png"
+    },
+    {
+      "path": "login.php",
+      "actor": 0,
+      "width": 1366,
+      "theme": "light",
+      "file": "1-0-1366-light.png"
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "width": 360,
+      "theme": "dark",
+      "file": "2-0-360-dark.png"
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "width": 390,
+      "theme": "dark",
+      "file": "2-0-390-dark.png"
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "width": 1366,
+      "theme": "dark",
+      "file": "2-0-1366-dark.png"
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "width": 360,
+      "theme": "light",
+      "file": "2-0-360-light.png"
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "width": 390,
+      "theme": "light",
+      "file": "2-0-390-light.png"
+    },
+    {
+      "path": "signup.php",
+      "actor": 0,
+      "width": 1366,
+      "theme": "light",
+      "file": "2-0-1366-light.png"
+    }
+  ],
+  "finished": "2026-10-16T07:30:30.691Z"
+}

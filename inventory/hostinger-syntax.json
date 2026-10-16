@@ -1,0 +1,1737 @@
+[
+  {
+    "file": "analytics_export.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "audit_log_export.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "AuthFunctionsTest.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "buildingicon.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "config.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "create_admin.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "debug_parking_import.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "diagnose_parking.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "digital_id_verify.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "edit_profile.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "forgot_password.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "homepage.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "index.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "job_report.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "job_report_export.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "login.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "logout.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "maintenance_evidence.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "message_attachment.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "notifications.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "parking-inventory-import-test.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "parking_import_diagnostic.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "parking_pass.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "parking_probe.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "parking_sticker_proof.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "permit_document.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "profile_photo.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "report_evidence.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "report_tracking.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "resend_verification.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "reset_password.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "resident_service_pass.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "signup.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "signuppending.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "vehicle_document.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "verify.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "verify_pending.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "violation_evidence.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "visitor_id_document.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "admin/admin_dashboard.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/account_archive.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/admin_dashboard.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/admin_messages.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/amenity_bookings.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/audit_log.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/community_reports.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/dashboard.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/digital_id.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/digital_id_verify.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/job_reports.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/messages.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/notifications.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/profile_photo.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/scan_history.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/scan_history_export.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/security_dashboard.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/system_analytics.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/violation_vehicles.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "api/visitor_parking.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "cron/send_due_reminders.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/access_scanner.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/account_lifecycle.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/amenities.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/amenity_catalog.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/amenity_lightbox.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/amenity_workspace.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/analytics_charts.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/analytics_export.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/analytics_financial.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/analytics_management.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/analytics_operations.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/analytics_schema.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/analytics_workspace.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/archive.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/archive_ui.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/audit.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/audit_report.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/audit_report_export.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/audit_workspace.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/authentication.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/authorization.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/billing.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/billing_staff_table.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/billing_workspace.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/branding.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/celandine-intro.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/community_reports.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/deployment_schema.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/digital_id.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/environment.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/job_reports.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/job_report_activity.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/job_report_export.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/job_report_workflow.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/job_report_workspace.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/maintenance.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/maintenance_workspace.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/management_dashboard.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/management_dashboard_content.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/management_dashboard_page.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/notification_outbox.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/notify.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/parking.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/parking_allocation.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/parking_configuration_content.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/parking_inventory_content.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/parking_policy.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/parking_records_content.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/parking_vehicle_content.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/parking_workspace.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/payment_confirmation.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/payment_receipts.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/paymongo.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/permit_details.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/permit_pass_download_controls.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/permit_pass_export.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/permit_requests_content.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/permit_request_records.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/permit_workspace.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/portal_ui.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/profile.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/profile_photo_editor.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/property_gate_pass.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/property_gate_pass_page.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/qr_scanner_page.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/qr_scan_history.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/qr_scan_history_content.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/qr_scan_report.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/remember_me.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/report_evidence.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/report_page.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/report_queries.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/report_workflow.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/resident_accounts.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/resident_amenity_records.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/resident_maintenance_records.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/resident_navigation.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/resident_parking_requests.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/resident_policy.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/resident_services.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/resident_services_page.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/resident_sticker_panel.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/resident_sticker_request.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/resident_violation_records.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/security_dashboard.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/sms.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/staff_amenity_records.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/staff_maintenance_records.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/staff_navigation.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/system_analytics.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/treasurer_dashboard.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/ui_icons.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/vehicles.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/vehicle_registry_page.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/vehicle_violations.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/violations.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/violation_vehicle_fields.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/violation_vehicle_ui.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/violation_workspace.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/visitors.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/visitor_assisted_form.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/visitor_assisted_registration.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/visitor_identity.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/visitor_identity_fields.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/visitor_parking.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/visitor_parking_approval.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/visitor_parking_billing.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/visitor_parking_extensions.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/visitor_parking_fees.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/visitor_parking_fields.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/visitor_parking_pricing.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/visitor_parking_rate_settings.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/visitor_parking_views.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/visitor_parking_widget.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/visitor_request_records.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/visitor_workspace.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "includes/workflows.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "js/amenities.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "js/confirmation-ui.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "js/homepage.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "js/live-updates.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "js/login.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "js/message-image-viewer.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "js/notification-menu.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "js/page-transition.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "js/permit-requests.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "js/profile-menu.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "js/qr-scanner.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "js/services-menu.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "js/vehicle-violations.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "maintenance/maintenancerequests.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "maintenance/maintenance_dashboard.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "resident/announcements.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "resident/book_amenity.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "resident/dashboard.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "resident/edit_profile.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "resident/maintenance.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "resident/messages.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "resident/parking.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "resident/payments.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "resident/payment_receipt.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "resident/payment_return.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "resident/permits.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "resident/reports.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "resident/residentviolation.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "resident/vehicles.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "resident/visitors.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/audit_hostinger_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/backup.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/gate_fixture_router.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/migrate.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/migrate_community_reports.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/migrate_digital_id.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/migrate_job_reports.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/migrate_profile_photos.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/migrate_vehicle_violations.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/migrate_visitor_identity.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/migrate_visitor_parking.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/preflight.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/process_notifications.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/purge_report_evidence.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/purge_visitor_ids.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/render_authorization_page.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/render_payment_page.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/render_workflow_page.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_account_archive.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_account_archive_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_amenity_workspace_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_audit_log.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_audit_log_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_authentication.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_authorization.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_backup_restore.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_billing_workspace_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_community_reports.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_deployment.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_digital_id.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_digital_id_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_homepage_intro_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_homepage_redesign_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_job_reports.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_job_reports_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_loading_ui_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_maintenance_workspace_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_management_dashboard.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_management_dashboard_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_notification_outbox.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_parking_approval_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_parking_workspace_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_payment_workflows.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_paymongo_bank_flow.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_permit_workspace_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_pool_reservations.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_profile_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_profile_photos.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_profile_photos_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_property_branding.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_property_branding_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_property_gate_pass.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_qr_scan_history.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_reports_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_resident_dashboard_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_resident_violations_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_resident_workflows.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_security_dashboard.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_security_dashboard_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_system_analytics.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_system_analytics_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_tenant_billing.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_tenant_policy.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_theme_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_treasurer_dashboard.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_treasurer_dashboard_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_ui_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_ui_redesign.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_vehicle_slots_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_vehicle_upload.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_vehicle_violations.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_vehicle_violations_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_visitor_identity.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_visitor_identity_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_visitor_log_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_visitor_parking_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_visitor_parking_fees.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_visitor_parking_rates.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_visitor_parking_v2.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/test_workspace_browser.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/ui_fixture_router.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/validate_upgrade.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "scripts/visitor_identity_fixture.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "security/scanner.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "security/security_dashboard.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "security/visitor_log.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/admin_dashboard.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/admin_messages.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/analytics.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/announcements.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/archive.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/auditlog.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/bookingrequest.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/generate_bills.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/maintenancerequests.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/notification_delivery.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/parking.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/parkinginventory.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/parking_configuration.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/pending_accounts.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/registeredvehicles.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/reports.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/residents.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/scanner.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/service_requests.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/staff.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/unitpayments.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/units.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/violations.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "superadmin/visitorlog.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "treasurer/treasurer_dashboard.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "webhooks/paymongo_webhook.php",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/animations.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/archive.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/audit-log.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/billing-workspace.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/celandine-intro.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/digital-id-verify.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/digital-id.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/edit-profile.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/history-search.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/job-reports.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/loading-ui.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/maintenance-workspace.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/management-dashboard.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/parking-workspace.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/permit-pass-download.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/profile-avatar.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/profile-photo-editor.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/report-workspace.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/resident-service-pass.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/security-dashboard.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/system-analytics.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/theme.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/ui-components.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/violation-workspace.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/visitor-parking.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/visitor-pass-download.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/workspace-tabs.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "file": "assets/js/workspace.js",
+    "status": 0,
+    "error": ""
+  }
+]

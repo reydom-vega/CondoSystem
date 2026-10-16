@@ -13,7 +13,7 @@ function jrAuditCatalog(): array {
         'unit'=>['Units','Unit record',['create','update','delete','assign','mark_vacant']],
         'parking_request'=>['Parking','Parking request',['approve','reject','cancel','reassign']],
         'parking_extension'=>['Parking','Parking extension',['approved','rejected','cancel']],
-        'parking_slot'=>['Parking','Parking slot',['create','assign','reassign','release','update_status']],
+        'parking_slot'=>['Parking','Parking slot',['create','assign','reassign','release','update_status','update']],
         'parking_sticker'=>['Parking','Parking sticker',['issue','sticker_issued','revoke']],
         'parking_inventory'=>['Parking','Parking inventory',['import']],
         'parking_policy'=>['Parking','Parking policy',['configure']],

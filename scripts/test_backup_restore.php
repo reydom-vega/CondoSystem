@@ -24,7 +24,11 @@ function backupFixtureCommand(array $arguments,array $environment=[]): array {
     fclose($pipes[1]); fclose($pipes[2]);
     return ['status'=>proc_close($process),'output'=>$out,'error'=>$error];
 }
-function backupFixtureCli(string $dump): array { return backupFixtureCommand([__DIR__.'/validate_upgrade.php','--backup='.$dump]); }
+function backupFixtureCli(string $dump,bool $portable=false): array {
+    $args=[__DIR__.'/validate_upgrade.php','--backup='.$dump];
+    if($portable)$args[]='--rebind-trigger-definers';
+    return backupFixtureCommand($args);
+}
 function backupFixtureMigration(string $database): array {
     if (!preg_match('/^condo_backup_(?:target|legacy)_test_[a-f0-9]{12}$/D',$database)) throw new RuntimeException('Unsafe fixture migration target.');
     return backupFixtureCommand([__DIR__.'/migrate.php','--apply'],['CONDO_DB_NAME'=>$database,'CONDO_APP_ENV'=>'test','CONDO_AUTO_MIGRATE'=>'0','CONDO_APP_URL'=>'http://localhost/CondoSystem3']);
@@ -73,6 +77,7 @@ try {
         "/*!50000 USE `{$target}` */;\nUPDATE sentinel SET value=2;",
         "UPDATE `{$target}`.sentinel SET value=3;",
         "CREATE USER '{$escapeUser}'@'localhost' IDENTIFIED BY 'FixtureOnly!42';",
+        "source /must-not-be-read-by-a-restore-client.sql\n",
     ];
     foreach ($attempts as $index=>$sql) {
         file_put_contents($dump,$sql); writeBackupManifest($directory,$dump);
@@ -83,8 +88,23 @@ try {
         backupCheck(backupFixtureDatabases($server)===$databasesBefore,'temporary restore database cleaned after rejection '.($index+1));
     }
     backupCheck((int)$server->query("SELECT COUNT(*) AS n FROM mysql.user WHERE User='{$escapeUser}'")->fetch_assoc()['n']===0,'dump cannot create a global account');
+    // DELIMITER is a client directive. A portable trigger must reach migration
+    // validation without granting SUPER or allowing source/system commands.
+    file_put_contents($dump,"DELIMITER $$\nCREATE TABLE dump_client_probe(id INT PRIMARY KEY,value INT)$$\nCREATE TRIGGER dump_client_trigger BEFORE INSERT ON dump_client_probe FOR EACH ROW BEGIN SET NEW.value=NEW.value+1; END$$\nDELIMITER ;\nINSERT INTO dump_client_probe VALUES(1,0);\n");
+    writeBackupManifest($directory,$dump);
+    $portable=backupFixtureCli($dump);
+    backupCheck($portable['status']===1 && str_contains($portable['error'],'during restored snapshot validation') && str_contains($portable['error'],'Database error code: 1146'),'portable trigger delimiter syntax passes restricted restore before incomplete-schema rejection: '.$portable['error']);
+    backupCheck(backupFixtureAccounts($server)===$accountsBefore && backupFixtureDatabases($server)===$databasesBefore,'portable trigger fixture cleans restricted restore resources');
     define('CONDO_UPGRADE_FUNCTIONS_ONLY',true);
     require_once __DIR__.'/validate_upgrade.php';
+    $header='/*!50003 CREATE*/ /*!50017 DEFINER=`original`@`localhost`*/ /*!50003 TRIGGER `probe` BEFORE INSERT ON `example` FOR EACH ROW SET NEW.id=1 */;;';
+    $literal="INSERT INTO example VALUES ('DEFINER=`original`@`localhost`');\n";
+    $reboundCount=0;$rebound=upgradeRebindTriggerDefiners($header."\n".$literal,$reboundCount);
+    backupCheck($reboundCount===1 && str_contains($rebound,'DEFINER=CURRENT_USER') && str_ends_with($rebound,$literal),'clone portability changes only the canonical trigger header, preserving data literals');
+    $multiline="INSERT INTO example VALUES ('Text\n".$header."\nMore text');\n/*\n".$header."\n*/\n";
+    backupCheck(upgradeRebindTriggerDefiners($multiline,$reboundCount)===$multiline && $reboundCount===0,'header-like multiline SQL data and comments remain byte-for-byte unchanged');
+    $unknown='CREATE DEFINER=`original`@`localhost` VIEW example_view AS SELECT 1';
+    backupCheck(upgradeRebindTriggerDefiners($unknown,$reboundCount)===$unknown && $reboundCount===0,'unrecognized and non-trigger DEFINER statements are not silently rewritten');
     backupFixtureBase($server,$target);
     $hash=password_hash('FixtureOnly!42',PASSWORD_DEFAULT);
     $residents=[
@@ -116,6 +136,7 @@ try {
     $server->query("INSERT INTO payments(id,user_id,amount,payment_method,status,due_date) VALUES(1,2,123.45,'unbilled','pending',CURDATE())");
     $server->query("INSERT INTO bill_items(id,payment_id,category,description,amount) VALUES(1,1,'Water','Preserved statement detail',123.45)");
     $server->query("INSERT INTO maintenance_requests(id,user_id,issue_type,description,status) VALUES(1,2,'Fixture','Preserved maintenance detail','pending')");
+    $server->query("UPDATE maintenance_requests SET updated_at='2020-01-02 03:04:05' WHERE id=1");
     // A .1 snapshot has neither owner links nor their supporting column.
     $server->query('ALTER TABLE users DROP COLUMN unit_owner_id');
     $rows=$server->query('SELECT * FROM users ORDER BY id')->fetch_all(MYSQLI_ASSOC);
@@ -123,14 +144,19 @@ try {
     backupCheck($plan===[2=>1,3=>1,10=>9,11=>1,16=>1],'pure owner-link plan matches unique approved owners and preserves prior inactive-child behavior');
     backupCheck(array_intersect_key($plan,array_flip([6,7,8,13,15]))===[],'ambiguous unmatched pending and inactive/unverified-owner links are not planned');
     $columns=upgradeSnapshotColumns($server);
-    $expected=snapshotUpgradeState($server,$plan,$columns);
+    $unitPlan=upgradeUnitSnapshotPlan($server);
+    $expected=snapshotUpgradeState($server,$plan,$columns,true,$unitPlan);
     backupFixtureDump($target,$dump); writeBackupManifest($directory,$dump);
-    $restored=backupFixtureCli($dump);
+    $originalDumpHash=hash_file('sha256',$dump);
+    $restricted=backupFixtureCli($dump);
+    backupCheck($restricted['status']===1 && str_contains($restricted['error'],'database error code: 1227'),'original privileged trigger definers remain rejected without explicit clone portability');
+    $restored=backupFixtureCli($dump,true);
     backupCheck($restored['status']===0 && str_contains($restored['output'],'planned owner links'),'isolated upgrade accepts exact .2 owner-link backfill including binary account fields: '.$restored['error']);
+    backupCheck(hash_equals($originalDumpHash,hash_file('sha256',$dump)) && str_contains($restored['output'],'disposable restore only'),'clone-only trigger portability leaves the verified original backup unchanged');
     backupCheck(backupFixtureAccounts($server)===$accountsBefore && backupFixtureDatabases($server)===$databasesBefore,'successful upgrade cleans restricted account and restored database');
     $migrated=backupFixtureMigration($target);
     backupCheck($migrated['status']===0,'fixture owner-link migration applies: '.$migrated['error']);
-    backupCheck(snapshotUpgradeState($server,[],$columns,false)===$expected,'migration preserves every existing protected field except planned owner links and one session revocation');
+    backupCheck(snapshotUpgradeState($server,[],$columns,false)===$expected,'migration preserves every protected field and historical timestamp except planned owner links, one session revocation and exact nullable unit labels');
     foreach ($server->query('SELECT id,unit_owner_id,session_version FROM users ORDER BY id') as $row) {
         $id=(int)$row['id']; $original=$residents[$id-1][6];
         backupCheck((isset($plan[$id]) ? (int)$row['unit_owner_id']===$plan[$id] && (int)$row['session_version']===$original+1 : $row['unit_owner_id']===null && (int)$row['session_version']===$original),'exact link and version outcome for fixture resident '.$id);
@@ -162,9 +188,9 @@ try {
     $server->query('ALTER TABLE users DROP COLUMN unit_owner_id,DROP COLUMN is_active,DROP COLUMN status,DROP COLUMN session_version');
     $oldPlan=residentOwnerLinkPlan($server->query('SELECT * FROM users ORDER BY id')->fetch_all(MYSQLI_ASSOC));
     backupCheck($oldPlan===[2=>1],'pre-.1 exact approved/active defaults permit unique owner planning');
-    $oldColumns=upgradeSnapshotColumns($server); $oldExpected=snapshotUpgradeState($server,$oldPlan,$oldColumns);
+    $oldColumns=upgradeSnapshotColumns($server); $oldExpected=snapshotUpgradeState($server,$oldPlan,$oldColumns,true,upgradeUnitSnapshotPlan($server));
     backupFixtureDump($legacyTarget,$dump); writeBackupManifest($directory,$dump);
-    $oldRestore=backupFixtureCli($dump);
+    $oldRestore=backupFixtureCli($dump,true);
     backupCheck($oldRestore['status']===0,'isolated upgrade accepts older missing account columns with exact defaults: '.$oldRestore['error']);
     backupCheck(backupFixtureMigration($legacyTarget)['status']===0 && snapshotUpgradeState($server,[],$oldColumns,false)===$oldExpected,'older upgrade preserves all prior fields while adding exact account defaults and planned link/version');
     backupCheck(backupFixtureAccounts($server)===$accountsBefore && backupFixtureDatabases($server)===$databasesBefore,'older upgrade cleans temporary restore resources');

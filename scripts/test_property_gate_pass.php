@@ -28,9 +28,10 @@ try {
     $db->query("CREATE TABLE resident_service_requests (id INT AUTO_INCREMENT PRIMARY KEY,user_id INT NOT NULL,request_kind ENUM('visitor','permit') NOT NULL,permit_type VARCHAR(30) DEFAULT NULL,visitor_name VARCHAR(120) DEFAULT NULL,visitor_contact VARCHAR(30) DEFAULT NULL,details VARCHAR(500) NOT NULL,start_date DATE NOT NULL,end_date DATE NOT NULL,status ENUM('pending','approved','rejected','cancelled','checked_in','checked_out') NOT NULL DEFAULT 'pending',access_token CHAR(64) NOT NULL UNIQUE,admin_notes VARCHAR(500) DEFAULT NULL,decided_by INT DEFAULT NULL,decided_at DATETIME DEFAULT NULL,visitor_log_id INT DEFAULT NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB");
     $db->query("INSERT INTO resident_service_requests(user_id,request_kind,permit_type,details,start_date,end_date,status,access_token) VALUES(1,'permit','Move-in','Pre-upgrade record',CURDATE(),CURDATE(),'approved',REPEAT('c',64))");
     $original=$db->query('SELECT * FROM resident_service_requests WHERE id=1')->fetch_assoc();
-    ensureResidentServicesTables($db);
+    ensureResidentServicesTables($db); ensureVisitorLogsTable($db);
     $upgraded=$db->query('SELECT * FROM resident_service_requests WHERE id=1')->fetch_assoc();
     gateCheck(array_intersect_key($upgraded,$original)===$original && $upgraded['gate_data']===null,'upgrade preserves every field of an existing approved permit');
+    gateCheck(array_key_exists('unit_number_snapshot',$upgraded) && $upgraded['unit_number_snapshot']===null,'legacy unit snapshot is added without inventing historical unit data');
     $db->query("UPDATE users SET account_type='Tenant',unit_owner_id=1 WHERE id=2");
     // Repeatable upgrades preserve the original enum values and pre-existing requests.
     gateActor(1); $legacy=createResidentServiceRequest($db,1,'permit',['permit_type'=>'Delivery','details'=>'Legacy request','start_date'=>date('Y-m-d')]);

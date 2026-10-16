@@ -1,0 +1,96 @@
+{
+    "after": {
+        "users": {
+            "rows": 11,
+            "sha256": "2daa9a2870e919d1ef74d95255379969582e0443602e623794be34e4976e9b37"
+        },
+        "payments": {
+            "rows": 35,
+            "sha256": "cafc9c543b137150cf2c3bade61dc42a7323150de87e650222a403911c5261e3"
+        },
+        "bill_items": {
+            "rows": 100,
+            "sha256": "f8a9861929855f2f010d2dc7eae7aaf5e1b45bb6efd755e8c255b82ccf3bdba5"
+        },
+        "parking_requests": {
+            "rows": 8,
+            "sha256": "5b569813a71a52800a8cf0f977ac8be400fc7a6ba8aa2de1f3918faf2ffeea05"
+        },
+        "parking_slots": {
+            "rows": 800,
+            "sha256": "2258222152f6dcc6b6c4707694ea4cf9b70ffb307865c21f881b404be3c47579"
+        },
+        "vehicles": {
+            "rows": 1,
+            "sha256": "3b5729abcb05403af61875b12aafaa007703cd670a9cc9f2e7cebe03dd5df5ac"
+        },
+        "parking_sticker_orders": {
+            "rows": 7,
+            "sha256": "dadec264073fa87fb54c5d14ec8f7df236d76012a3f1588ed75fa19318d4ec3d"
+        },
+        "account_archive_events": {
+            "rows": 3,
+            "sha256": "11279ba67825f6b4b45f930f9565d44369afe018bcd9fe93733e0879589084d7"
+        },
+        "audit_logs": {
+            "rows": 888,
+            "sha256": "bb35874839d3e68fbac5651c943d21876dc79f2d90eee893087a192dd81ba007"
+        },
+        "job_reports": {
+            "rows": 1,
+            "sha256": "e8b99345f37213fc90f0a2fca56d9fe980e2f6d72566a8e6ea5d181df0354431"
+        }
+    },
+    "comparison": {
+        "users": {
+            "before_rows": 11,
+            "after_rows": 11,
+            "hash_unchanged": false
+        },
+        "payments": {
+            "before_rows": 35,
+            "after_rows": 35,
+            "hash_unchanged": false
+        },
+        "bill_items": {
+            "before_rows": 100,
+            "after_rows": 100,
+            "hash_unchanged": true
+        },
+        "parking_requests": {
+            "before_rows": 8,
+            "after_rows": 8,
+            "hash_unchanged": true
+        },
+        "parking_slots": {
+            "before_rows": 800,
+            "after_rows": 800,
+            "hash_unchanged": true
+        },
+        "vehicles": {
+            "before_rows": 1,
+            "after_rows": 1,
+            "hash_unchanged": true
+        },
+        "parking_sticker_orders": {
+            "before_rows": 7,
+            "after_rows": 7,
+            "hash_unchanged": true
+        },
+        "account_archive_events": {
+            "before_rows": 3,
+            "after_rows": 3,
+            "hash_unchanged": true
+        },
+        "audit_logs": {
+            "before_rows": 876,
+            "after_rows": 888,
+            "hash_unchanged": false
+        },
+        "job_reports": {
+            "before_rows": 1,
+            "after_rows": 1,
+            "hash_unchanged": true
+        }
+    }
+}

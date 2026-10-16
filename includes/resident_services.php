@@ -26,6 +26,9 @@ function ensureResidentServicesTables(mysqli $db): bool {
         INDEX(request_kind, start_date, end_date),
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")) return false;
+    // Older installations predate the unit snapshot used by all new requests.
+    $snapshot = $db->query("SHOW COLUMNS FROM resident_service_requests LIKE 'unit_number_snapshot'");
+    if (!$snapshot || (!$snapshot->num_rows && !$db->query("ALTER TABLE resident_service_requests ADD unit_number_snapshot VARCHAR(30) DEFAULT NULL"))) return false;
     $column = $db->query("SHOW COLUMNS FROM resident_service_requests LIKE 'visitor_count'");
     return $column && ($column->num_rows > 0 || $db->query("ALTER TABLE resident_service_requests ADD visitor_count SMALLINT UNSIGNED NOT NULL DEFAULT 1 AFTER visitor_contact") === true) && ensurePropertyGateSchema($db) && ensureVisitorIdentitySchema($db);
 }

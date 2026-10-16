@@ -1,0 +1,23 @@
+{
+  "session_cookie_flags": [
+    {
+      "Secure": true,
+      "HttpOnly": true,
+      "SameSite_Lax": true
+    }
+  ],
+  "homepage.css": {
+    "status": 200,
+    "matches_workspace": false
+  },
+  "assets/js/celandine-intro.js": {
+    "status": 404
+  },
+  "assets/css/resident-dashboard.css": {
+    "status": 404
+  },
+  "assets/js/archive.js": {
+    "status": 404
+  },
+  "key_pattern_history_candidates": []
+}

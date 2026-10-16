@@ -1,0 +1,389 @@
+{
+  "files_reviewed": 305,
+  "literal_asset_references": [
+    {
+      "source": "homepage.css",
+      "line": 52,
+      "reference": "assets/homepage/main-building.jpg",
+      "resolved": "assets/homepage/main-building.jpg",
+      "exact_case": true
+    },
+    {
+      "source": "homepage.css",
+      "line": 181,
+      "reference": "assets/homepage/main-building.jpg",
+      "resolved": "assets/homepage/main-building.jpg",
+      "exact_case": true
+    },
+    {
+      "source": "homepage.php",
+      "line": 51,
+      "reference": "assets/homepage/main-building.jpg",
+      "resolved": "assets/homepage/main-building.jpg",
+      "exact_case": true
+    },
+    {
+      "source": "homepage.php",
+      "line": 84,
+      "reference": "assets/homepage/main-building.jpg",
+      "resolved": "assets/homepage/main-building.jpg",
+      "exact_case": true
+    },
+    {
+      "source": "homepage.php",
+      "line": 85,
+      "reference": "assets/homepage/interior-lobby.jpg",
+      "resolved": "assets/homepage/interior-lobby.jpg",
+      "exact_case": true
+    },
+    {
+      "source": "homepage.php",
+      "line": 86,
+      "reference": "assets/amenities/amenity-gazebo.jpg",
+      "resolved": "assets/amenities/amenity-gazebo.jpg",
+      "exact_case": true
+    },
+    {
+      "source": "login.php",
+      "line": 75,
+      "reference": "js/page-transition.js?v=2",
+      "resolved": "js/page-transition.js",
+      "exact_case": true
+    },
+    {
+      "source": "login.php",
+      "line": 198,
+      "reference": "IMAGES/images.jpg",
+      "resolved": "IMAGES/images.jpg",
+      "exact_case": true
+    },
+    {
+      "source": "login.php",
+      "line": 199,
+      "reference": "IMAGES/ThePatio.webp",
+      "resolved": "IMAGES/ThePatio.webp",
+      "exact_case": true
+    },
+    {
+      "source": "login.php",
+      "line": 200,
+      "reference": "IMAGES/TheLobby.webp",
+      "resolved": "IMAGES/TheLobby.webp",
+      "exact_case": true
+    },
+    {
+      "source": "login.php",
+      "line": 201,
+      "reference": "IMAGES/TheLounge.webp",
+      "resolved": "IMAGES/TheLounge.webp",
+      "exact_case": true
+    },
+    {
+      "source": "login.php",
+      "line": 202,
+      "reference": "IMAGES/TheGardens.webp",
+      "resolved": "IMAGES/TheGardens.webp",
+      "exact_case": true
+    },
+    {
+      "source": "login.php",
+      "line": 203,
+      "reference": "IMAGES/ThePool.webp",
+      "resolved": "IMAGES/ThePool.webp",
+      "exact_case": true
+    },
+    {
+      "source": "login.php",
+      "line": 204,
+      "reference": "IMAGES/TheEntranceGate.webp",
+      "resolved": "IMAGES/TheEntranceGate.webp",
+      "exact_case": true
+    },
+    {
+      "source": "login.php",
+      "line": 205,
+      "reference": "IMAGES/TheCourt.webp",
+      "resolved": "IMAGES/TheCourt.webp",
+      "exact_case": true
+    },
+    {
+      "source": "resident.css",
+      "line": 46,
+      "reference": "IMAGES/images.jpg",
+      "resolved": "IMAGES/images.jpg",
+      "exact_case": true
+    },
+    {
+      "source": "security.css",
+      "line": 46,
+      "reference": "IMAGES/images.jpg",
+      "resolved": "IMAGES/images.jpg",
+      "exact_case": true
+    },
+    {
+      "source": "styles.css",
+      "line": 46,
+      "reference": "IMAGES/images.jpg",
+      "resolved": "IMAGES/images.jpg",
+      "exact_case": true
+    },
+    {
+      "source": "includes/property_gate_pass_page.php",
+      "line": 23,
+      "reference": "js/permit-requests.js",
+      "resolved": "js/permit-requests.js",
+      "exact_case": true
+    },
+    {
+      "source": "includes/qr_scanner_page.php",
+      "line": 94,
+      "reference": "../js/profile-menu.js",
+      "resolved": "js/profile-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "includes/qr_scanner_page.php",
+      "line": 95,
+      "reference": "../js/notification-menu.js",
+      "resolved": "js/notification-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "includes/qr_scanner_page.php",
+      "line": 97,
+      "reference": "../js/services-menu.js",
+      "resolved": "js/services-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "includes/resident_services_page.php",
+      "line": 103,
+      "reference": "../assets/js/workspace-tabs.js",
+      "resolved": "assets/js/workspace-tabs.js",
+      "exact_case": true
+    },
+    {
+      "source": "includes/resident_services_page.php",
+      "line": 104,
+      "reference": "../assets/js/history-search.js",
+      "resolved": "assets/js/history-search.js",
+      "exact_case": true
+    },
+    {
+      "source": "includes/resident_services_page.php",
+      "line": 145,
+      "reference": "../js/services-menu.js",
+      "resolved": "js/services-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "includes/resident_services_page.php",
+      "line": 145,
+      "reference": "../js/profile-menu.js",
+      "resolved": "js/profile-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "includes/resident_services_page.php",
+      "line": 145,
+      "reference": "../js/notification-menu.js",
+      "resolved": "js/notification-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "includes/vehicle_registry_page.php",
+      "line": 66,
+      "reference": "../js/services-menu.js",
+      "resolved": "js/services-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "includes/vehicle_registry_page.php",
+      "line": 66,
+      "reference": "../js/profile-menu.js",
+      "resolved": "js/profile-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "includes/vehicle_registry_page.php",
+      "line": 66,
+      "reference": "../js/notification-menu.js",
+      "resolved": "js/notification-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "maintenance/maintenance_dashboard.php",
+      "line": 155,
+      "reference": "../js/live-updates.js",
+      "resolved": "js/live-updates.js",
+      "exact_case": true
+    },
+    {
+      "source": "resident/book_amenity.php",
+      "line": 177,
+      "reference": "../js/services-menu.js",
+      "resolved": "js/services-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "resident/book_amenity.php",
+      "line": 177,
+      "reference": "../js/profile-menu.js",
+      "resolved": "js/profile-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "resident/book_amenity.php",
+      "line": 177,
+      "reference": "../js/notification-menu.js",
+      "resolved": "js/notification-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "resident/maintenance.php",
+      "line": 127,
+      "reference": "../assets/js/maintenance-workspace.js",
+      "resolved": "assets/js/maintenance-workspace.js",
+      "exact_case": true
+    },
+    {
+      "source": "resident/messages.php",
+      "line": 406,
+      "reference": "../js/message-image-viewer.js",
+      "resolved": "js/message-image-viewer.js",
+      "exact_case": true
+    },
+    {
+      "source": "resident/messages.php",
+      "line": 407,
+      "reference": "../js/live-updates.js",
+      "resolved": "js/live-updates.js",
+      "exact_case": true
+    },
+    {
+      "source": "superadmin/admin_messages.php",
+      "line": 367,
+      "reference": "../js/message-image-viewer.js",
+      "resolved": "js/message-image-viewer.js",
+      "exact_case": true
+    },
+    {
+      "source": "superadmin/admin_messages.php",
+      "line": 368,
+      "reference": "../js/live-updates.js",
+      "resolved": "js/live-updates.js",
+      "exact_case": true
+    },
+    {
+      "source": "superadmin/archive.php",
+      "line": 53,
+      "reference": "../js/services-menu.js",
+      "resolved": "js/services-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "superadmin/archive.php",
+      "line": 53,
+      "reference": "../js/profile-menu.js",
+      "resolved": "js/profile-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "superadmin/archive.php",
+      "line": 53,
+      "reference": "../js/notification-menu.js",
+      "resolved": "js/notification-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "superadmin/bookingrequest.php",
+      "line": 41,
+      "reference": "../assets/js/history-search.js",
+      "resolved": "assets/js/history-search.js",
+      "exact_case": true
+    },
+    {
+      "source": "superadmin/bookingrequest.php",
+      "line": 91,
+      "reference": "../js/services-menu.js",
+      "resolved": "js/services-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "superadmin/bookingrequest.php",
+      "line": 91,
+      "reference": "../js/profile-menu.js",
+      "resolved": "js/profile-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "superadmin/bookingrequest.php",
+      "line": 91,
+      "reference": "../js/notification-menu.js",
+      "resolved": "js/notification-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "superadmin/maintenancerequests.php",
+      "line": 139,
+      "reference": "../assets/js/maintenance-workspace.js",
+      "resolved": "assets/js/maintenance-workspace.js",
+      "exact_case": true
+    },
+    {
+      "source": "superadmin/notification_delivery.php",
+      "line": 45,
+      "reference": "../js/services-menu.js",
+      "resolved": "js/services-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "superadmin/staff.php",
+      "line": 648,
+      "reference": "../assets/js/workspace-tabs.js",
+      "resolved": "assets/js/workspace-tabs.js",
+      "exact_case": true
+    },
+    {
+      "source": "superadmin/staff.php",
+      "line": 778,
+      "reference": "../js/profile-menu.js",
+      "resolved": "js/profile-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "superadmin/staff.php",
+      "line": 779,
+      "reference": "../js/notification-menu.js",
+      "resolved": "js/notification-menu.js",
+      "exact_case": true
+    },
+    {
+      "source": "superadmin/visitorlog.php",
+      "line": 103,
+      "reference": "../assets/js/workspace-tabs.js",
+      "resolved": "assets/js/workspace-tabs.js",
+      "exact_case": true
+    },
+    {
+      "source": "assets/css/branding.css",
+      "line": 1,
+      "reference": "../fonts/cinzel/Cinzel-Regular.ttf",
+      "resolved": "assets/fonts/cinzel/Cinzel-Regular.ttf",
+      "exact_case": true
+    },
+    {
+      "source": "assets/css/branding.css",
+      "line": 66,
+      "reference": "../../celandineorange.svg",
+      "resolved": "celandineorange.svg",
+      "exact_case": true
+    }
+  ],
+  "missing_assets": [],
+  "case_mismatches": [],
+  "dynamic_references": 265,
+  "local_url_references": [],
+  "large_images": [],
+  "secret_candidates": []
+}
